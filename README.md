@@ -221,10 +221,10 @@ The `msDS-SupportedEncryptionTypes` attribute is a **computer-based setting only
 - **Audit Focus**: Concentrate on computer objects and domain trust relationships
 - **Remediation**: Fix computer encryption settings, not user settings
 
-The script displays encryption types for each flagged object:
+## Understanding the Output
 
+The script displays encryption types for each flagged computer object:
 - **Not Set (RC4 fallback)**: No encryption types specified, defaults to RC4
-- **RC4-HMAC**: RC4 encryption is explicitly enabled
 - **AES128-CTS-HMAC-SHA1-96**: Strong AES 128-bit encryption
 - **AES256-CTS-HMAC-SHA1-96**: Strong AES 256-bit encryption
 
@@ -331,16 +331,18 @@ The script automatically checks for existing Kerberos encryption Group Policy se
 
 #### GPO Application Status Analysis
 
-The script provides detailed categorization of encryption settings:
+The script provides detailed categorization of encryption settings for computer objects:
 
-- **GPO Applied (AES-only)**: Objects with `msDS-SupportedEncryptionTypes = 24` (AES128+AES256)
-- **Manual Settings (custom)**: Objects with non-standard encryption values (not 24) 
-- **Not Set (RC4 fallback)**: Objects without `msDS-SupportedEncryptionTypes` attribute
+- **GPO Applied (AES-only)**: Computer objects with `msDS-SupportedEncryptionTypes = 24` (AES128+AES256)
+- **Manual Settings (custom)**: Computer objects with non-standard encryption values (not 24) 
+- **Not Set (RC4 fallback)**: Computer objects without `msDS-SupportedEncryptionTypes` attribute
 
 This analysis helps you understand:
-- How effectively your GPO policies are being applied
-- Which objects have been manually configured with custom encryption settings
-- Which objects are at risk due to undefined encryption types
+- How effectively your GPO policies are being applied to computer objects
+- Which computer objects have been manually configured with custom encryption settings
+- Which computer objects are at risk due to undefined encryption types
+
+**Note**: User objects are not included in this analysis as they don't use the `msDS-SupportedEncryptionTypes` attribute.
 
 ### Understanding GPO Link Details
 
@@ -703,7 +705,7 @@ $results | Export-Csv ".\RC4_Audit_Results.csv" -NoTypeInformation -Encoding UTF
 ### CSV File Contents
 The exported CSV includes:
 - **Domain**: Domain name where the object is located
-- **ObjectType**: User, Computer, or Trust
+- **ObjectType**: Computer or Trust (User objects are not scanned)
 - **Name**: Object name (SamAccountName or Trust name)
 - **DN**: Distinguished Name of the object
 - **EncTypes**: Current encryption types in human-readable format

@@ -19,6 +19,8 @@ RC4 is a deprecated encryption algorithm that is considered cryptographically we
 - **Forest-wide scanning**: Automatically discovers and scans all domains in the forest
 - **Comprehensive object coverage**: Audits Users, Computers, and Domain Trusts
 - **Detailed reporting**: Shows current encryption types for each flagged object
+- **Clear success/failure feedback**: Displays appropriate messages when no issues are found vs. when problems are detected
+- **Windows Server 2025 compatibility warnings**: Alerts for objects that will fail authentication on Server 2025 DCs
 - **Optional remediation**: Interactive mode to fix issues by setting AES-only encryption
 - **Export capability**: Results can be exported to CSV for further analysis
 
@@ -55,10 +57,31 @@ Run with interactive remediation prompts:
 .\RC4_AD_SCAN.ps1 -ApplyFixes
 ```
 
+### Export Results
+
+Export audit results to a timestamped CSV file:
+
+```powershell
+.\RC4_AD_SCAN.ps1 -ExportResults
+```
+
+### Combined Operations
+
+Run remediation and export results:
+
+```powershell
+.\RC4_AD_SCAN.ps1 -ApplyFixes -ExportResults
+```
+
 When using `-ApplyFixes`, the script will:
 - Prompt for each object that needs remediation
 - Allow you to choose whether to fix each individual object
 - Apply AES-only encryption settings (value 24 = 0x18)
+
+When using `-ExportResults`, the script will:
+- Create a timestamped CSV file with all audit results
+- Save the file in the current directory with format: `RC4_Audit_Results_YYYYMMDD_HHMMSS.csv`
+- Display the export path upon completion
 
 ## Understanding the Output
 
@@ -80,6 +103,23 @@ The `msDS-SupportedEncryptionTypes` attribute uses bitwise flags:
 - `0x20` - Future use
 
 Recommended setting: `24` (0x18) = AES128 + AES256
+
+## Windows Server 2025 Compatibility
+
+**Critical Update**: Windows Server 2025 introduces significant changes to Kerberos encryption handling:
+
+### RC4 Fallback Mechanism Disabled
+- Windows Server 2025 domain controllers **disable RC4 fallback by default**
+- Objects with undefined `msDS-SupportedEncryptionTypes` will **fail authentication**
+- This affects objects that previously relied on automatic RC4 fallback
+
+### Migration Timeline
+- **Immediate Action Required**: Audit all objects before upgrading to Server 2025
+- **Test Environment**: Validate encryption settings in non-production first
+- **Production Planning**: Set explicit AES encryption for all objects
+
+### Identifying At-Risk Objects
+This script specifically identifies objects showing **"Not Set (RC4 fallback)"** which will be affected by Server 2025 changes. These objects require immediate attention to prevent authentication failures.
 
 ## Group Policy Configuration
 
@@ -172,22 +212,64 @@ If you still see RC4-HMAC encryption types after remediation, it indicates that 
 
 ## Sample Output
 
+### When No Issues Are Found
 ```
 Scanning domain: contoso.com
+
+✅ AUDIT COMPLETE: No objects with RC4 encryption or weak settings found!
+All objects in the forest are using strong AES encryption.
+```
+
+### When Issues Are Detected
+```
+Scanning domain: contoso.com
+
+⚠️  AUDIT RESULTS: Found 3 object(s) with weak encryption settings:
+
 Domain      ObjectType Name           EncTypes
 ------      ---------- ----           --------
 contoso.com User       john.doe       RC4-HMAC
 contoso.com Computer   WORKSTATION1$  Not Set (RC4 fallback)
 contoso.com Trust      subdomain      RC4-HMAC
+
+🚨 CRITICAL WARNING - Windows Server 2025 Compatibility:
+Found 1 object(s) with undefined encryption types (msDS-SupportedEncryptionTypes not set).
+Windows Server 2025 disables the RC4 fallback mechanism by default.
+These objects will experience authentication failures on Windows Server 2025 domain controllers!
+
+RECOMMENDATION:
+- Run this script with -ApplyFixes to set AES encryption (value 24)
+- Or configure via Group Policy: 'Network security: Configure encryption types allowed for Kerberos'
+- Test thoroughly before deploying to production environments
+
+📄 Results exported to: .\RC4_Audit_Results_20251028_143025.csv
 ```
 
 ## Exporting Results
 
-Uncomment the last line in the script to export results to CSV:
+### Automatic Export with Switch
+Use the `-ExportResults` parameter to automatically export results:
+
+```powershell
+.\RC4_AD_SCAN.ps1 -ExportResults
+```
+
+This creates a timestamped CSV file: `RC4_Audit_Results_YYYYMMDD_HHMMSS.csv`
+
+### Manual Export (Legacy)
+Alternatively, uncomment the last line in the script for manual export:
 
 ```powershell
 $results | Export-Csv ".\RC4_Audit_Results.csv" -NoTypeInformation -Encoding UTF8
 ```
+
+### CSV File Contents
+The exported CSV includes:
+- **Domain**: Domain name where the object is located
+- **ObjectType**: User, Computer, or Trust
+- **Name**: Object name (SamAccountName or Trust name)
+- **DN**: Distinguished Name of the object
+- **EncTypes**: Current encryption types in human-readable format
 
 ## Security Considerations
 

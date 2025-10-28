@@ -86,7 +86,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 2.7
+  Version: 2.8
   Created: October 2025
   Updated: October 2025
   
@@ -1038,15 +1038,22 @@ foreach ($domain in $forest.Domains) {
     $domainTrustRC4Count = 0
     
     # Trusts
-    Get-ADTrust -Filter * -Properties msDS-SupportedEncryptionTypes @domainParams |
+    Get-ADTrust -Filter * -Properties msDS-SupportedEncryptionTypes, Direction, TrustType @domainParams |
     ForEach-Object {
         $domainTrustCount++
         $trustTotal++
+        
+        if ($Debug) {
+            Write-Host "    🔍 Found trust: $($_.Name) | Type: $($_.TrustType) | Direction: $($_.Direction) | DN: $($_.DistinguishedName)" -ForegroundColor Gray
+        }
         
         $enc = $_."msDS-SupportedEncryptionTypes"
         if (-not $enc -or ($enc -band 0x4)) {
             $domainTrustRC4Count++
             $trustRC4Count++
+            
+            Write-Host "    ⚠️  Trust '$($_.Name)' has weak encryption: $(Get-EncryptionTypes $enc)" -ForegroundColor Yellow
+            Write-Host "       Type: $($_.TrustType) | Direction: $($_.Direction)" -ForegroundColor Gray
             
             $obj = [PSCustomObject]@{
                 Domain     = $domain
@@ -1054,6 +1061,8 @@ foreach ($domain in $forest.Domains) {
                 Name       = $_.Name
                 DN         = $_.DistinguishedName
                 EncTypes   = Get-EncryptionTypes $enc
+                TrustType  = $_.TrustType
+                Direction  = $_.Direction
             }
             $results += $obj
 
@@ -1070,6 +1079,11 @@ foreach ($domain in $forest.Domains) {
                         Write-Host "    💡 Alternative: Set-ADObject -Identity '$($_.DistinguishedName)' -Add @{msDS-SupportedEncryptionTypes=24}" -ForegroundColor Yellow
                     }
                 }
+            }
+        }
+        else {
+            if ($Debug) {
+                Write-Host "    ✅ Trust '$($_.Name)' has secure encryption: $(Get-EncryptionTypes $enc)" -ForegroundColor Green
             }
         }
     }
@@ -1115,7 +1129,28 @@ else {
     Write-Host "`nDETAILED RESULTS:" -ForegroundColor White
     $results |
     Sort-Object Domain, ObjectType, Name |
-    Format-Table Domain, ObjectType, Name, EncTypes -AutoSize
+    Format-Table Domain, ObjectType, Name, EncTypes, @{Name="TrustType";Expression={if($_.TrustType){$_.TrustType}else{"N/A"}}}, @{Name="Direction";Expression={if($_.Direction){$_.Direction}else{"N/A"}}} -AutoSize
+    
+    # Show trust type breakdown if trusts were found
+    $trustObjects = $results | Where-Object { $_.ObjectType -eq "Trust" }
+    if ($trustObjects.Count -gt 0) {
+        Write-Host "`n📊 TRUST TYPE BREAKDOWN:" -ForegroundColor Cyan
+        $trustTypes = $trustObjects | Group-Object TrustType | Sort-Object Name
+        foreach ($trustType in $trustTypes) {
+            Write-Host "  • $($trustType.Name): $($trustType.Count) trust(s)" -ForegroundColor White
+            foreach ($trust in $trustType.Group) {
+                Write-Host "    - $($trust.Name) (Direction: $($trust.Direction))" -ForegroundColor Gray
+            }
+        }
+        Write-Host ""
+        Write-Host "💡 TRUST TYPE EXPLANATIONS:" -ForegroundColor Yellow
+        Write-Host "  • TreeRoot: Root domain of forest tree" -ForegroundColor Gray
+        Write-Host "  • ParentChild: Child domain to parent domain" -ForegroundColor Gray
+        Write-Host "  • External: Trust to external domain/forest" -ForegroundColor Gray
+        Write-Host "  • Forest: Forest-level trust relationship" -ForegroundColor Gray
+        Write-Host "  • Shortcut: Shortcut trust for optimization" -ForegroundColor Gray
+        Write-Host "  • Unknown: Unrecognized trust type" -ForegroundColor Gray
+    }
     
     # Check for objects with undefined encryption types (fallback scenario)
     $undefinedObjects = $results | Where-Object { $_.EncTypes -eq "Not Set (RC4 fallback)" }

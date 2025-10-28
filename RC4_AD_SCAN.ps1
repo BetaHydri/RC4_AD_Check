@@ -108,7 +108,7 @@ function Test-Administrator {
 if (-not (Test-Administrator)) {
     Write-Host "❌ ERROR: This script must be run as Administrator!" -ForegroundColor Red
     Write-Host "Required privileges:" -ForegroundColor Yellow
-    Write-Host "- Domain Administrator (for scanning and fixing users/computers)" -ForegroundColor Yellow
+    Write-Host "- Domain Administrator (for scanning and fixing computers)" -ForegroundColor Yellow
     Write-Host "- Enterprise Administrator (for fixing domain trusts)" -ForegroundColor Yellow
     Write-Host "`nPlease restart PowerShell as Administrator and try again." -ForegroundColor Yellow
     exit 1

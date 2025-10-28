@@ -21,6 +21,9 @@
 .PARAMETER SkipGPOCheck
   Switch to skip Group Policy settings verification
 
+.PARAMETER GPOCheckOnly
+  Switch to perform only Group Policy analysis without scanning objects
+
 .PARAMETER GPOScope
   Specify where to check for GPO links: Domain, DomainControllers, or Both (default)
 
@@ -46,6 +49,10 @@
 .EXAMPLE
   .\RC4_AD_SCAN.ps1 -SkipGPOCheck
   Run audit without checking Group Policy settings
+
+.EXAMPLE
+  .\RC4_AD_SCAN.ps1 -GPOCheckOnly
+  Run only Group Policy analysis without scanning objects
 
 .EXAMPLE
   .\RC4_AD_SCAN.ps1 -GPOScope DomainControllers
@@ -79,7 +86,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 2.0
+  Version: 2.1
   Created: October 2025
   Updated: October 2025
   
@@ -91,6 +98,7 @@ param(
     [switch]$ApplyFixes,
     [switch]$ExportResults,
     [switch]$SkipGPOCheck,
+    [switch]$GPOCheckOnly,
     [ValidateSet("Domain", "DomainControllers", "Both")]
     [string]$GPOScope = "Both",
     [switch]$Debug,
@@ -114,7 +122,77 @@ if (-not (Test-Administrator)) {
     exit 1
 }
 
+# Validate parameter combinations
+if ($SkipGPOCheck -and $GPOCheckOnly) {
+    Write-Host "❌ ERROR: Cannot specify both -SkipGPOCheck and -GPOCheckOnly parameters!" -ForegroundColor Red
+    Write-Host "Choose one: either skip GPO checks or perform only GPO checks." -ForegroundColor Yellow
+    exit 1
+}
+
+if ($GPOCheckOnly -and $ApplyFixes) {
+    Write-Host "❌ ERROR: Cannot specify both -GPOCheckOnly and -ApplyFixes parameters!" -ForegroundColor Red
+    Write-Host "GPO-only mode is for analysis purposes and does not modify objects." -ForegroundColor Yellow
+    exit 1
+}
+
 Import-Module ActiveDirectory
+
+function Write-BoxedMessage {
+    param(
+        [string[]]$Messages,
+        [string]$Color = "White"
+    )
+    
+    # Calculate the maximum width needed
+    $maxLength = ($Messages | Measure-Object -Property Length -Maximum).Maximum
+    $boxWidth = [Math]::Max($maxLength + 4, 50)  # Minimum width of 50, or content + padding
+    
+    # Top border
+    Write-Host ("┌" + ("─" * ($boxWidth - 2)) + "┐") -ForegroundColor $Color
+    
+    # Content lines
+    foreach ($message in $Messages) {
+        $padding = " " * ($boxWidth - $message.Length - 3)
+        Write-Host ("│ " + $message + $padding + "│") -ForegroundColor $Color
+    }
+    
+    # Bottom border
+    Write-Host ("└" + ("─" * ($boxWidth - 2)) + "┘") -ForegroundColor $Color
+}
+
+function Write-BoxedMessageWithDivider {
+    param(
+        [string[]]$HeaderMessages,
+        [string[]]$ContentMessages,
+        [string]$Color = "White"
+    )
+    
+    # Calculate the maximum width needed from all messages
+    $allMessages = $HeaderMessages + $ContentMessages
+    $maxLength = ($allMessages | Measure-Object -Property Length -Maximum).Maximum
+    $boxWidth = [Math]::Max($maxLength + 4, 50)  # Minimum width of 50, or content + padding
+    
+    # Top border
+    Write-Host ("┌" + ("─" * ($boxWidth - 2)) + "┐") -ForegroundColor $Color
+    
+    # Header content
+    foreach ($message in $HeaderMessages) {
+        $padding = " " * ($boxWidth - $message.Length - 3)
+        Write-Host ("│ " + $message + $padding + "│") -ForegroundColor $Color
+    }
+    
+    # Divider
+    Write-Host ("├" + ("─" * ($boxWidth - 2)) + "┤") -ForegroundColor $Color
+    
+    # Content lines
+    foreach ($message in $ContentMessages) {
+        $padding = " " * ($boxWidth - $message.Length - 3)
+        Write-Host ("│ " + $message + $padding + "│") -ForegroundColor $Color
+    }
+    
+    # Bottom border
+    Write-Host ("└" + ("─" * ($boxWidth - 2)) + "┘") -ForegroundColor $Color
+}
 
 function Get-EncryptionTypes {
     param([int]$EncValue)
@@ -493,15 +571,16 @@ function Test-KerberosGPOSettings {
         
         if ($kerberosGPOs.Count -eq 0) {
             Write-Host "`n❌ RESULT: No Kerberos encryption GPOs found in domain: $Domain" -ForegroundColor Red
-            Write-Host "┌─────────────────────────────────────────────────────────────────────────┐" -ForegroundColor Yellow
-            Write-Host "│ 💡 RECOMMENDATION: Create and link GPO with Kerberos encryption settings │" -ForegroundColor Yellow
-            Write-Host "├─────────────────────────────────────────────────────────────────────────┤" -ForegroundColor Yellow
-            Write-Host "│ • Setting: 'Network security: Configure encryption types allowed for      │" -ForegroundColor Yellow
-            Write-Host "│           Kerberos'                                                       │" -ForegroundColor Yellow
-            Write-Host "│ • For Domain Controllers: Link to 'Domain Controllers' OU               │" -ForegroundColor Yellow
-            Write-Host "│ • For All Objects: Link to Domain root                                   │" -ForegroundColor Yellow
-            Write-Host "│ • Best Practice: Use both for comprehensive coverage                     │" -ForegroundColor Yellow
-            Write-Host "└─────────────────────────────────────────────────────────────────────────┘" -ForegroundColor Yellow
+            
+            $headerMessages = @("💡 RECOMMENDATION: Create and link GPO with Kerberos encryption settings")
+            $contentMessages = @(
+                "• Setting: 'Network security: Configure encryption types allowed for",
+                "          Kerberos'",
+                "• For Domain Controllers: Link to 'Domain Controllers' OU",
+                "• For All Objects: Link to Domain root",
+                "• Best Practice: Use both for comprehensive coverage"
+            )
+            Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $contentMessages -Color "Yellow"
         }
         else {
             Write-Host "`n✅ RESULT: Found $($kerberosGPOs.Count) Kerberos encryption GPO(s) in domain: $Domain" -ForegroundColor Green
@@ -573,16 +652,17 @@ function Test-KerberosGPOSettings {
             }
             
             # Provide scope-specific recommendations
-            Write-Host "`n┌─────────────────────────────────────────────────────────────────────────┐" -ForegroundColor Cyan
-            Write-Host "│ 💡 GPO LINKING BEST PRACTICES FOR DOMAIN: $($Domain.ToUpper())        │" -ForegroundColor Cyan
-            Write-Host "├─────────────────────────────────────────────────────────────────────────┤" -ForegroundColor Cyan
-            Write-Host "│ • Domain Level: Affects all users and computers                        │" -ForegroundColor Gray
-            Write-Host "│   (recommended for organization-wide policy)                           │" -ForegroundColor Gray
-            Write-Host "│ • Domain Controllers OU: Affects only DCs                              │" -ForegroundColor Gray
-            Write-Host "│   (recommended for DC-specific requirements)                           │" -ForegroundColor Gray
-            Write-Host "│ • Both Levels: Provides comprehensive coverage                         │" -ForegroundColor Gray
-            Write-Host "│   (allows for different settings if needed)                            │" -ForegroundColor Gray
-            Write-Host "└─────────────────────────────────────────────────────────────────────────┘" -ForegroundColor Cyan
+            Write-Host ""
+            $headerMessages = @("💡 GPO LINKING BEST PRACTICES FOR DOMAIN: $($Domain.ToUpper())")
+            $contentMessages = @(
+                "• Domain Level: Affects all users and computers",
+                "  (recommended for organization-wide policy)",
+                "• Domain Controllers OU: Affects only DCs",
+                "  (recommended for DC-specific requirements)",
+                "• Both Levels: Provides comprehensive coverage",
+                "  (allows for different settings if needed)"
+            )
+            Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $contentMessages -Color "Cyan"
         }
         
     }
@@ -783,6 +863,16 @@ if (-not $SkipGPOCheck) {
     }
 }
 
+# Exit early if only GPO check was requested
+if ($GPOCheckOnly) {
+    Write-Host "`n" + ("═" * 80) -ForegroundColor Magenta
+    Write-Host "📋 GPO ANALYSIS COMPLETE" -ForegroundColor Magenta
+    Write-Host ("═" * 80) -ForegroundColor Magenta
+    Write-Host "🔍 GPO-only mode: Object scanning was skipped as requested." -ForegroundColor Cyan
+    Write-Host "💡 To scan objects as well, run the script without -GPOCheckOnly parameter." -ForegroundColor Gray
+    exit 0
+}
+
 Write-Host "`n🔍 SCANNING FOR OBJECTS WITH WEAK ENCRYPTION..." -ForegroundColor Magenta
 Write-Host ("═" * 80) -ForegroundColor Magenta
 
@@ -903,19 +993,22 @@ Write-Host "ℹ️  User objects: Not scanned (msDS-SupportedEncryptionTypes is 
 
 if ($results.Count -eq 0) {
     Write-Host "`n✅ AUDIT RESULT: SUCCESS!" -ForegroundColor Green
-    Write-Host "┌────────────────────────────────────────────────────────────────────┐" -ForegroundColor Green
-    Write-Host "│ No objects with RC4 encryption or weak settings found!            │" -ForegroundColor Green
-    Write-Host "│ All objects in the forest are using strong AES encryption.        │" -ForegroundColor Green
-    Write-Host "└────────────────────────────────────────────────────────────────────┘" -ForegroundColor Green
+    
+    $messages = @(
+        "No objects with RC4 encryption or weak settings found!",
+        "All objects in the forest are using strong AES encryption."
+    )
+    Write-BoxedMessage -Messages $messages -Color "Green"
 }
 else {
     Write-Host "`n⚠️  AUDIT RESULT: ISSUES FOUND!" -ForegroundColor Yellow
-    Write-Host "┌────────────────────────────────────────────────────────────────────┐" -ForegroundColor Yellow
-    Write-Host "│ Found $($results.Count) object(s) with weak encryption settings:" -ForegroundColor Yellow
-    Write-Host "├────────────────────────────────────────────────────────────────────┤" -ForegroundColor Yellow
-    Write-Host "│ • Computers with RC4: $computerRC4Count out of $computerTotal total" -ForegroundColor Yellow
-    Write-Host "│ • Trusts with RC4: $trustRC4Count out of $trustTotal total" -ForegroundColor Yellow
-    Write-Host "└────────────────────────────────────────────────────────────────────┘" -ForegroundColor Yellow
+    
+    $headerMessages = @("Found $($results.Count) object(s) with weak encryption settings:")
+    $contentMessages = @(
+        "• Computers with RC4: $computerRC4Count out of $computerTotal total",
+        "• Trusts with RC4: $trustRC4Count out of $trustTotal total"
+    )
+    Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $contentMessages -Color "Yellow"
     
     Write-Host "`nDETAILED RESULTS:" -ForegroundColor White
     $results |

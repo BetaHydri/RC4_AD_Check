@@ -1,6 +1,6 @@
 # RC4 Active Directory Security Audit Tool
 
-**Version**: 2.0  
+**Version**: 2.1  
 **Author**: Jan Tiedemann  
 **Created**: October 2025  
 **Updated**: October 2025
@@ -96,6 +96,14 @@ Skip Group Policy verification (faster execution):
 .\RC4_AD_SCAN.ps1 -SkipGPOCheck
 ```
 
+### GPO Analysis Only
+
+Perform only Group Policy analysis without scanning objects:
+
+```powershell
+.\RC4_AD_SCAN.ps1 -GPOCheckOnly
+```
+
 ### GPO Scope Selection
 
 Check GPO settings at specific organizational levels:
@@ -152,6 +160,13 @@ When using `-SkipGPOCheck`, the script will:
 - Skip the Group Policy verification phase
 - Provide faster execution for object-only auditing
 - Still perform comprehensive object scanning
+
+When using `-GPOCheckOnly`, the script will:
+- Perform only Group Policy analysis without scanning objects
+- Provide detailed GPO configuration analysis and recommendations
+- Skip the potentially time-consuming object enumeration phase
+- Exit after GPO analysis is complete
+- Useful for policy validation and compliance checking
 
 When using `-GPOScope`, you can specify:
 - **Domain**: Check GPOs linked to the domain root (affects all objects)
@@ -220,6 +235,58 @@ The `msDS-SupportedEncryptionTypes` attribute is a **computer-based setting only
 - **Domain Security**: Managed through Group Policy that applies to computer objects
 - **Audit Focus**: Concentrate on computer objects and domain trust relationships
 - **Remediation**: Fix computer encryption settings, not user settings
+
+## Parameters
+
+| Parameter | Type | Description | Default |
+|-----------|------|-------------|---------|
+| `ApplyFixes` | Switch | Enable interactive remediation mode | False |
+| `ExportResults` | Switch | Export results to timestamped CSV file | False |
+| `SkipGPOCheck` | Switch | Skip Group Policy settings verification | False |
+| `GPOCheckOnly` | Switch | Perform only GPO analysis without object scanning | False |
+| `GPOScope` | String | Where to check GPO links: Domain, DomainControllers, Both | Both |
+| `Debug` | Switch | Enable detailed troubleshooting output | False |
+| `Server` | String | Specify domain controller to connect to | Auto-discover |
+| `TargetForest` | String | Target forest to scan via forest trust | Current forest |
+
+### Parameter Combinations
+
+**Valid Combinations:**
+- `-ApplyFixes -ExportResults` ✅ Remediate and export results
+- `-GPOCheckOnly -Debug` ✅ Detailed GPO analysis only
+- `-SkipGPOCheck -ApplyFixes` ✅ Fast object remediation without GPO check
+- `-TargetForest domain.com -Server dc01.domain.com` ✅ Cross-forest with specific DC
+
+**Invalid Combinations:**
+- `-SkipGPOCheck -GPOCheckOnly` ❌ Conflicting GPO options
+- `-GPOCheckOnly -ApplyFixes` ❌ GPO-only mode cannot modify objects
+
+- Test thoroughly before deploying to production environments" -ForegroundColor Yellow
+
+## Parameters
+
+| Parameter | Type | Description | Default |
+|-----------|------|-------------|---------|
+| `ApplyFixes` | Switch | Enable interactive remediation mode | False |
+| `ExportResults` | Switch | Export results to timestamped CSV file | False |
+| `SkipGPOCheck` | Switch | Skip Group Policy settings verification | False |
+| `GPOCheckOnly` | Switch | Perform only GPO analysis without object scanning | False |
+| `GPOScope` | String | Where to check GPO links: Domain, DomainControllers, Both | Both |
+| `Debug` | Switch | Enable detailed troubleshooting output | False |
+| `Server` | String | Specify domain controller to connect to | Auto-discover |
+| `TargetForest` | String | Target forest to scan via forest trust | Current forest |
+
+### Parameter Combinations
+
+**Valid Combinations:**
+- `-ApplyFixes -ExportResults` ✅ Remediate and export results
+- `-GPOCheckOnly -Debug` ✅ Detailed GPO analysis only
+- `-SkipGPOCheck -ApplyFixes` ✅ Fast object remediation without GPO check
+- `-TargetForest domain.com -Server dc01.domain.com` ✅ Cross-forest with specific DC
+
+**Invalid Combinations:**
+- `-SkipGPOCheck -GPOCheckOnly` ❌ Conflicting GPO options
+- `-GPOCheckOnly -ApplyFixes` ❌ GPO-only mode cannot modify objects
 
 ## Understanding the Output
 

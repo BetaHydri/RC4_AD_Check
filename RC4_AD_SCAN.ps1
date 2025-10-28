@@ -86,7 +86,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 2.8
+  Version: 2.9
   Created: October 2025
   Updated: October 2025
   
@@ -830,6 +830,7 @@ function Test-GPOApplication {
 }
 
 $results = @()
+$secureObjects = @()  # Track objects that already have secure settings
 
 # Set up server parameter for AD commands
 $adParams = @{}
@@ -1029,6 +1030,21 @@ foreach ($domain in $forest.Domains) {
                 }
             }
         }
+        else {
+            # Track computers with secure encryption settings
+            $secureObj = [PSCustomObject]@{
+                Domain     = $domain
+                ObjectType = "Computer"
+                Name       = $_.SamAccountName
+                DN         = $_.DistinguishedName
+                EncTypes   = Get-EncryptionTypes $enc
+            }
+            $secureObjects += $secureObj
+            
+            if ($Debug) {
+                Write-Host "    ✅ Computer '$($_.SamAccountName)' has secure encryption: $(Get-EncryptionTypes $enc)" -ForegroundColor Green
+            }
+        }
     }
     
     Write-Host "  📊 Computer scan complete: $domainComputerCount total, $domainComputerRC4Count with RC4/weak encryption" -ForegroundColor Gray
@@ -1082,6 +1098,18 @@ foreach ($domain in $forest.Domains) {
             }
         }
         else {
+            # Track trusts with secure encryption settings
+            $secureObj = [PSCustomObject]@{
+                Domain     = $domain
+                ObjectType = "Trust"
+                Name       = $_.Name
+                DN         = $_.DistinguishedName
+                EncTypes   = Get-EncryptionTypes $enc
+                TrustType  = $_.TrustType
+                Direction  = $_.Direction
+            }
+            $secureObjects += $secureObj
+            
             if ($Debug) {
                 Write-Host "    ✅ Trust '$($_.Name)' has secure encryption: $(Get-EncryptionTypes $enc)" -ForegroundColor Green
             }
@@ -1195,6 +1223,48 @@ else {
             "   authentication even with optimal GPO settings!"
         )
         Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $contentMessages -Color "Red"
+    }
+}
+
+# Show secure objects summary
+if ($secureObjects.Count -gt 0) {
+    Write-Host ""
+    Write-Host ("═" * 80) -ForegroundColor Green
+    Write-Host "✅ OBJECTS WITH SECURE ENCRYPTION SETTINGS" -ForegroundColor Green
+    Write-Host ("═" * 80) -ForegroundColor Green
+    
+    $secureComputers = $secureObjects | Where-Object { $_.ObjectType -eq "Computer" }
+    $secureTrusts = $secureObjects | Where-Object { $_.ObjectType -eq "Trust" }
+    
+    Write-Host "📊 Summary: Found $($secureObjects.Count) object(s) with secure AES encryption" -ForegroundColor Green
+    Write-Host "  • Computers with secure encryption: $($secureComputers.Count)" -ForegroundColor White
+    Write-Host "  • Trusts with secure encryption: $($secureTrusts.Count)" -ForegroundColor White
+    
+    if ($secureObjects.Count -le 50) {
+        # Show detailed list if manageable number
+        Write-Host "`n📋 DETAILED SECURE OBJECTS:" -ForegroundColor White
+        $secureObjects |
+        Sort-Object Domain, ObjectType, Name |
+        Format-Table Domain, ObjectType, Name, EncTypes, @{Name = "TrustType"; Expression = { if ($_.TrustType) { $_.TrustType }else { "N/A" } } }, @{Name = "Direction"; Expression = { if ($_.Direction) { $_.Direction }else { "N/A" } } } -AutoSize
+    }
+    else {
+        # Show summary by domain if too many objects
+        Write-Host "`n📋 SECURE OBJECTS BY DOMAIN:" -ForegroundColor White
+        $secureByDomain = $secureObjects | Group-Object Domain | Sort-Object Name
+        foreach ($domainGroup in $secureByDomain) {
+            $domainComputers = $domainGroup.Group | Where-Object { $_.ObjectType -eq "Computer" }
+            $domainTrusts = $domainGroup.Group | Where-Object { $_.ObjectType -eq "Trust" }
+            Write-Host "  🏢 $($domainGroup.Name): $($domainGroup.Count) total ($($domainComputers.Count) computers, $($domainTrusts.Count) trusts)" -ForegroundColor Cyan
+        }
+        Write-Host ""
+        Write-Host "💡 Use -Debug parameter to see detailed secure object listings" -ForegroundColor Gray
+    }
+    
+    # Show encryption type breakdown for secure objects
+    Write-Host "`n🔐 SECURE ENCRYPTION TYPES BREAKDOWN:" -ForegroundColor Cyan
+    $encryptionBreakdown = $secureObjects | Group-Object EncTypes | Sort-Object Name
+    foreach ($encGroup in $encryptionBreakdown) {
+        Write-Host "  • $($encGroup.Name): $($encGroup.Count) object(s)" -ForegroundColor White
     }
 }
 

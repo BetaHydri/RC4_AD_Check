@@ -86,7 +86,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 2.4
+  Version: 2.5
   Created: October 2025
   Updated: October 2025
   
@@ -442,7 +442,7 @@ function Test-KerberosGPOSettings {
                             }
                         }
                         
-                        # Final fallback: Try to get GPO links directly from Active Directory
+                        # Final fallback: Try to get GPO links directly from Active Directory (only if still no links found)
                         if ($allGPOLinks.Count -eq 0) {
                             if ($Debug) {
                                 Write-Host "      🔄 Final fallback: Searching AD for GPO links..." -ForegroundColor Gray
@@ -515,6 +515,28 @@ function Test-KerberosGPOSettings {
                                 if ($Debug) {
                                     Write-Host "      ⚠️  Error in AD search fallback: $($_.Exception.Message)" -ForegroundColor Gray
                                 }
+                            }
+                        }
+                        
+                        # Remove any duplicate links (same container) that might have been added by multiple detection methods
+                        if ($allGPOLinks.Count -gt 0) {
+                            $uniqueLinks = @()
+                            $seenContainers = @()
+                            
+                            foreach ($link in $allGPOLinks) {
+                                if ($link.Container -notin $seenContainers) {
+                                    $uniqueLinks += $link
+                                    $seenContainers += $link.Container
+                                }
+                                elseif ($Debug) {
+                                    Write-Host "      ⚠️  Removing duplicate link for container: $($link.Container)" -ForegroundColor Yellow
+                                }
+                            }
+                            
+                            $allGPOLinks = $uniqueLinks
+                            
+                            if ($Debug) {
+                                Write-Host "      ✅ Final unique links count: $($allGPOLinks.Count)" -ForegroundColor Green
                             }
                         }
                     }

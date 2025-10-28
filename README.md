@@ -110,6 +110,66 @@ You can also configure encryption types through Group Policy instead of manually
 3. **Monitor**: Check for authentication issues after deployment
 4. **Verify**: Run this audit script after GPO application to confirm remediation
 
+## Manual Monitoring with klist
+
+After implementing RC4 remediation, you can manually monitor Kerberos tickets to verify that weak encryption ciphers are no longer being used. Use the `klist` command to inspect current Kerberos tickets:
+
+### Check Current Tickets
+```cmd
+klist
+```
+
+### Detailed Ticket Information
+```cmd
+klist -li 0x3e7 tickets
+```
+
+### Look for Encryption Types
+Pay attention to the **Encryption Type** field in the output:
+- **RC4-HMAC (0x17)** - Weak encryption (should be eliminated)
+- **AES128-CTS-HMAC-SHA1-96 (0x11)** - Strong encryption ✅
+- **AES256-CTS-HMAC-SHA1-96 (0x12)** - Strong encryption ✅
+
+### Example Output After Remediation
+```
+Current LogonId is 0:0x3e7
+
+Cached Tickets: (2)
+
+#0>	Client: user@CONTOSO.COM
+	Server: krbtgt/CONTOSO.COM@CONTOSO.COM
+	KerbTicket Encryption Type: AES256-CTS-HMAC-SHA1-96
+	Ticket Flags 0x40e10000 -> forwardable renewable initial pre_authent name_canonicalize
+	Start Time: 10/28/2025 10:00:00 (local)
+	End Time:   10/28/2025 20:00:00 (local)
+	Renew Time: 11/4/2025 10:00:00 (local)
+	Session Key Type: AES256-CTS-HMAC-SHA1-96
+```
+
+If you still see RC4-HMAC encryption types after remediation, it indicates that some objects may still need to be addressed.
+
+## Impact on NTLM Authentication
+
+**Important**: The RC4 encryption settings configured by this tool **only affect Kerberos authentication**, not NTLM authentication. Here's what you need to know:
+
+### NTLM vs Kerberos
+- **Kerberos**: Uses the `msDS-SupportedEncryptionTypes` attribute that this tool audits and remediates
+- **NTLM**: Uses password hashes stored separately and is not affected by these encryption type settings
+
+### NTLM Security Considerations
+- NTLM authentication will continue to work normally after RC4 remediation
+- NTLM inherently uses weaker security than Kerberos with AES
+- Consider implementing NTLM restrictions through Group Policy for enhanced security:
+  - `Network Security: Restrict NTLM: NTLM authentication in this domain`
+  - `Network Security: Restrict NTLM: Incoming NTLM traffic`
+  - `Network Security: Restrict NTLM: Outgoing NTLM traffic to remote servers`
+
+### Recommended Security Strategy
+1. **Phase 1**: Implement RC4 remediation for Kerberos (this tool)
+2. **Phase 2**: Gradually restrict NTLM usage through Group Policy
+3. **Phase 3**: Monitor authentication logs to ensure compatibility
+4. **Phase 4**: Consider disabling NTLM entirely in highly secure environments
+
 ## Sample Output
 
 ```
@@ -135,6 +195,10 @@ $results | Export-Csv ".\RC4_Audit_Results.csv" -NoTypeInformation -Encoding UTF
 - **Backup**: Ensure you have AD backups before making changes
 - **Compatibility**: Verify that all applications support AES encryption
 - **Staged rollout**: Consider fixing objects in phases rather than all at once
+- **Monitor authentication**: Use `klist` to verify that RC4 tickets are no longer issued
+- **NTLM limitation**: Remember that this tool only addresses Kerberos encryption; NTLM authentication is not affected
+- **Event monitoring**: Monitor Windows Security logs (Event IDs 4768, 4769) for authentication issues after remediation
+- **Legacy applications**: Some older applications may require additional configuration to work with AES-only settings
 
 ## Troubleshooting
 

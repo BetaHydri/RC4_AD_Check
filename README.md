@@ -10,15 +10,19 @@ A comprehensive PowerShell script to audit and remediate RC4 encryption usage in
 ## Overview
 
 RC4 is a deprecated encryption algorithm that is considered cryptographically weak. This tool scans your entire Active Directory forest to identify:
-- Users with RC4 encryption enabled
-- Computers with RC4 encryption enabled  
+- Computers with RC4 encryption enabled
 - Domain trusts with RC4 encryption enabled
-- Objects with no encryption types specified (which fall back to RC4)
+- Computer objects with no encryption types specified (which fall back to RC4)
+
+**Important Note**: User objects are not scanned because `msDS-SupportedEncryptionTypes` is a computer-based setting only. User Kerberos encryption is controlled by:
+- The computer they authenticate from
+- Domain-level Group Policy settings
+- Domain Controller configuration
 
 ## Features
 
 - **Forest-wide scanning**: Automatically discovers and scans all domains in the forest
-- **Comprehensive object coverage**: Audits Users, Computers, and Domain Trusts
+- **Comprehensive object coverage**: Audits Computers and Domain Trusts (User objects not applicable for msDS-SupportedEncryptionTypes)
 - **Advanced GPO verification**: Comprehensive analysis of Group Policy settings with detailed linking information
 - **Enhanced debug capabilities**: Detailed troubleshooting output for GPO detection and analysis
 - **Flexible server connectivity**: Support for connecting to specific domain controllers
@@ -37,7 +41,7 @@ RC4 is a deprecated encryption algorithm that is considered cryptographically we
 - PowerShell 5.1 or later
 - Active Directory PowerShell module
 - Group Policy Management Tools (for GPO verification)
-- Domain Administrator privileges (for scanning and fixing users/computers)
+- Domain Administrator privileges (for scanning and fixing computers)
 - Enterprise Administrator privileges (for remediation of domain trusts)
 
 ## Installation
@@ -183,7 +187,39 @@ When using `-Debug`, the script will:
 - Report encryption setting analysis details with decoded values
 - Help troubleshoot GPO detection issues with comprehensive logging
 
-## Understanding the Output
+## Understanding msDS-SupportedEncryptionTypes
+
+### Computer-Based Setting Only
+
+The `msDS-SupportedEncryptionTypes` attribute is a **computer-based setting only** and does not apply to user objects. This is a common misconception in Kerberos security auditing.
+
+#### Why Users Are Not Scanned
+
+- **User Kerberos encryption** is determined by the computer they authenticate from, not by a user attribute
+- **Domain policy** controls user authentication encryption types through GPO settings
+- **Domain Controllers** enforce encryption requirements based on computer and domain settings
+- **Setting user attributes** for encryption types has no effect on Kerberos authentication
+
+#### How User Kerberos Encryption Works
+
+1. **Computer-Side Control**: The computer account's `msDS-SupportedEncryptionTypes` determines what encryption types the computer supports
+2. **Domain Policy**: GPO settings like "Network security: Configure encryption types allowed for Kerberos" control domain-wide encryption requirements
+3. **DC Configuration**: Domain Controllers enforce these policies during authentication
+4. **Result**: User Kerberos tickets use encryption types based on computer capabilities and domain policy, not user attributes
+
+#### What This Tool Audits
+
+- ✅ **Computer Objects**: Have `msDS-SupportedEncryptionTypes` attribute that controls their Kerberos encryption capabilities
+- ✅ **Domain Trusts**: Have encryption type settings that affect cross-domain authentication
+- ✅ **Domain Controllers**: Special computer objects that need secure encryption for all authentication
+- ❌ **User Objects**: Do not have relevant encryption type attributes (not scanned by this tool)
+
+### Practical Implications
+
+- **User Security**: Controlled by ensuring all computers have strong encryption settings
+- **Domain Security**: Managed through Group Policy that applies to computer objects
+- **Audit Focus**: Concentrate on computer objects and domain trust relationships
+- **Remediation**: Fix computer encryption settings, not user settings
 
 The script displays encryption types for each flagged object:
 

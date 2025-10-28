@@ -3,8 +3,10 @@
   Audit AD forest for RC4 usage and optionally remediate.
 
 .DESCRIPTION
-  This script enumerates all domains in the forest and checks Users, Computers, and Trusts.
-  It flags objects with RC4 enabled or no msDS-SupportedEncryptionTypes set.
+  This script enumerates all domains in the forest and checks Computers and Trusts.
+  It flags computer objects with RC4 enabled or no msDS-SupportedEncryptionTypes set.
+  Note: User objects do not use msDS-SupportedEncryptionTypes as this is a computer-based setting only.
+  User Kerberos encryption is controlled by computer-side settings and domain policy.
   By default it provides report only functionality.
   With ApplyFixes parameter it prompts per object to apply AES-only (0x18) setting.
   Provides warnings for Windows Server 2025 compatibility issues.
@@ -598,9 +600,8 @@ function Test-GPOApplication {
         $domainDN = (Get-ADDomain @serverParams).DistinguishedName
         $domainControllersOU = "OU=Domain Controllers,$domainDN"
         
-        # Sample a few computers and users to check GPO application
+        # Sample a few computers to check GPO application (users don't use msDS-SupportedEncryptionTypes)
         $sampleComputers = Get-ADComputer -Filter * -Properties msDS-SupportedEncryptionTypes -ResultSetSize 10 @serverParams
-        $sampleUsers = Get-ADUser -Filter * -Properties msDS-SupportedEncryptionTypes -ResultSetSize 10 @serverParams
         $domainControllers = Get-ADComputer -SearchBase $domainControllersOU -Filter * -Properties msDS-SupportedEncryptionTypes @serverParams
         
         $gpoAppliedCount = 0
@@ -639,23 +640,8 @@ function Test-GPOApplication {
             }
         }
         
-        # Check users
-        $userGpoAppliedCount = 0
-        $userManualSetCount = 0
-        $userNotSetCount = 0
-        
-        foreach ($user in $sampleUsers) {
-            $enc = $user."msDS-SupportedEncryptionTypes"
-            if ($enc -eq 24) {
-                $userGpoAppliedCount++
-            }
-            elseif ($enc -and $enc -ne 24) {
-                $userManualSetCount++
-            }
-            else {
-                $userNotSetCount++
-            }
-        }
+        # Note: Users don't use msDS-SupportedEncryptionTypes - this is computer-based only
+        # User Kerberos encryption is determined by the computer they authenticate from
         
         # Report GPO application status
         Write-Host "    📊 GPO Application Status (sample analysis):" -ForegroundColor White
@@ -663,6 +649,7 @@ function Test-GPOApplication {
         Write-Host "      • GPO Applied (AES-only): Objects with msDS-SupportedEncryptionTypes = 24 (AES128+AES256)" -ForegroundColor Gray
         Write-Host "      • Manual Settings (custom): Objects with non-standard encryption values (not 24)" -ForegroundColor Gray
         Write-Host "      • Not Set (RC4 fallback): Objects without msDS-SupportedEncryptionTypes attribute" -ForegroundColor Gray
+        Write-Host "      ℹ️  Note: Users don't use msDS-SupportedEncryptionTypes (computer-based setting only)" -ForegroundColor Gray
         Write-Host ""
         
         if ($domainControllers.Count -gt 0) {
@@ -686,20 +673,13 @@ function Test-GPOApplication {
             Write-Host "      • Not Set (RC4 fallback): $notSetCount" -ForegroundColor Red
         }
         
-        if ($sampleUsers.Count -gt 0) {
-            Write-Host "    👤 Users (sample of $($sampleUsers.Count)):" -ForegroundColor Yellow
-            Write-Host "      • GPO Applied (AES-only): $userGpoAppliedCount" -ForegroundColor Green
-            Write-Host "      • Manual Settings (custom values): $userManualSetCount" -ForegroundColor Cyan
-            Write-Host "      • Not Set (RC4 fallback): $userNotSetCount" -ForegroundColor Red
-        }
-        
         # Provide recommendations based on findings
-        if ($dcNotSetCount -gt 0 -or $notSetCount -gt 0 -or $userNotSetCount -gt 0) {
+        if ($dcNotSetCount -gt 0 -or $notSetCount -gt 0) {
             Write-Host "    💡 RECOMMENDATIONS:" -ForegroundColor Yellow
             if ($dcNotSetCount -gt 0) {
                 Write-Host "      • Ensure GPO is linked to Domain Controllers OU and refreshed" -ForegroundColor Yellow
             }
-            if ($notSetCount -gt 0 -or $userNotSetCount -gt 0) {
+            if ($notSetCount -gt 0) {
                 Write-Host "      • Ensure GPO is linked to Domain level and refreshed" -ForegroundColor Yellow
                 Write-Host "      • Run 'gpupdate /force' on affected systems" -ForegroundColor Yellow
             }
@@ -800,29 +780,8 @@ foreach ($domain in $forest.Domains) {
         Write-Host "  🌲 Scanning in target forest context: $TargetForest" -ForegroundColor Gray
     }
 
-    # Users
-    Get-ADUser -Filter * -Properties msDS-SupportedEncryptionTypes @domainParams |
-    ForEach-Object {
-        $enc = $_."msDS-SupportedEncryptionTypes"
-        if (-not $enc -or ($enc -band 0x4)) {
-            $obj = [PSCustomObject]@{
-                Domain     = $domain
-                ObjectType = "User"
-                Name       = $_.SamAccountName
-                DN         = $_.DistinguishedName
-                EncTypes   = Get-EncryptionTypes $enc
-            }
-            $results += $obj
-
-            if ($ApplyFixes) {
-                $answer = Read-Host "Remediate User $($_.SamAccountName) in $domain? (Y/N)"
-                if ($answer -match '^[Yy]') {
-                    Set-ADUser -Identity $_ -Replace @{"msDS-SupportedEncryptionTypes" = 24 }
-                    Write-Host " -> Fixed" -ForegroundColor Green
-                }
-            }
-        }
-    }
+    # Note: Users are not scanned as msDS-SupportedEncryptionTypes is a computer-based setting only
+    # User Kerberos encryption is controlled by the computer they authenticate from and domain GPO settings
 
     # Computers
     Get-ADComputer -Filter * -Properties msDS-SupportedEncryptionTypes @domainParams |

@@ -224,7 +224,8 @@ function Test-KerberosGPOSettings {
         [string]$TargetForest
     )
     
-    Write-Host "`n" + ("=" * 80) -ForegroundColor DarkCyan
+    Write-Host ""
+    Write-Host ("=" * 80) -ForegroundColor DarkCyan
     Write-Host "🏢 DOMAIN: $($Domain.ToUpper())" -ForegroundColor Cyan
     Write-Host ("=" * 80) -ForegroundColor DarkCyan
     Write-Host "🔍 Checking GPO settings for Kerberos encryption" -ForegroundColor White
@@ -671,7 +672,8 @@ function Test-KerberosGPOSettings {
         Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
     }
     
-    Write-Host "`n" + ("=" * 80) -ForegroundColor DarkCyan
+    Write-Host ""
+    Write-Host ("=" * 80) -ForegroundColor DarkCyan
     Write-Host "✅ COMPLETED GPO CHECK FOR DOMAIN: $($Domain.ToUpper())" -ForegroundColor Green
     Write-Host ("=" * 80) -ForegroundColor DarkCyan
 }
@@ -865,7 +867,8 @@ if (-not $SkipGPOCheck) {
 
 # Exit early if only GPO check was requested
 if ($GPOCheckOnly) {
-    Write-Host "`n" + ("═" * 80) -ForegroundColor Magenta
+    Write-Host ""
+    Write-Host ("═" * 80) -ForegroundColor Magenta
     Write-Host "📋 GPO ANALYSIS COMPLETE" -ForegroundColor Magenta
     Write-Host ("═" * 80) -ForegroundColor Magenta
     Write-Host "🔍 GPO-only mode: Object scanning was skipped as requested." -ForegroundColor Cyan
@@ -873,7 +876,8 @@ if ($GPOCheckOnly) {
     exit 0
 }
 
-Write-Host "`n🔍 SCANNING FOR OBJECTS WITH WEAK ENCRYPTION..." -ForegroundColor Magenta
+Write-Host ""
+Write-Host "🔍 SCANNING FOR OBJECTS WITH WEAK ENCRYPTION..." -ForegroundColor Magenta
 Write-Host ("═" * 80) -ForegroundColor Magenta
 
 $computerTotal = 0
@@ -882,7 +886,8 @@ $trustTotal = 0
 $trustRC4Count = 0
 
 foreach ($domain in $forest.Domains) {
-    Write-Host "`n" + ("─" * 80) -ForegroundColor DarkYellow
+    Write-Host ""
+    Write-Host ("─" * 80) -ForegroundColor DarkYellow
     Write-Host "🏢 SCANNING DOMAIN: $($domain.ToUpper())" -ForegroundColor Yellow
     Write-Host ("─" * 80) -ForegroundColor DarkYellow
 
@@ -981,7 +986,8 @@ foreach ($domain in $forest.Domains) {
 }
 
 # Output summary
-Write-Host "`n" + ("═" * 80) -ForegroundColor Magenta
+Write-Host ""
+Write-Host ("═" * 80) -ForegroundColor Magenta
 Write-Host "📋 FINAL AUDIT SUMMARY" -ForegroundColor Magenta
 Write-Host ("═" * 80) -ForegroundColor Magenta
 

@@ -1,10 +1,11 @@
 # RC4 Active Directory Security Audit Tool
 
-**Version**: 1.0  
+**Version**: 2.0  
 **Author**: Jan Tiedemann  
-**Created**: October 2025
+**Created**: October 2025  
+**Updated**: October 2025
 
-A PowerShell script to audit and remediate RC4 encryption usage in Active Directory forests. This tool helps identify security vulnerabilities related to weak RC4 encryption and provides options to upgrade to stronger AES encryption.
+A comprehensive PowerShell script to audit and remediate RC4 encryption usage in Active Directory forests. This tool helps identify security vulnerabilities related to weak RC4 encryption and provides options to upgrade to stronger AES encryption.
 
 ## Overview
 
@@ -18,7 +19,12 @@ RC4 is a deprecated encryption algorithm that is considered cryptographically we
 
 - **Forest-wide scanning**: Automatically discovers and scans all domains in the forest
 - **Comprehensive object coverage**: Audits Users, Computers, and Domain Trusts
-- **Group Policy verification**: Checks for existing Kerberos encryption GPO settings
+- **Advanced GPO verification**: Comprehensive analysis of Group Policy settings with detailed linking information
+- **Enhanced debug capabilities**: Detailed troubleshooting output for GPO detection and analysis
+- **Flexible server connectivity**: Support for connecting to specific domain controllers
+- **Intelligent GPO link detection**: Multiple detection methods for reliable GPO link discovery
+- **Detailed application status**: Analysis of current encryption settings across object types
+- **Clear categorization**: Distinguishes between GPO-applied, manual, and unset encryption settings
 - **Detailed reporting**: Shows current encryption types for each flagged object
 - **Clear success/failure feedback**: Displays appropriate messages when no issues are found vs. when problems are detected
 - **Windows Server 2025 compatibility warnings**: Alerts for objects that will fail authentication on Server 2025 DCs
@@ -30,6 +36,7 @@ RC4 is a deprecated encryption algorithm that is considered cryptographically we
 - **Administrator privileges**: Must run PowerShell as Administrator
 - PowerShell 5.1 or later
 - Active Directory PowerShell module
+- Group Policy Management Tools (for GPO verification)
 - Domain Administrator privileges (for scanning and fixing users/computers)
 - Enterprise Administrator privileges (for remediation of domain trusts)
 
@@ -100,16 +107,16 @@ Check GPO settings at specific organizational levels:
 .\RC4_AD_SCAN.ps1 -GPOScope Both
 ```
 
-### Debug Mode
+### Server Connectivity
 
-Enable detailed troubleshooting output for GPO detection:
+Connect to a specific domain controller:
 
 ```powershell
-# Enable debug output
-.\RC4_AD_SCAN.ps1 -Debug
+# Specify domain controller
+.\RC4_AD_SCAN.ps1 -Server dc01.contoso.com
 
 # Combine with other parameters
-.\RC4_AD_SCAN.ps1 -Debug -GPOScope DomainControllers -ExportResults
+.\RC4_AD_SCAN.ps1 -Server dc01.contoso.com -Debug -ExportResults
 ```
 
 When using `-ApplyFixes`, the script will:
@@ -132,11 +139,28 @@ When using `-GPOScope`, you can specify:
 - **DomainControllers**: Check GPOs linked to Domain Controllers OU (affects DCs only)
 - **Both**: Check both levels for comprehensive coverage (default)
 
+### Debug Mode
+
+Enable detailed troubleshooting output for GPO detection:
+
+```powershell
+# Enable debug output
+.\RC4_AD_SCAN.ps1 -Debug
+
+# Combine with other parameters
+.\RC4_AD_SCAN.ps1 -Debug -GPOScope DomainControllers -ExportResults
+```
+
+When using `-Server`, you can:
+- Connect to a specific domain controller when having connectivity issues
+- Target testing against particular DCs
+- Work around network or authentication issues
+
 When using `-Debug`, the script will:
 - Show detailed GPO processing steps
-- Display GPO link detection progress
-- Report encryption setting analysis details
-- Help troubleshoot GPO detection issues
+- Display GPO link detection progress with multiple detection methods
+- Report encryption setting analysis details with decoded values
+- Help troubleshoot GPO detection issues with comprehensive logging
 
 ## Understanding the Output
 
@@ -214,33 +238,42 @@ The script automatically checks for existing Kerberos encryption Group Policy se
 - **Pros**: Flexible, allows different settings per object type
 - **Cons**: More complex to manage
 
+#### GPO Application Status Analysis
+
+The script provides detailed categorization of encryption settings:
+
+- **GPO Applied (AES-only)**: Objects with `msDS-SupportedEncryptionTypes = 24` (AES128+AES256)
+- **Manual Settings (custom)**: Objects with non-standard encryption values (not 24) 
+- **Not Set (RC4 fallback)**: Objects without `msDS-SupportedEncryptionTypes` attribute
+
+This analysis helps you understand:
+- How effectively your GPO policies are being applied
+- Which objects have been manually configured with custom encryption settings
+- Which objects are at risk due to undefined encryption types
+
 ### Understanding GPO Link Details
 
 When checking GPO settings with `-GPOScope Both`, the script provides detailed information about where Kerberos encryption GPOs are linked:
-
-#### Link Status Indicators
 - **✅ OU Name [Order: X]**: GPO is enabled and linked to this OU
 - **❌ OU Name [Order: X]**: GPO is linked but disabled
 - **(Enforced)**: GPO link is enforced (cannot be blocked by child containers)
 
-#### Coverage Analysis
+#### Link Status Indicators
 - **Complete**: Linked to both Domain and Domain Controllers OU
 - **Domain-wide**: Linked to Domain root (affects all objects)  
 - **Domain Controllers**: Linked only to DC OU
 - **Specific OUs**: Linked to selected organizational units only
 
-#### Link Order Significance
+#### Coverage Analysis
 - **Lower numbers = Higher priority** (Order 1 processes before Order 2)
 - **Conflicts resolved by precedence** (last applied wins)
 - **Enforced links override** child container settings
 
-### Recommended Implementation Strategy
+#### Link Order Significance
 1. **Phase 1**: Apply to Domain Controllers OU first (minimize risk)
 2. **Phase 2**: Test with pilot groups using domain-level GPO
 3. **Phase 3**: Roll out domain-level GPO organization-wide
 4. **Phase 4**: Optionally maintain separate DC-specific settings
-
-### Policy Location
 
 ### Policy Location
 **Path**: `Computer Configuration > Policies > Windows Settings > Security Settings > Local Policies > Security Options`

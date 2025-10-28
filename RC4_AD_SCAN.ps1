@@ -67,10 +67,11 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 1.0
+  Version: 2.0
   Created: October 2025
+  Updated: October 2025
   
-  Requires: PowerShell 5.1+, ActiveDirectory module
+  Requires: PowerShell 5.1+, ActiveDirectory module, GroupPolicy module
   Permissions: Domain Admin (scanning), Enterprise Admin (trust remediation)
 #>
 
@@ -432,13 +433,16 @@ function Test-KerberosGPOSettings {
                     # Also check for numeric values that might indicate the settings
                     if ($gpoReport -match "SupportedEncryptionTypes.*?(\d+)") {
                         $encValue = [int]$matches[1]
-                        Write-Host "      📝 Found numeric encryption value: $encValue" -ForegroundColor Gray
+                        if ($Debug) {
+                            Write-Host "      📝 Found numeric encryption value: $encValue" -ForegroundColor Gray
+                            Write-Host "      🔍 Decoding value: $(Get-EncryptionTypes $encValue)" -ForegroundColor Gray
+                        }
                         
-                        # Decode the value
-                        $hasAES128 = $hasAES128 -or (($encValue -band 0x8) -ne 0)
-                        $hasAES256 = $hasAES256 -or (($encValue -band 0x10) -ne 0)
-                        $hasRC4Disabled = $hasRC4Disabled -or (($encValue -band 0x4) -eq 0)
-                        $hasDESDisabled = $hasDESDisabled -or (($encValue -band 0x3) -eq 0)
+                        # Decode the value using bitwise operations
+                        $hasAES128 = $hasAES128 -or (($encValue -band 0x8) -ne 0)   # Bit 3 = AES128
+                        $hasAES256 = $hasAES256 -or (($encValue -band 0x10) -ne 0)  # Bit 4 = AES256
+                        $hasRC4Disabled = $hasRC4Disabled -or (($encValue -band 0x4) -eq 0)  # Bit 2 = RC4 (disabled when bit not set)
+                        $hasDESDisabled = $hasDESDisabled -or (($encValue -band 0x3) -eq 0)  # Bits 0-1 = DES (disabled when bits not set)
                     }
                     
                     Write-Host "      📊 Settings analysis: AES128=$hasAES128, AES256=$hasAES256, RC4Disabled=$hasRC4Disabled, DESDisabled=$hasDESDisabled" -ForegroundColor Gray
@@ -525,7 +529,11 @@ function Test-KerberosGPOSettings {
                     if (-not $gpo.HasAES128) { Write-Host "      - AES128 not enabled" -ForegroundColor Yellow }
                     if (-not $gpo.HasAES256) { Write-Host "      - AES256 not enabled" -ForegroundColor Yellow }
                     if (-not $gpo.HasRC4Disabled) { Write-Host "      - RC4 not disabled" -ForegroundColor Yellow }
-                    if (-not $gpo.HasDESDisabled) { Write-Host "      - DES not disabled" -ForegroundColor Yellow }
+                    if (-not $gpo.HasDESDisabled) { 
+                        Write-Host "      - DES not disabled" -ForegroundColor Yellow 
+                        Write-Host "        💡 Note: If your numeric value doesn't include DES bits (1,2), DES is already disabled" -ForegroundColor Gray
+                        Write-Host "        💡 To explicitly disable DES: Ensure GPO unchecks 'DES-CBC-CRC' and 'DES-CBC-MD5'" -ForegroundColor Gray
+                    }
                 }
             }
             
@@ -624,11 +632,16 @@ function Test-GPOApplication {
         
         # Report GPO application status
         Write-Host "    📊 GPO Application Status (sample analysis):" -ForegroundColor White
+        Write-Host "    ℹ️  Legend:" -ForegroundColor Gray
+        Write-Host "      • GPO Applied (AES-only): Objects with msDS-SupportedEncryptionTypes = 24 (AES128+AES256)" -ForegroundColor Gray
+        Write-Host "      • Manual Settings (custom): Objects with non-standard encryption values (not 24)" -ForegroundColor Gray
+        Write-Host "      • Not Set (RC4 fallback): Objects without msDS-SupportedEncryptionTypes attribute" -ForegroundColor Gray
+        Write-Host ""
         
         if ($domainControllers.Count -gt 0) {
             Write-Host "    🖥️  Domain Controllers ($($domainControllers.Count) total):" -ForegroundColor Yellow
             Write-Host "      • GPO Applied (AES-only): $dcGpoAppliedCount" -ForegroundColor Green
-            Write-Host "      • Manual Settings: $dcManualSetCount" -ForegroundColor Cyan
+            Write-Host "      • Manual Settings (custom values): $dcManualSetCount" -ForegroundColor Cyan
             Write-Host "      • Not Set (RC4 fallback): $dcNotSetCount" -ForegroundColor Red
             
             if ($dcGpoAppliedCount -eq $domainControllers.Count) {
@@ -642,14 +655,14 @@ function Test-GPOApplication {
         if ($sampleComputers.Count -gt 0) {
             Write-Host "    💻 Regular Computers (sample of $($sampleComputers.Count)):" -ForegroundColor Yellow
             Write-Host "      • GPO Applied (AES-only): $gpoAppliedCount" -ForegroundColor Green
-            Write-Host "      • Manual Settings: $manualSetCount" -ForegroundColor Cyan
+            Write-Host "      • Manual Settings (custom values): $manualSetCount" -ForegroundColor Cyan
             Write-Host "      • Not Set (RC4 fallback): $notSetCount" -ForegroundColor Red
         }
         
         if ($sampleUsers.Count -gt 0) {
             Write-Host "    👤 Users (sample of $($sampleUsers.Count)):" -ForegroundColor Yellow
             Write-Host "      • GPO Applied (AES-only): $userGpoAppliedCount" -ForegroundColor Green
-            Write-Host "      • Manual Settings: $userManualSetCount" -ForegroundColor Cyan
+            Write-Host "      • Manual Settings (custom values): $userManualSetCount" -ForegroundColor Cyan
             Write-Host "      • Not Set (RC4 fallback): $userNotSetCount" -ForegroundColor Red
         }
         

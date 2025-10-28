@@ -3,13 +3,12 @@
   Audit AD forest for RC4 usage and optionally remediate.
 
 .DESCRIPTION
-  - Enumerates all domains in the forest
-  - Checks Users, Computers, and Trusts
-  - Flags objects with RC4 enabled or no msDS-SupportedEncryptionTypes set
-  - By default: report only
-  - With -ApplyFixes: prompt per object to apply AES-only (0x18) setting
-  - Provides warnings for Windows Server 2025 compatibility issues
-  - Requires Administrator privileges for proper AD access
+  This script enumerates all domains in the forest and checks Users, Computers, and Trusts.
+  It flags objects with RC4 enabled or no msDS-SupportedEncryptionTypes set.
+  By default it provides report only functionality.
+  With ApplyFixes parameter it prompts per object to apply AES-only (0x18) setting.
+  Provides warnings for Windows Server 2025 compatibility issues.
+  Requires Administrator privileges for proper AD access.
 
 .PARAMETER ApplyFixes
   Switch to enable interactive remediation mode

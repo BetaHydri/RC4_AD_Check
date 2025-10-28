@@ -9,6 +9,7 @@
   - By default: report only
   - With -ApplyFixes: prompt per object to apply AES-only (0x18) setting
   - Provides warnings for Windows Server 2025 compatibility issues
+  - Requires Administrator privileges for proper AD access
 
 .PARAMETER ApplyFixes
   Switch to enable interactive remediation mode
@@ -45,6 +46,22 @@ param(
     [switch]$ApplyFixes,
     [switch]$ExportResults
 )
+
+# Check if running as Administrator
+function Test-Administrator {
+    $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+if (-not (Test-Administrator)) {
+    Write-Host "❌ ERROR: This script must be run as Administrator!" -ForegroundColor Red
+    Write-Host "Required privileges:" -ForegroundColor Yellow
+    Write-Host "- Domain Administrator (for scanning and fixing users/computers)" -ForegroundColor Yellow
+    Write-Host "- Enterprise Administrator (for fixing domain trusts)" -ForegroundColor Yellow
+    Write-Host "`nPlease restart PowerShell as Administrator and try again." -ForegroundColor Yellow
+    exit 1
+}
 
 Import-Module ActiveDirectory
 

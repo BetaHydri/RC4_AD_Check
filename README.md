@@ -26,15 +26,17 @@ RC4 is a deprecated encryption algorithm that is considered cryptographically we
 
 ## Requirements
 
+- **Administrator privileges**: Must run PowerShell as Administrator
 - PowerShell 5.1 or later
 - Active Directory PowerShell module
-- Domain Administrator privileges (for scanning)
-- Enterprise Administrator privileges (for remediation of trusts)
+- Domain Administrator privileges (for scanning and fixing users/computers)
+- Enterprise Administrator privileges (for remediation of domain trusts)
 
 ## Installation
 
 1. Clone or download this repository
-2. Ensure the Active Directory PowerShell module is installed:
+2. **Run PowerShell as Administrator**
+3. Ensure the Active Directory PowerShell module is installed:
    ```powershell
    Import-Module ActiveDirectory
    ```
@@ -46,6 +48,7 @@ RC4 is a deprecated encryption algorithm that is considered cryptographically we
 Run a scan to identify RC4 usage without making any changes:
 
 ```powershell
+# Run PowerShell as Administrator, then:
 .\RC4_AD_SCAN.ps1
 ```
 
@@ -283,6 +286,20 @@ The exported CSV includes:
 - **Legacy applications**: Some older applications may require additional configuration to work with AES-only settings
 
 ## Troubleshooting
+
+### Administrator Privileges Required
+The script will automatically check for Administrator privileges and exit with an error if not running as Administrator:
+
+```
+❌ ERROR: This script must be run as Administrator!
+Required privileges:
+- Domain Administrator (for scanning and fixing users/computers)
+- Enterprise Administrator (for fixing domain trusts)
+
+Please restart PowerShell as Administrator and try again.
+```
+
+**Solution**: Right-click on PowerShell and select "Run as Administrator"
 
 ### Permission Issues
 Ensure you're running as a user with appropriate AD permissions:

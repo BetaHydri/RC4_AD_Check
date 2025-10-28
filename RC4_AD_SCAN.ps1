@@ -86,7 +86,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 2.6
+  Version: 2.7
   Created: October 2025
   Updated: October 2025
   
@@ -1144,8 +1144,10 @@ else {
             "attribute and are not affected by computer GPO policies.",
             "",
             "✅ Required Actions for Trust Objects:",
-            "• Use this script with -ApplyFixes parameter, OR",
-            "• Manual PowerShell command:",
+            "• GUI Method: AD Domains and Trusts → Trust Properties →",
+            "  Check 'The other domain supports Kerberos AES Encryption'",
+            "• Script Method: Use this script with -ApplyFixes parameter",
+            "• Manual PowerShell:",
             "  Set-ADObject -Identity '<TrustDN>'",
             "    -Add @{msDS-SupportedEncryptionTypes=24}",
             "",

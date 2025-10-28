@@ -1,6 +1,6 @@
 # RC4 Active Directory Security Audit Tool
 
-**Version**: 2.6  
+**Version**: 2.7  
 **Author**: Jan Tiedemann  
 **Created**: October 2025  
 **Updated**: October 2025
@@ -227,13 +227,23 @@ Trust objects store their own `msDS-SupportedEncryptionTypes` attribute and requ
 
 #### Manual Remediation Methods
 
-**Option 1: Use This Script**
+**Option 1: Active Directory Domains and Trusts Console (GUI)**
+1. Open **Active Directory Domains and Trusts**
+2. Right-click on your domain → **Properties**
+3. Go to the **Trusts** tab
+4. Select the trust relationship → **Properties**
+5. Check the box: **"The other domain supports Kerberos AES Encryption"**
+6. Click **OK** to apply the setting
+
+This GUI option automatically sets the appropriate `msDS-SupportedEncryptionTypes` value for AES encryption.
+
+**Option 2: Use This Script**
 ```powershell
 .\RC4_AD_SCAN.ps1 -ApplyFixes
 ```
 The script will prompt for each trust object and apply the fix automatically.
 
-**Option 2: Manual PowerShell Commands**
+**Option 3: Manual PowerShell Commands**
 ```powershell
 # Audit current trust encryption settings
 Get-ADObject -Filter 'ObjectClass -eq "trustedDomain"' -Properties msDS-SupportedEncryptionTypes | 

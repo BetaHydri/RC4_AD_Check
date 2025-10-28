@@ -86,7 +86,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 2.1
+  Version: 2.2
   Created: October 2025
   Updated: October 2025
   
@@ -532,6 +532,7 @@ function Test-KerberosGPOSettings {
                     $hasDESDisabled = $gpoReport -match "DES_CBC.*?(?:Disabled|False)" -or $gpoReport -notmatch "DES.*?1"
                     
                     # Also check for numeric values that might indicate the settings
+                    $encValue = $null
                     if ($gpoReport -match "SupportedEncryptionTypes.*?(\d+)") {
                         $encValue = [int]$matches[1]
                         if ($Debug) {
@@ -549,18 +550,21 @@ function Test-KerberosGPOSettings {
                     Write-Host "      📊 Settings analysis: AES128=$hasAES128, AES256=$hasAES256, RC4Disabled=$hasRC4Disabled, DESDisabled=$hasDESDisabled" -ForegroundColor Gray
                     
                     $isOptimal = $hasAES128 -and $hasAES256 -and $hasRC4Disabled -and $hasDESDisabled
+                    $isSecure = $hasAES128 -and $hasAES256 -and $hasRC4Disabled  # Secure even if DES status is unclear
                     
                     $kerberosGPO = [PSCustomObject]@{
-                        Name           = $gpo.DisplayName
-                        Id             = $gpo.Id
-                        LinkedToDomain = $null -ne ($allGPOLinks | Where-Object { $_.DisplayName -eq "Domain Root" })
-                        LinkedToDC     = $null -ne ($allGPOLinks | Where-Object { $_.DisplayName -eq "Domain Controllers OU" })
-                        AllLinks       = $allGPOLinks
-                        IsOptimal      = $isOptimal
-                        HasAES128      = $hasAES128
-                        HasAES256      = $hasAES256
-                        HasRC4Disabled = $hasRC4Disabled
-                        HasDESDisabled = $hasDESDisabled
+                        Name            = $gpo.DisplayName
+                        Id              = $gpo.Id
+                        LinkedToDomain  = $null -ne ($allGPOLinks | Where-Object { $_.DisplayName -eq "Domain Root" })
+                        LinkedToDC      = $null -ne ($allGPOLinks | Where-Object { $_.DisplayName -eq "Domain Controllers OU" })
+                        AllLinks        = $allGPOLinks
+                        IsOptimal       = $isOptimal
+                        IsSecure        = $isSecure
+                        HasAES128       = $hasAES128
+                        HasAES256       = $hasAES256
+                        HasRC4Disabled  = $hasRC4Disabled
+                        HasDESDisabled  = $hasDESDisabled
+                        EncryptionValue = $encValue
                     }
                     $kerberosGPOs += $kerberosGPO
                 }
@@ -632,17 +636,38 @@ function Test-KerberosGPOSettings {
                 
                 # Report settings compliance
                 if ($gpo.IsOptimal) {
-                    Write-Host "    ✅ Optimal settings (AES128+256 enabled, RC4+DES disabled)" -ForegroundColor Green
+                    Write-Host "    ✅ EXCELLENT: Optimal security settings" -ForegroundColor Green
+                    Write-Host "      • AES128+256 enabled, RC4+DES explicitly disabled" -ForegroundColor Green
+                    if ($gpo.EncryptionValue) {
+                        Write-Host "      • Encryption value: $($gpo.EncryptionValue) = $(Get-EncryptionTypes $gpo.EncryptionValue)" -ForegroundColor Green
+                    }
+                }
+                elseif ($gpo.IsSecure) {
+                    Write-Host "    ✅ GOOD: Secure settings (weak ciphers disabled)" -ForegroundColor Green
+                    Write-Host "      • AES128+256 enabled, RC4 disabled" -ForegroundColor Green
+                    if ($gpo.EncryptionValue) {
+                        Write-Host "      • Encryption value: $($gpo.EncryptionValue) = $(Get-EncryptionTypes $gpo.EncryptionValue)" -ForegroundColor Green
+                    }
+                    if (-not $gpo.HasDESDisabled) {
+                        Write-Host "      • DES status: Not explicitly configured (DES disabled by omission - GOOD)" -ForegroundColor Green
+                        Write-Host "        💡 Note: When DES bits (1,2) are not set in the value, DES is effectively disabled" -ForegroundColor Gray
+                    }
                 }
                 else {
-                    Write-Host "   ⚠️  Sub-optimal settings detected:" -ForegroundColor Yellow
-                    if (-not $gpo.HasAES128) { Write-Host "     - AES128 not enabled" -ForegroundColor Yellow }
-                    if (-not $gpo.HasAES256) { Write-Host "     - AES256 not enabled" -ForegroundColor Yellow }
-                    if (-not $gpo.HasRC4Disabled) { Write-Host "     - RC4 not disabled" -ForegroundColor Yellow }
+                    Write-Host "    ⚠️  NEEDS IMPROVEMENT: Sub-optimal settings detected:" -ForegroundColor Yellow
+                    if (-not $gpo.HasAES128) { Write-Host "      ❌ AES128 not enabled" -ForegroundColor Red }
+                    if (-not $gpo.HasAES256) { Write-Host "      ❌ AES256 not enabled" -ForegroundColor Red }
+                    if (-not $gpo.HasRC4Disabled) { Write-Host "      ❌ RC4 not disabled (SECURITY RISK)" -ForegroundColor Red }
                     if (-not $gpo.HasDESDisabled) { 
-                        Write-Host "     - DES not disabled" -ForegroundColor Yellow 
-                        Write-Host "       💡 Note: If your numeric value doesn't include DES bits (1,2), DES is already disabled" -ForegroundColor Gray
-                        Write-Host "       💡 To explicitly disable DES: Ensure GPO unchecks 'DES-CBC-CRC' and 'DES-CBC-MD5'" -ForegroundColor Gray
+                        if ($gpo.EncryptionValue -and ($gpo.EncryptionValue -band 0x3) -eq 0) {
+                            Write-Host "      ✅ DES disabled by omission (bits 1,2 not set - GOOD)" -ForegroundColor Green
+                        }
+                        else {
+                            Write-Host "      ⚠️  DES status unclear - verify DES is not enabled" -ForegroundColor Yellow
+                        }
+                    }
+                    if ($gpo.EncryptionValue) {
+                        Write-Host "      � Current encryption value: $($gpo.EncryptionValue) = $(Get-EncryptionTypes $gpo.EncryptionValue)" -ForegroundColor Cyan
                     }
                 }
             }
@@ -654,14 +679,24 @@ function Test-KerberosGPOSettings {
             
             # Provide scope-specific recommendations
             Write-Host ""
-            $headerMessages = @("💡 GPO LINKING BEST PRACTICES FOR DOMAIN: $($Domain.ToUpper())")
+            $headerMessages = @("💡 GPO ENCRYPTION SETTINGS RECOMMENDATIONS")
             $contentMessages = @(
-                "• Domain Level: Affects all users and computers",
-                "  (recommended for organization-wide policy)",
-                "• Domain Controllers OU: Affects only DCs",
-                "  (recommended for DC-specific requirements)",
-                "• Both Levels: Provides comprehensive coverage",
-                "  (allows for different settings if needed)"
+                "OPTIMAL CONFIGURATION (Recommended):",
+                "• AES128-CTS-HMAC-SHA1-96: ✅ Enabled",
+                "• AES256-CTS-HMAC-SHA1-96: ✅ Enabled", 
+                "• RC4-HMAC: ❌ Disabled (uncheck in GPO)",
+                "• DES-CBC-CRC: ❌ Disabled (uncheck in GPO)",
+                "• DES-CBC-MD5: ❌ Disabled (uncheck in GPO)",
+                "",
+                "ENCRYPTION VALUE EXAMPLES:",
+                "• Value 24 (0x18): AES128+AES256 only - EXCELLENT",
+                "• Value 28 (0x1C): AES+RC4 mixed - NEEDS IMPROVEMENT",
+                "• Value 31 (0x1F): All types enabled - SECURITY RISK",
+                "",
+                "LINKING BEST PRACTICES:",
+                "• Domain Level: Organization-wide policy",
+                "• Domain Controllers OU: DC-specific requirements",
+                "• Both Levels: Comprehensive coverage"
             )
             Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $contentMessages -Color "Cyan"
         }

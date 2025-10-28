@@ -1,6 +1,6 @@
 # RC4 Active Directory Security Audit Tool
 
-**Version**: 2.1  
+**Version**: 2.2  
 **Author**: Jan Tiedemann  
 **Created**: October 2025  
 **Updated**: October 2025
@@ -24,7 +24,9 @@ RC4 is a deprecated encryption algorithm that is considered cryptographically we
 - **Forest-wide scanning**: Automatically discovers and scans all domains in the forest
 - **Comprehensive object coverage**: Audits Computers and Domain Trusts (User objects not applicable for msDS-SupportedEncryptionTypes)
 - **Advanced GPO verification**: Comprehensive analysis of Group Policy settings with detailed linking information
-- **Enhanced debug capabilities**: Detailed troubleshooting output for GPO detection and analysis
+- **Enhanced GPO security analysis**: Explicit categorization of GPO settings as "Excellent", "Good", or "Needs Improvement"
+- **Improved weak cipher detection**: Clear identification when DES is properly disabled by omission
+- **Detailed encryption value reporting**: Shows numeric encryption values and their decoded meanings
 - **Flexible server connectivity**: Support for connecting to specific domain controllers
 - **Intelligent GPO link detection**: Multiple detection methods for reliable GPO link discovery
 - **Detailed application status**: Analysis of current encryption settings across object types

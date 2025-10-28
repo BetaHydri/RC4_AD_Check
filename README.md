@@ -100,6 +100,18 @@ Check GPO settings at specific organizational levels:
 .\RC4_AD_SCAN.ps1 -GPOScope Both
 ```
 
+### Debug Mode
+
+Enable detailed troubleshooting output for GPO detection:
+
+```powershell
+# Enable debug output
+.\RC4_AD_SCAN.ps1 -Debug
+
+# Combine with other parameters
+.\RC4_AD_SCAN.ps1 -Debug -GPOScope DomainControllers -ExportResults
+```
+
 When using `-ApplyFixes`, the script will:
 - Prompt for each object that needs remediation
 - Allow you to choose whether to fix each individual object
@@ -119,6 +131,12 @@ When using `-GPOScope`, you can specify:
 - **Domain**: Check GPOs linked to the domain root (affects all objects)
 - **DomainControllers**: Check GPOs linked to Domain Controllers OU (affects DCs only)
 - **Both**: Check both levels for comprehensive coverage (default)
+
+When using `-Debug`, the script will:
+- Show detailed GPO processing steps
+- Display GPO link detection progress
+- Report encryption setting analysis details
+- Help troubleshoot GPO detection issues
 
 ## Understanding the Output
 

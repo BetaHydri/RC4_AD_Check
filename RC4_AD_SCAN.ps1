@@ -79,7 +79,7 @@ foreach ($domain in $forest.Domains) {
             if ($ApplyFixes) {
                 $answer = Read-Host "Remediate User $($_.SamAccountName) in $domain? (Y/N)"
                 if ($answer -match '^[Yy]') {
-                    Set-ADUser -Identity $_ -Replace @{msDS-SupportedEncryptionTypes=24 }
+                    Set-ADUser -Identity $_ -Replace @{"msDS-SupportedEncryptionTypes" = 24 }
                     Write-Host " -> Fixed" -ForegroundColor Green
                 }
             }
@@ -103,7 +103,7 @@ foreach ($domain in $forest.Domains) {
             if ($ApplyFixes) {
                 $answer = Read-Host "Remediate Computer $($_.SamAccountName) in $domain? (Y/N)"
                 if ($answer -match '^[Yy]') {
-                    Set-ADComputer -Identity $_ -Replace @{msDS-SupportedEncryptionTypes=24 }
+                    Set-ADComputer -Identity $_ -Replace @{"msDS-SupportedEncryptionTypes" = 24 }
                     Write-Host " -> Fixed" -ForegroundColor Green
                 }
             }
@@ -127,7 +127,7 @@ foreach ($domain in $forest.Domains) {
             if ($ApplyFixes) {
                 $answer = Read-Host "Remediate Trust $($_.Name) in $domain? (Y/N)"
                 if ($answer -match '^[Yy]') {
-                    Set-ADTrust -Identity $_.Name -Replace @{msDS-SupportedEncryptionTypes=24 }
+                    Set-ADTrust -Identity $_.Name -Replace @{"msDS-SupportedEncryptionTypes" = 24 }
                     Write-Host " -> Fixed" -ForegroundColor Green
                 }
             }

@@ -1,6 +1,6 @@
 # RC4 Active Directory Security Audit Tool
 
-**Version**: 2.3  
+**Version**: 2.6  
 **Author**: Jan Tiedemann  
 **Created**: October 2025  
 **Updated**: October 2025

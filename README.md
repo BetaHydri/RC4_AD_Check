@@ -1054,6 +1054,47 @@ Add-WindowsFeature RSAT-AD-PowerShell
 Add-WindowsCapability -Online -Name "Rsat.ActiveDirectory.DS-LDS.Tools"
 ```
 
+## Troubleshooting & Debugging
+
+### Enable Debug Output
+Use the `-Debug` parameter to see detailed processing information:
+```powershell
+.\RC4_AD_SCAN.ps1 -Debug
+```
+
+Debug output includes:
+- **GPO Processing**: Shows GPO discovery, XML parsing, and application logic
+- **Trust Analysis**: Displays trust object discovery, type detection, and direction analysis
+- **Secure Objects Tracking**: Shows objects being added to secure collection
+- **Object Processing**: Details attribute reading and classification logic
+- **Cross-Forest Operations**: Forest connection details and domain discovery
+
+### Common Issues
+
+**Issue**: "Cannot find forest" error
+**Solution**: Ensure you have appropriate permissions and network connectivity to the target forest
+
+**Issue**: GPO links not detected
+**Solution**: Verify Group Policy Management Tools are installed and you have read permissions on GPOs
+
+**Issue**: Access denied on cross-forest operations
+**Solution**: Ensure trust relationships are established and you have cross-forest permissions
+
+**Issue**: Trust objects not found
+**Solution**: Trusts are stored in CN=System container - ensure you have read permissions
+
+### PowerShell Requirements
+- **PowerShell Version**: 5.1 or later
+- **Modules Required**: ActiveDirectory (automatically imported)
+- **Optional Modules**: GroupPolicy (for GPO checking)
+- **Permissions**: Domain Admin or equivalent for full functionality
+
+### Windows Server 2025 Considerations
+- RC4 fallback is disabled by default
+- Objects with "Not Set" encryption will fail authentication
+- Test thoroughly in lab environment before production deployment
+- Consider gradual rollout with proper monitoring
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit pull requests or open issues for bugs and feature requests.

@@ -168,6 +168,7 @@ The script automatically checks for existing Kerberos encryption Group Policy se
 - ⚠️ **Non-optimal GPOs**: Policies that may still allow weak encryption
 - ❌ **Missing GPOs**: Domains without Kerberos encryption policies
 - 🔗 **Linking Status**: Where GPOs are applied (Domain vs Domain Controllers OU)
+- 📊 **Application Status**: Shows which objects already have GPO-applied settings vs manual/unset
 
 ### GPO Linking Strategy
 
@@ -338,7 +339,26 @@ Scope: Both
   📋 Found Kerberos encryption GPO: Secure Kerberos Settings
     🔗 Linked to: Domain + Domain Controllers OU (Complete coverage)
     ✅ Optimal settings (AES128+256 enabled, RC4+DES disabled)
-  💡 GPO LINKING BEST PRACTICES:
+  � Checking GPO application status...
+    📊 GPO Application Status (sample analysis):
+    🖥️  Domain Controllers (3 total):
+      • GPO Applied (AES-only): 3
+      • Manual Settings: 0
+      • Not Set (RC4 fallback): 0
+      ✅ All DCs have optimal encryption settings!
+    💻 Regular Computers (sample of 10):
+      • GPO Applied (AES-only): 8
+      • Manual Settings: 1
+      • Not Set (RC4 fallback): 1
+    👤 Users (sample of 10):
+      • GPO Applied (AES-only): 9
+      • Manual Settings: 0
+      • Not Set (RC4 fallback): 1
+    💡 RECOMMENDATIONS:
+      • Ensure GPO is linked to Domain level and refreshed
+      • Run 'gpupdate /force' on affected systems
+      • Objects with 'Not Set' status will be flagged in detailed scan below
+  �💡 GPO LINKING BEST PRACTICES:
      • Domain Level: Affects all users and computers (recommended for organization-wide policy)
      • Domain Controllers OU: Affects only DCs (recommended for DC-specific requirements)
      • Both Levels: Provides comprehensive coverage and allows for different settings if needed

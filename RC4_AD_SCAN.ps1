@@ -216,6 +216,11 @@ function Test-KerberosGPOSettings {
                 }
             }
             
+            # Check GPO application on objects if scope includes both or we have GPOs
+            if ($Scope -eq "Both" -and $kerberosGPOs.Count -gt 0) {
+                Test-GPOApplication -Domain $Domain -KerberosGPOs $kerberosGPOs
+            }
+            
             # Provide scope-specific recommendations
             Write-Host "  💡 GPO LINKING BEST PRACTICES:" -ForegroundColor Cyan
             Write-Host "     • Domain Level: Affects all users and computers (recommended for organization-wide policy)" -ForegroundColor Gray
@@ -230,6 +235,128 @@ function Test-KerberosGPOSettings {
     }
     
     Write-Host ""
+}
+
+function Test-GPOApplication {
+    param(
+        [string]$Domain,
+        [array]$KerberosGPOs
+    )
+    
+    Write-Host "  🔍 Checking GPO application status..." -ForegroundColor Cyan
+    
+    try {
+        # Get domain information
+        $domainDN = (Get-ADDomain -Server $Domain).DistinguishedName
+        $domainControllersOU = "OU=Domain Controllers,$domainDN"
+        
+        # Sample a few computers and users to check GPO application
+        $sampleComputers = Get-ADComputer -Filter * -Server $Domain -Properties msDS-SupportedEncryptionTypes -ResultSetSize 10
+        $sampleUsers = Get-ADUser -Filter * -Server $Domain -Properties msDS-SupportedEncryptionTypes -ResultSetSize 10
+        $domainControllers = Get-ADComputer -SearchBase $domainControllersOU -Filter * -Server $Domain -Properties msDS-SupportedEncryptionTypes
+        
+        $gpoAppliedCount = 0
+        $manualSetCount = 0
+        $notSetCount = 0
+        $dcGpoAppliedCount = 0
+        $dcManualSetCount = 0
+        $dcNotSetCount = 0
+        
+        # Check regular computers
+        foreach ($computer in $sampleComputers) {
+            $enc = $computer."msDS-SupportedEncryptionTypes"
+            if ($enc -eq 24) {
+                # AES128 + AES256 = 8 + 16 = 24 (typical GPO setting)
+                $gpoAppliedCount++
+            }
+            elseif ($enc -and $enc -ne 24) {
+                $manualSetCount++
+            }
+            else {
+                $notSetCount++
+            }
+        }
+        
+        # Check domain controllers separately
+        foreach ($dc in $domainControllers) {
+            $enc = $dc."msDS-SupportedEncryptionTypes"
+            if ($enc -eq 24) {
+                $dcGpoAppliedCount++
+            }
+            elseif ($enc -and $enc -ne 24) {
+                $dcManualSetCount++
+            }
+            else {
+                $dcNotSetCount++
+            }
+        }
+        
+        # Check users
+        $userGpoAppliedCount = 0
+        $userManualSetCount = 0
+        $userNotSetCount = 0
+        
+        foreach ($user in $sampleUsers) {
+            $enc = $user."msDS-SupportedEncryptionTypes"
+            if ($enc -eq 24) {
+                $userGpoAppliedCount++
+            }
+            elseif ($enc -and $enc -ne 24) {
+                $userManualSetCount++
+            }
+            else {
+                $userNotSetCount++
+            }
+        }
+        
+        # Report GPO application status
+        Write-Host "    📊 GPO Application Status (sample analysis):" -ForegroundColor White
+        
+        if ($domainControllers.Count -gt 0) {
+            Write-Host "    🖥️  Domain Controllers ($($domainControllers.Count) total):" -ForegroundColor Yellow
+            Write-Host "      • GPO Applied (AES-only): $dcGpoAppliedCount" -ForegroundColor Green
+            Write-Host "      • Manual Settings: $dcManualSetCount" -ForegroundColor Cyan
+            Write-Host "      • Not Set (RC4 fallback): $dcNotSetCount" -ForegroundColor Red
+            
+            if ($dcGpoAppliedCount -eq $domainControllers.Count) {
+                Write-Host "      ✅ All DCs have optimal encryption settings!" -ForegroundColor Green
+            }
+            elseif ($dcNotSetCount -gt 0) {
+                Write-Host "      ⚠️  Some DCs are using RC4 fallback" -ForegroundColor Yellow
+            }
+        }
+        
+        if ($sampleComputers.Count -gt 0) {
+            Write-Host "    💻 Regular Computers (sample of $($sampleComputers.Count)):" -ForegroundColor Yellow
+            Write-Host "      • GPO Applied (AES-only): $gpoAppliedCount" -ForegroundColor Green
+            Write-Host "      • Manual Settings: $manualSetCount" -ForegroundColor Cyan
+            Write-Host "      • Not Set (RC4 fallback): $notSetCount" -ForegroundColor Red
+        }
+        
+        if ($sampleUsers.Count -gt 0) {
+            Write-Host "    👤 Users (sample of $($sampleUsers.Count)):" -ForegroundColor Yellow
+            Write-Host "      • GPO Applied (AES-only): $userGpoAppliedCount" -ForegroundColor Green
+            Write-Host "      • Manual Settings: $userManualSetCount" -ForegroundColor Cyan
+            Write-Host "      • Not Set (RC4 fallback): $userNotSetCount" -ForegroundColor Red
+        }
+        
+        # Provide recommendations based on findings
+        if ($dcNotSetCount -gt 0 -or $notSetCount -gt 0 -or $userNotSetCount -gt 0) {
+            Write-Host "    💡 RECOMMENDATIONS:" -ForegroundColor Yellow
+            if ($dcNotSetCount -gt 0) {
+                Write-Host "      • Ensure GPO is linked to Domain Controllers OU and refreshed" -ForegroundColor Yellow
+            }
+            if ($notSetCount -gt 0 -or $userNotSetCount -gt 0) {
+                Write-Host "      • Ensure GPO is linked to Domain level and refreshed" -ForegroundColor Yellow
+                Write-Host "      • Run 'gpupdate /force' on affected systems" -ForegroundColor Yellow
+            }
+            Write-Host "      • Objects with 'Not Set' status will be flagged in detailed scan below" -ForegroundColor Yellow
+        }
+        
+    }
+    catch {
+        Write-Host "    ⚠️  Could not analyze GPO application status: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
 }
 
 $results = @()

@@ -57,6 +57,9 @@
 .PARAMETER Server
   Specify a domain controller server to connect to (e.g., dc01.contoso.com)
 
+.PARAMETER TargetForest
+  Specify a target forest to scan when using forest trusts (e.g., target.com)
+
 .EXAMPLE
   .\RC4_AD_SCAN.ps1 -Server dc01.contoso.com
   Connect to a specific domain controller for scanning
@@ -64,6 +67,14 @@
 .EXAMPLE
   .\RC4_AD_SCAN.ps1 -Debug -Server dc01.contoso.com
   Run with debug output using a specific domain controller
+
+.EXAMPLE
+  .\RC4_AD_SCAN.ps1 -TargetForest target.com
+  Scan a different forest via forest trust
+
+.EXAMPLE
+  .\RC4_AD_SCAN.ps1 -TargetForest target.com -Server dc01.target.com
+  Scan a specific forest using a specific domain controller
 
 .NOTES
   Author: Jan Tiedemann
@@ -82,7 +93,8 @@ param(
     [ValidateSet("Domain", "DomainControllers", "Both")]
     [string]$GPOScope = "Both",
     [switch]$Debug,
-    [string]$Server
+    [string]$Server,
+    [string]$TargetForest
 )
 
 # Check if running as Administrator
@@ -129,7 +141,8 @@ function Test-KerberosGPOSettings {
         [string]$Domain,
         [string]$Scope = "Both",
         [switch]$Debug,
-        [string]$Server
+        [string]$Server,
+        [string]$TargetForest
     )
     
     Write-Host "Checking GPO settings for Kerberos encryption in domain: $Domain" -ForegroundColor Cyan
@@ -144,8 +157,13 @@ function Test-KerberosGPOSettings {
         }
     }
     
+    # Handle target forest context
+    if ($TargetForest -and $Debug) {
+        Write-Host "      🌲 Operating in target forest: $TargetForest" -ForegroundColor Gray
+    }
+    
     try {
-        # Get domain information
+        # Get domain information - use appropriate server context
         $domainDN = (Get-ADDomain -Server $Domain @adParams).DistinguishedName
         $domainControllersOU = "OU=Domain Controllers,$domainDN"
         
@@ -539,7 +557,7 @@ function Test-KerberosGPOSettings {
             
             # Check GPO application on objects if scope includes both or we have GPOs
             if ($Scope -eq "Both" -and $kerberosGPOs.Count -gt 0) {
-                Test-GPOApplication -Domain $Domain -KerberosGPOs $kerberosGPOs
+                Test-GPOApplication -Domain $Domain -KerberosGPOs $kerberosGPOs -Server $Server
             }
             
             # Provide scope-specific recommendations
@@ -561,20 +579,30 @@ function Test-KerberosGPOSettings {
 function Test-GPOApplication {
     param(
         [string]$Domain,
-        [array]$KerberosGPOs
+        [array]$KerberosGPOs,
+        [string]$Server
     )
     
     Write-Host "  🔍 Checking GPO application status..." -ForegroundColor Cyan
     
+    # Set up server parameters for consistent access
+    $serverParams = @{}
+    if ($Server) {
+        $serverParams['Server'] = $Server
+    }
+    else {
+        $serverParams['Server'] = $Domain
+    }
+    
     try {
         # Get domain information
-        $domainDN = (Get-ADDomain -Server $Domain).DistinguishedName
+        $domainDN = (Get-ADDomain @serverParams).DistinguishedName
         $domainControllersOU = "OU=Domain Controllers,$domainDN"
         
         # Sample a few computers and users to check GPO application
-        $sampleComputers = Get-ADComputer -Filter * -Server $Domain -Properties msDS-SupportedEncryptionTypes -ResultSetSize 10
-        $sampleUsers = Get-ADUser -Filter * -Server $Domain -Properties msDS-SupportedEncryptionTypes -ResultSetSize 10
-        $domainControllers = Get-ADComputer -SearchBase $domainControllersOU -Filter * -Server $Domain -Properties msDS-SupportedEncryptionTypes
+        $sampleComputers = Get-ADComputer -Filter * -Properties msDS-SupportedEncryptionTypes -ResultSetSize 10 @serverParams
+        $sampleUsers = Get-ADUser -Filter * -Properties msDS-SupportedEncryptionTypes -ResultSetSize 10 @serverParams
+        $domainControllers = Get-ADComputer -SearchBase $domainControllersOU -Filter * -Properties msDS-SupportedEncryptionTypes @serverParams
         
         $gpoAppliedCount = 0
         $manualSetCount = 0
@@ -694,13 +722,53 @@ if ($Server) {
     Write-Host "🌐 Connecting to specified server: $Server" -ForegroundColor Cyan
 }
 
+# Handle target forest specification
+$forestParams = @{}
+if ($TargetForest) {
+    $forestParams['Identity'] = $TargetForest
+    Write-Host "🌲 Targeting forest: $TargetForest" -ForegroundColor Cyan
+    
+    # If TargetForest is specified but no specific server, try to find a DC in the target forest
+    if (-not $Server) {
+        try {
+            Write-Host "🔍 Attempting to discover domain controller in target forest..." -ForegroundColor Gray
+            $targetForestInfo = Get-ADForest -Identity $TargetForest
+            $rootDomain = $targetForestInfo.RootDomain
+            
+            # Try to get a DC from the root domain of the target forest
+            $targetDC = Get-ADDomainController -DomainName $rootDomain -Discover -ErrorAction SilentlyContinue
+            if ($targetDC) {
+                $adParams['Server'] = $targetDC.HostName[0]
+                Write-Host "✅ Found target domain controller: $($targetDC.HostName[0])" -ForegroundColor Green
+            }
+        }
+        catch {
+            Write-Host "⚠️  Could not auto-discover DC in target forest. Consider using -Server parameter." -ForegroundColor Yellow
+        }
+    }
+}
+
 try {
-    $forest = Get-ADForest @adParams
+    if ($TargetForest) {
+        $forest = Get-ADForest @forestParams @adParams
+        Write-Host "✅ Successfully connected to target forest: $($forest.Name)" -ForegroundColor Green
+        Write-Host "📊 Forest contains domains: $($forest.Domains -join ', ')" -ForegroundColor Cyan
+    }
+    else {
+        $forest = Get-ADForest @adParams
+    }
 }
 catch {
-    Write-Host "❌ ERROR: Could not connect to Active Directory" -ForegroundColor Red
+    Write-Host "❌ ERROR: Could not connect to Active Directory forest" -ForegroundColor Red
     Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
-    if (-not $Server) {
+    if ($TargetForest) {
+        Write-Host "💡 FOREST TRUST TROUBLESHOOTING:" -ForegroundColor Yellow
+        Write-Host "• Verify forest trust exists between your forest and target forest" -ForegroundColor Yellow
+        Write-Host "• Ensure your account has permissions in the target forest" -ForegroundColor Yellow
+        Write-Host "• Try specifying a domain controller: -Server dc01.targetforest.com" -ForegroundColor Yellow
+        Write-Host "• Check network connectivity to target forest domain controllers" -ForegroundColor Yellow
+    }
+    elseif (-not $Server) {
         Write-Host "💡 TIP: Try specifying a domain controller with -Server parameter" -ForegroundColor Yellow
         Write-Host "Example: .\RC4_AD_SCAN.ps1 -Server dc01.contoso.com" -ForegroundColor Yellow
     }
@@ -711,7 +779,7 @@ catch {
 if (-not $SkipGPOCheck) {
     Write-Host "🔍 Checking Group Policy settings..." -ForegroundColor Magenta
     foreach ($domain in $forest.Domains) {
-        Test-KerberosGPOSettings -Domain $domain -Scope $GPOScope -Debug:$Debug -Server $Server
+        Test-KerberosGPOSettings -Domain $domain -Scope $GPOScope -Debug:$Debug -Server $Server -TargetForest $TargetForest
     }
 }
 
@@ -719,12 +787,18 @@ Write-Host "🔍 Scanning for objects with weak encryption..." -ForegroundColor 
 foreach ($domain in $forest.Domains) {
     Write-Host "Scanning domain: $domain" -ForegroundColor Cyan
 
-    # Set up AD command parameters
-    $domainParams = @{
-        Server = $domain
-    }
+    # Set up AD command parameters for target forest context
+    $domainParams = @{}
     if ($Server) {
         $domainParams['Server'] = $Server
+    }
+    else {
+        # Use the domain itself as server when no specific server is provided
+        $domainParams['Server'] = $domain
+    }
+    
+    if ($TargetForest -and $Debug) {
+        Write-Host "  🌲 Scanning in target forest context: $TargetForest" -ForegroundColor Gray
     }
 
     # Users

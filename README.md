@@ -107,6 +107,21 @@ Check GPO settings at specific organizational levels:
 .\RC4_AD_SCAN.ps1 -GPOScope Both
 ```
 
+### Cross-Forest Scanning
+
+Scan a different forest via forest trust relationships:
+
+```powershell
+# Scan a target forest using forest trust
+.\RC4_AD_SCAN.ps1 -TargetForest target.com
+
+# Specify both target forest and domain controller
+.\RC4_AD_SCAN.ps1 -TargetForest target.com -Server dc01.target.com
+
+# Debug cross-forest scanning
+.\RC4_AD_SCAN.ps1 -TargetForest target.com -Debug -ExportResults
+```
+
 ### Server Connectivity
 
 Connect to a specific domain controller:
@@ -151,6 +166,12 @@ Enable detailed troubleshooting output for GPO detection:
 .\RC4_AD_SCAN.ps1 -Debug -GPOScope DomainControllers -ExportResults
 ```
 
+When using `-TargetForest`, you can:
+- Scan a different forest when your user account is in a different forest
+- Leverage existing forest trust relationships for cross-forest auditing
+- Combine with `-Server` to target specific domain controllers in the target forest
+- Audit multiple forests from a central management forest
+
 When using `-Server`, you can:
 - Connect to a specific domain controller when having connectivity issues
 - Target testing against particular DCs
@@ -183,16 +204,50 @@ The `msDS-SupportedEncryptionTypes` attribute uses bitwise flags:
 
 Recommended setting: `24` (0x18) = AES128 + AES256
 
+## Cross-Forest Trust Requirements
+
+When using `-TargetForest` to scan a different forest, ensure the following requirements are met:
+
+### Forest Trust Configuration
+- **Forest Trust Relationship**: A two-way forest trust must exist between your current forest and the target forest
+- **Trust Direction**: The trust must allow authentication from your forest to the target forest
+- **Trust Authentication**: The forest trust should be configured for both authentication and authorization
+
+### Account Permissions
+- **Cross-Forest Permissions**: Your user account must have appropriate permissions in the target forest
+- **Delegation Rights**: Consider using account delegation or service accounts with cross-forest permissions
+- **Domain Admin/Enterprise Admin**: Required permissions in the target forest for full auditing capabilities
+
+### Network Connectivity
+- **DNS Resolution**: Ensure DNS can resolve domain controllers in the target forest
+- **Firewall Rules**: Required ports (135, 389, 636, 445, 49152-65535) must be open between forests
+- **Domain Controller Discovery**: The script will attempt to auto-discover DCs in the target forest
+
+### Troubleshooting Cross-Forest Issues
+If you encounter authentication or connectivity issues:
+
+```powershell
+# Test basic forest trust connectivity
+nltest /trusted_domains
+
+# Test authentication to target forest
+runas /netonly /user:TARGETFOREST\username powershell
+
+# Verify trust relationship status
+netdom trust SOURCEFOREST /domain:TARGETFOREST /verify
+
+# Use specific domain controller if auto-discovery fails
+.\RC4_AD_SCAN.ps1 -TargetForest target.com -Server dc01.target.com
+```
+
 ## Windows Server 2025 Compatibility
 
 **Critical Update**: Windows Server 2025 introduces significant changes to Kerberos encryption handling:
-
-### RC4 Fallback Mechanism Disabled
 - Windows Server 2025 domain controllers **disable RC4 fallback by default**
 - Objects with undefined `msDS-SupportedEncryptionTypes` will **fail authentication**
 - This affects objects that previously relied on automatic RC4 fallback
 
-### Migration Timeline
+### RC4 Fallback Mechanism Disabled
 - **Immediate Action Required**: Audit all objects before upgrading to Server 2025
 - **Test Environment**: Validate encryption settings in non-production first
 - **Production Planning**: Set explicit AES encryption for all objects
@@ -402,6 +457,30 @@ If you still see RC4-HMAC encryption types after remediation, it indicates that 
 4. **Phase 4**: Consider disabling NTLM entirely in highly secure environments
 
 ## Sample Output
+
+### Sample Output with Cross-Forest Scanning
+
+```
+🌲 Targeting forest: target.com
+🔍 Attempting to discover domain controller in target forest...
+✅ Found target domain controller: dc01.target.com
+✅ Successfully connected to target forest: target.com
+📊 Forest contains domains: target.com, subdomain.target.com
+
+🔍 Checking Group Policy settings...
+Checking GPO settings for Kerberos encryption in domain: target.com
+      🌲 Operating in target forest: target.com
+Scope: Both
+      🔍 Checking GPO: Target Forest Kerberos Policy
+      ✅ Found Kerberos encryption configuration
+    🔗 Linked to the following locations:
+      ✅ Domain Root [Order: 1]
+    📈 Coverage: Domain-wide (All objects + 0 additional OUs)
+    ✅ Optimal settings (AES128+256 enabled, RC4+DES disabled)
+
+🔍 Scanning for objects with weak encryption...
+  🌲 Scanning in target forest context: target.com
+Scanning domain: target.com
 
 ### Sample Output with Enhanced GPO Analysis
 

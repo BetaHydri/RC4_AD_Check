@@ -131,12 +131,102 @@ function Test-KerberosGPOSettings {
                 $gpoReport = Get-GPOReport -Guid $gpo.Id -ReportType Xml -Domain $Domain -ErrorAction SilentlyContinue
                 
                 if ($gpoReport -and $gpoReport -match "Configure encryption types allowed for Kerberos") {
-                    # Get GPO links
-                    $gpoLinks = Get-GPInheritance -Target $domainDN -Domain $Domain -ErrorAction SilentlyContinue
-                    $dcGpoLinks = Get-GPInheritance -Target $domainControllersOU -Domain $Domain -ErrorAction SilentlyContinue
+                    # Get all GPO links for this GPO across the domain
+                    $allGPOLinks = @()
                     
-                    $linkedToDomain = $gpoLinks.GpoLinks | Where-Object { $_.GpoId -eq $gpo.Id }
-                    $linkedToDC = $dcGpoLinks.GpoLinks | Where-Object { $_.GpoId -eq $gpo.Id }
+                    # Get GPO links using Get-GPO and search for all links
+                    try {
+                        $gpoData = Get-GPO -Guid $gpo.Id -Domain $Domain -ErrorAction SilentlyContinue
+                        if ($gpoData) {
+                            # Search for all containers where this GPO is linked
+                            $searchBase = (Get-ADDomain -Server $Domain).DistinguishedName
+                            $allContainers = @()
+                            
+                            # Add domain root
+                            $allContainers += $searchBase
+                            
+                            # Add Domain Controllers OU
+                            $allContainers += "OU=Domain Controllers,$searchBase"
+                            
+                            # Get all OUs in the domain
+                            try {
+                                $allOUs = Get-ADOrganizationalUnit -Filter * -Server $Domain -ErrorAction SilentlyContinue
+                                foreach ($ou in $allOUs) {
+                                    $allContainers += $ou.DistinguishedName
+                                }
+                            }
+                            catch {
+                                # Continue if we can't enumerate OUs
+                            }
+                            
+                            # Check each container for this GPO link
+                            foreach ($container in $allContainers) {
+                                try {
+                                    $inheritance = Get-GPInheritance -Target $container -Domain $Domain -ErrorAction SilentlyContinue
+                                    if ($inheritance -and $inheritance.GpoLinks) {
+                                        $linkedGPO = $inheritance.GpoLinks | Where-Object { $_.GpoId -eq $gpo.Id }
+                                        if ($linkedGPO) {
+                                            $containerName = if ($container -eq $searchBase) { 
+                                                "Domain Root" 
+                                            }
+                                            elseif ($container -eq "OU=Domain Controllers,$searchBase") { 
+                                                "Domain Controllers OU" 
+                                            }
+                                            else {
+                                                # Extract OU name from DN
+                                                if ($container -match "OU=([^,]+)") {
+                                                    $matches[1]
+                                                }
+                                                else {
+                                                    $container
+                                                }
+                                            }
+                                            
+                                            $allGPOLinks += [PSCustomObject]@{
+                                                Container   = $container
+                                                DisplayName = $containerName
+                                                Enabled     = $linkedGPO.Enabled
+                                                Enforced    = $linkedGPO.Enforced
+                                                Order       = $linkedGPO.Order
+                                            }
+                                        }
+                                    }
+                                }
+                                catch {
+                                    # Continue if we can't check a specific container
+                                    continue
+                                }
+                            }
+                        }
+                    }
+                    catch {
+                        # Fallback to basic checking if advanced search fails
+                        $gpoLinks = Get-GPInheritance -Target $domainDN -Domain $Domain -ErrorAction SilentlyContinue
+                        $dcGpoLinks = Get-GPInheritance -Target $domainControllersOU -Domain $Domain -ErrorAction SilentlyContinue
+                        
+                        $linkedToDomain = $gpoLinks.GpoLinks | Where-Object { $_.GpoId -eq $gpo.Id }
+                        $linkedToDC = $dcGpoLinks.GpoLinks | Where-Object { $_.GpoId -eq $gpo.Id }
+                        
+                        if ($linkedToDomain) {
+                            $allGPOLinks += [PSCustomObject]@{
+                                Container   = $domainDN
+                                DisplayName = "Domain Root"
+                                Enabled     = $linkedToDomain.Enabled
+                                Enforced    = $linkedToDomain.Enforced
+                                Order       = $linkedToDomain.Order
+                            }
+                        }
+                        
+                        if ($linkedToDC) {
+                            $allGPOLinks += [PSCustomObject]@{
+                                Container   = $domainControllersOU
+                                DisplayName = "Domain Controllers OU"
+                                Enabled     = $linkedToDC.Enabled
+                                Enforced    = $linkedToDC.Enforced
+                                Order       = $linkedToDC.Order
+                            }
+                        }
+                    }
                     
                     # Analyze settings
                     $hasAES128 = $gpoReport -match "AES128_HMAC_SHA1.*?Enabled"
@@ -149,8 +239,9 @@ function Test-KerberosGPOSettings {
                     $kerberosGPO = [PSCustomObject]@{
                         Name           = $gpo.DisplayName
                         Id             = $gpo.Id
-                        LinkedToDomain = [bool]$linkedToDomain
-                        LinkedToDC     = [bool]$linkedToDC
+                        LinkedToDomain = $null -ne ($allGPOLinks | Where-Object { $_.DisplayName -eq "Domain Root" })
+                        LinkedToDC     = $null -ne ($allGPOLinks | Where-Object { $_.DisplayName -eq "Domain Controllers OU" })
+                        AllLinks       = $allGPOLinks
                         IsOptimal      = $isOptimal
                         HasAES128      = $hasAES128
                         HasAES256      = $hasAES256
@@ -177,30 +268,43 @@ function Test-KerberosGPOSettings {
             foreach ($gpo in $kerberosGPOs) {
                 Write-Host "  📋 Found Kerberos encryption GPO: $($gpo.Name)" -ForegroundColor Green
                 
-                # Check linking based on scope
-                $scopeCompliant = $false
-                if ($Scope -eq "Domain" -and $gpo.LinkedToDomain) { $scopeCompliant = $true }
-                elseif ($Scope -eq "DomainControllers" -and $gpo.LinkedToDC) { $scopeCompliant = $true }
-                elseif ($Scope -eq "Both" -and ($gpo.LinkedToDomain -or $gpo.LinkedToDC)) { $scopeCompliant = $true }
-                
-                # Report linking status
-                if ($gpo.LinkedToDomain -and $gpo.LinkedToDC) {
-                    Write-Host "    🔗 Linked to: Domain + Domain Controllers OU (Complete coverage)" -ForegroundColor Green
-                }
-                elseif ($gpo.LinkedToDomain) {
-                    Write-Host "    🔗 Linked to: Domain level (All objects)" -ForegroundColor Cyan
-                    if ($Scope -eq "DomainControllers" -or $Scope -eq "Both") {
-                        Write-Host "    ⚠️  Consider also linking to Domain Controllers OU for DC-specific settings" -ForegroundColor Yellow
+                # Show detailed linking information
+                if ($gpo.AllLinks -and $gpo.AllLinks.Count -gt 0) {
+                    Write-Host "    🔗 Linked to the following locations:" -ForegroundColor Cyan
+                    foreach ($link in $gpo.AllLinks | Sort-Object Order) {
+                        $statusIcon = if ($link.Enabled) { "✅" } else { "❌" }
+                        $enforcedText = if ($link.Enforced) { " (Enforced)" } else { "" }
+                        Write-Host "      $statusIcon $($link.DisplayName) [Order: $($link.Order)]$enforcedText" -ForegroundColor Gray
                     }
-                }
-                elseif ($gpo.LinkedToDC) {
-                    Write-Host "    🔗 Linked to: Domain Controllers OU only" -ForegroundColor Cyan
-                    if ($Scope -eq "Domain" -or $Scope -eq "Both") {
-                        Write-Host "    ⚠️  Consider also linking to Domain level for complete coverage" -ForegroundColor Yellow
+                    
+                    # Provide coverage summary
+                    $domainLinked = $gpo.LinkedToDomain
+                    $dcLinked = $gpo.LinkedToDC
+                    $otherOUs = $gpo.AllLinks | Where-Object { $_.DisplayName -notin @("Domain Root", "Domain Controllers OU") }
+                    
+                    if ($domainLinked -and $dcLinked) {
+                        Write-Host "    📈 Coverage: Complete (Domain + DCs + $($otherOUs.Count) additional OUs)" -ForegroundColor Green
+                    }
+                    elseif ($domainLinked) {
+                        Write-Host "    � Coverage: Domain-wide (All objects + $($otherOUs.Count) additional OUs)" -ForegroundColor Cyan
+                        if ($Scope -eq "DomainControllers" -or $Scope -eq "Both") {
+                            Write-Host "    ⚠️  Consider linking to Domain Controllers OU for explicit DC coverage" -ForegroundColor Yellow
+                        }
+                    }
+                    elseif ($dcLinked) {
+                        Write-Host "    � Coverage: Domain Controllers + $($otherOUs.Count) additional OUs" -ForegroundColor Cyan
+                        if ($Scope -eq "Domain" -or $Scope -eq "Both") {
+                            Write-Host "    ⚠️  Consider linking to Domain level for complete coverage" -ForegroundColor Yellow
+                        }
+                    }
+                    else {
+                        Write-Host "    📈 Coverage: $($gpo.AllLinks.Count) specific OUs only" -ForegroundColor Yellow
+                        Write-Host "    💡 Consider linking to Domain level for broader coverage" -ForegroundColor Yellow
                     }
                 }
                 else {
-                    Write-Host "    ❌ Not linked to checked scopes" -ForegroundColor Red
+                    Write-Host "    ❌ No active links found for this GPO" -ForegroundColor Red
+                    Write-Host "    💡 GPO exists but is not linked to any organizational units" -ForegroundColor Yellow
                 }
                 
                 # Report settings compliance

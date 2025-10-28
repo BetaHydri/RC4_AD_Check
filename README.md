@@ -167,7 +167,8 @@ The script automatically checks for existing Kerberos encryption Group Policy se
 - ✅ **Compliant GPOs**: Policies with recommended AES-only settings
 - ⚠️ **Non-optimal GPOs**: Policies that may still allow weak encryption
 - ❌ **Missing GPOs**: Domains without Kerberos encryption policies
-- 🔗 **Linking Status**: Where GPOs are applied (Domain vs Domain Controllers OU)
+- 🔗 **Detailed Linking Status**: Shows all OUs where GPOs are applied with link order and enforcement status
+- 📈 **Coverage Analysis**: Summarizes the scope of GPO application across the domain
 - 📊 **Application Status**: Shows which objects already have GPO-applied settings vs manual/unset
 
 ### GPO Linking Strategy
@@ -194,6 +195,26 @@ The script automatically checks for existing Kerberos encryption Group Policy se
 - **Use Case**: Graduated security approach
 - **Pros**: Flexible, allows different settings per object type
 - **Cons**: More complex to manage
+
+### Understanding GPO Link Details
+
+When checking GPO settings with `-GPOScope Both`, the script provides detailed information about where Kerberos encryption GPOs are linked:
+
+#### Link Status Indicators
+- **✅ OU Name [Order: X]**: GPO is enabled and linked to this OU
+- **❌ OU Name [Order: X]**: GPO is linked but disabled
+- **(Enforced)**: GPO link is enforced (cannot be blocked by child containers)
+
+#### Coverage Analysis
+- **Complete**: Linked to both Domain and Domain Controllers OU
+- **Domain-wide**: Linked to Domain root (affects all objects)  
+- **Domain Controllers**: Linked only to DC OU
+- **Specific OUs**: Linked to selected organizational units only
+
+#### Link Order Significance
+- **Lower numbers = Higher priority** (Order 1 processes before Order 2)
+- **Conflicts resolved by precedence** (last applied wins)
+- **Enforced links override** child container settings
 
 ### Recommended Implementation Strategy
 1. **Phase 1**: Apply to Domain Controllers OU first (minimize risk)
@@ -332,6 +353,44 @@ If you still see RC4-HMAC encryption types after remediation, it indicates that 
 ## Sample Output
 
 ### When No Issues Are Found
+```
+🔍 Checking Group Policy settings...
+Checking GPO settings for Kerberos encryption in domain: contoso.com
+Scope: Both
+  📋 Found Kerberos encryption GPO: Secure Kerberos Settings
+    🔗 Linked to the following locations:
+      ✅ Domain Root [Order: 1]
+      ✅ Domain Controllers OU [Order: 1]
+      ✅ IT Department OU [Order: 2]
+      ✅ Servers OU [Order: 3] (Enforced)
+    📈 Coverage: Complete (Domain + DCs + 2 additional OUs)
+    ✅ Optimal settings (AES128+256 enabled, RC4+DES disabled)
+  🔍 Checking GPO application status...
+    📊 GPO Application Status (sample analysis):
+    🖥️  Domain Controllers (3 total):
+      • GPO Applied (AES-only): 3
+      • Manual Settings: 0
+      • Not Set (RC4 fallback): 0
+      ✅ All DCs have optimal encryption settings!
+    💻 Regular Computers (sample of 10):
+      • GPO Applied (AES-only): 9
+      • Manual Settings: 1
+      • Not Set (RC4 fallback): 0
+    👤 Users (sample of 10):
+      • GPO Applied (AES-only): 10
+      • Manual Settings: 0
+      • Not Set (RC4 fallback): 0
+  💡 GPO LINKING BEST PRACTICES:
+     • Domain Level: Affects all users and computers (recommended for organization-wide policy)
+     • Domain Controllers OU: Affects only DCs (recommended for DC-specific requirements)
+     • Both Levels: Provides comprehensive coverage and allows for different settings if needed
+
+🔍 Scanning for objects with weak encryption...
+Scanning domain: contoso.com
+
+✅ AUDIT COMPLETE: No objects with RC4 encryption or weak settings found!
+All objects in the forest are using strong AES encryption.
+```
 ```
 🔍 Checking Group Policy settings...
 Checking GPO settings for Kerberos encryption in domain: contoso.com

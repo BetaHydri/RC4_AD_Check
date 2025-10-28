@@ -23,6 +23,9 @@
 .PARAMETER GPOScope
   Specify where to check for GPO links: Domain, DomainControllers, or Both (default)
 
+.PARAMETER Debug
+  Enable debug output for troubleshooting GPO detection
+
 .EXAMPLE
   .\RC4_AD_SCAN.ps1
   Run in audit-only mode to identify RC4 usage
@@ -51,6 +54,10 @@
   .\RC4_AD_SCAN.ps1 -GPOScope Domain
   Check GPO settings only at Domain level
 
+.EXAMPLE
+  .\RC4_AD_SCAN.ps1 -Debug
+  Run with debug output for troubleshooting GPO detection
+
 .NOTES
   Author: Jan Tiedemann
   Version: 1.0
@@ -65,7 +72,8 @@ param(
     [switch]$ExportResults,
     [switch]$SkipGPOCheck,
     [ValidateSet("Domain", "DomainControllers", "Both")]
-    [string]$GPOScope = "Both"
+    [string]$GPOScope = "Both",
+    [switch]$Debug
 )
 
 # Check if running as Administrator
@@ -110,7 +118,8 @@ function Get-EncryptionTypes {
 function Test-KerberosGPOSettings {
     param(
         [string]$Domain,
-        [string]$Scope = "Both"
+        [string]$Scope = "Both",
+        [switch]$Debug
     )
     
     Write-Host "Checking GPO settings for Kerberos encryption in domain: $Domain" -ForegroundColor Cyan
@@ -127,57 +136,109 @@ function Test-KerberosGPOSettings {
         
         # Check each GPO for Kerberos settings
         foreach ($gpo in $gpos) {
+            if ($Debug) {
+                Write-Host "      🔍 Checking GPO: $($gpo.DisplayName)" -ForegroundColor Gray
+            }
+            
             try {
                 $gpoReport = Get-GPOReport -Guid $gpo.Id -ReportType Xml -Domain $Domain -ErrorAction SilentlyContinue
+                
+                if ($Debug -and $gpoReport) {
+                    Write-Host "      📄 GPO report retrieved successfully" -ForegroundColor Gray
+                    if ($gpoReport -match "Configure encryption types allowed for Kerberos") {
+                        Write-Host "      ✅ Found Kerberos encryption configuration" -ForegroundColor Gray
+                    }
+                }
                 
                 if ($gpoReport -and $gpoReport -match "Configure encryption types allowed for Kerberos") {
                     # Get all GPO links for this GPO across the domain
                     $allGPOLinks = @()
                     
-                    # Get GPO links using Get-GPO and search for all links
+                    # Use Get-GPO with XML report to find all links
                     try {
-                        $gpoData = Get-GPO -Guid $gpo.Id -Domain $Domain -ErrorAction SilentlyContinue
-                        if ($gpoData) {
-                            # Search for all containers where this GPO is linked
-                            $searchBase = (Get-ADDomain -Server $Domain).DistinguishedName
-                            $allContainers = @()
+                        # Get the GPO report which includes link information
+                        $fullGpoReport = Get-GPOReport -Guid $gpo.Id -ReportType Xml -Domain $Domain -ErrorAction SilentlyContinue
+                        
+                        if ($fullGpoReport) {
+                            if ($Debug) {
+                                Write-Host "      📋 Full GPO report retrieved for link analysis" -ForegroundColor Gray
+                            }
                             
-                            # Add domain root
-                            $allContainers += $searchBase
+                            # Parse XML to find SOM (Scope of Management) links
+                            $xmlDoc = [xml]$fullGpoReport
+                            $linkNodes = $xmlDoc.SelectNodes("//LinksTo")
                             
-                            # Add Domain Controllers OU
-                            $allContainers += "OU=Domain Controllers,$searchBase"
+                            if ($Debug) {
+                                Write-Host "      🔗 Found $($linkNodes.Count) potential link nodes" -ForegroundColor Gray
+                            }
                             
-                            # Get all OUs in the domain
-                            try {
-                                $allOUs = Get-ADOrganizationalUnit -Filter * -Server $Domain -ErrorAction SilentlyContinue
-                                foreach ($ou in $allOUs) {
-                                    $allContainers += $ou.DistinguishedName
+                            foreach ($linkNode in $linkNodes) {
+                                $somPath = $linkNode.SOMPath
+                                $enabled = $linkNode.Enabled -eq "true"
+                                $noOverride = $linkNode.NoOverride -eq "true"
+                                
+                                if ($Debug) {
+                                    Write-Host "      🎯 Link found: $somPath (Enabled: $enabled)" -ForegroundColor Gray
+                                }
+                                
+                                # Convert SOM path to friendly name
+                                $containerName = if ($somPath -eq $domainDN) { 
+                                    "Domain Root" 
+                                } elseif ($somPath -eq $domainControllersOU) { 
+                                    "Domain Controllers OU" 
+                                } else {
+                                    # Extract OU name from DN
+                                    if ($somPath -match "OU=([^,]+)") {
+                                        $matches[1] + " OU"
+                                    } elseif ($somPath -match "CN=([^,]+)") {
+                                        $matches[1] + " Container"
+                                    } else {
+                                        $somPath
+                                    }
+                                }
+                                
+                                $allGPOLinks += [PSCustomObject]@{
+                                    Container   = $somPath
+                                    DisplayName = $containerName
+                                    Enabled     = $enabled
+                                    Enforced    = $noOverride
+                                    Order       = 1  # Default order, actual order would need additional query
                                 }
                             }
-                            catch {
-                                # Continue if we can't enumerate OUs
+                        }
+                        
+                        # If no links found in XML, try alternative method
+                        if ($allGPOLinks.Count -eq 0) {
+                            Write-Host "      🔍 Checking alternative GPO link detection..." -ForegroundColor Gray
+                            
+                            # Search for containers where this GPO might be linked
+                            $searchContainers = @($domainDN, $domainControllersOU)
+                            
+                            # Add some common OUs
+                            try {
+                                $commonOUs = Get-ADOrganizationalUnit -Filter "Name -like '*'" -Server $Domain -ErrorAction SilentlyContinue | Select-Object -First 10
+                                foreach ($ou in $commonOUs) {
+                                    $searchContainers += $ou.DistinguishedName
+                                }
+                            } catch {
+                                # Continue if OU enumeration fails
                             }
                             
-                            # Check each container for this GPO link
-                            foreach ($container in $allContainers) {
+                            foreach ($container in $searchContainers) {
                                 try {
                                     $inheritance = Get-GPInheritance -Target $container -Domain $Domain -ErrorAction SilentlyContinue
                                     if ($inheritance -and $inheritance.GpoLinks) {
                                         $linkedGPO = $inheritance.GpoLinks | Where-Object { $_.GpoId -eq $gpo.Id }
                                         if ($linkedGPO) {
-                                            $containerName = if ($container -eq $searchBase) { 
+                                            $containerName = if ($container -eq $domainDN) { 
                                                 "Domain Root" 
-                                            }
-                                            elseif ($container -eq "OU=Domain Controllers,$searchBase") { 
+                                            } elseif ($container -eq $domainControllersOU) { 
                                                 "Domain Controllers OU" 
-                                            }
-                                            else {
+                                            } else {
                                                 # Extract OU name from DN
                                                 if ($container -match "OU=([^,]+)") {
-                                                    $matches[1]
-                                                }
-                                                else {
+                                                    $matches[1] + " OU"
+                                                } else {
                                                     $container
                                                 }
                                             }
@@ -191,48 +252,38 @@ function Test-KerberosGPOSettings {
                                             }
                                         }
                                     }
-                                }
-                                catch {
+                                } catch {
                                     # Continue if we can't check a specific container
                                     continue
                                 }
                             }
                         }
-                    }
-                    catch {
-                        # Fallback to basic checking if advanced search fails
-                        $gpoLinks = Get-GPInheritance -Target $domainDN -Domain $Domain -ErrorAction SilentlyContinue
-                        $dcGpoLinks = Get-GPInheritance -Target $domainControllersOU -Domain $Domain -ErrorAction SilentlyContinue
-                        
-                        $linkedToDomain = $gpoLinks.GpoLinks | Where-Object { $_.GpoId -eq $gpo.Id }
-                        $linkedToDC = $dcGpoLinks.GpoLinks | Where-Object { $_.GpoId -eq $gpo.Id }
-                        
-                        if ($linkedToDomain) {
-                            $allGPOLinks += [PSCustomObject]@{
-                                Container   = $domainDN
-                                DisplayName = "Domain Root"
-                                Enabled     = $linkedToDomain.Enabled
-                                Enforced    = $linkedToDomain.Enforced
-                                Order       = $linkedToDomain.Order
-                            }
-                        }
-                        
-                        if ($linkedToDC) {
-                            $allGPOLinks += [PSCustomObject]@{
-                                Container   = $domainControllersOU
-                                DisplayName = "Domain Controllers OU"
-                                Enabled     = $linkedToDC.Enabled
-                                Enforced    = $linkedToDC.Enforced
-                                Order       = $linkedToDC.Order
-                            }
-                        }
+                    } catch {
+                        Write-Host "      ⚠️  Error detecting GPO links: $($_.Exception.Message)" -ForegroundColor Yellow
                     }
                     
-                    # Analyze settings
-                    $hasAES128 = $gpoReport -match "AES128_HMAC_SHA1.*?Enabled"
-                    $hasAES256 = $gpoReport -match "AES256_HMAC_SHA1.*?Enabled"
-                    $hasRC4Disabled = $gpoReport -match "RC4_HMAC_MD5.*?Disabled"
-                    $hasDESDisabled = $gpoReport -match "DES_CBC.*?Disabled"
+                    # Analyze settings with more detailed checking
+                    Write-Host "      🔍 Analyzing GPO settings..." -ForegroundColor Gray
+                    
+                    # Check for different possible setting patterns
+                    $hasAES128 = $gpoReport -match "AES128_HMAC_SHA1.*?(?:Enabled|True)" -or $gpoReport -match "AES128.*?1"
+                    $hasAES256 = $gpoReport -match "AES256_HMAC_SHA1.*?(?:Enabled|True)" -or $gpoReport -match "AES256.*?1"
+                    $hasRC4Disabled = $gpoReport -match "RC4_HMAC_MD5.*?(?:Disabled|False)" -or $gpoReport -notmatch "RC4.*?1"
+                    $hasDESDisabled = $gpoReport -match "DES_CBC.*?(?:Disabled|False)" -or $gpoReport -notmatch "DES.*?1"
+                    
+                    # Also check for numeric values that might indicate the settings
+                    if ($gpoReport -match "SupportedEncryptionTypes.*?(\d+)") {
+                        $encValue = [int]$matches[1]
+                        Write-Host "      📝 Found numeric encryption value: $encValue" -ForegroundColor Gray
+                        
+                        # Decode the value
+                        $hasAES128 = $hasAES128 -or (($encValue -band 0x8) -ne 0)
+                        $hasAES256 = $hasAES256 -or (($encValue -band 0x10) -ne 0)
+                        $hasRC4Disabled = $hasRC4Disabled -or (($encValue -band 0x4) -eq 0)
+                        $hasDESDisabled = $hasDESDisabled -or (($encValue -band 0x3) -eq 0)
+                    }
+                    
+                    Write-Host "      📊 Settings analysis: AES128=$hasAES128, AES256=$hasAES256, RC4Disabled=$hasRC4Disabled, DESDisabled=$hasDESDisabled" -ForegroundColor Gray
                     
                     $isOptimal = $hasAES128 -and $hasAES256 -and $hasRC4Disabled -and $hasDESDisabled
                     
@@ -470,7 +521,7 @@ $forest = Get-ADForest
 if (-not $SkipGPOCheck) {
     Write-Host "🔍 Checking Group Policy settings..." -ForegroundColor Magenta
     foreach ($domain in $forest.Domains) {
-        Test-KerberosGPOSettings -Domain $domain -Scope $GPOScope
+        Test-KerberosGPOSettings -Domain $domain -Scope $GPOScope -Debug:$Debug
     }
 }
 

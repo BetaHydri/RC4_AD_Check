@@ -403,7 +403,59 @@ If you still see RC4-HMAC encryption types after remediation, it indicates that 
 
 ## Sample Output
 
-### When No Issues Are Found
+### Sample Output with Enhanced GPO Analysis
+
+```
+🔍 Checking Group Policy settings...
+Checking GPO settings for Kerberos encryption in domain: contoso.com
+Scope: Both
+      🔍 Decoding value: DES-CBC-CRC
+      📊 Settings analysis: AES128=False, AES256=False, RC4Disabled=True, DESDisabled=False
+  📋 Found Kerberos encryption GPO: EncryptionTypes
+    🔗 Linked to the following locations:
+      ✅ Domain Controllers OU [Order: 1]
+    📈 Coverage: Domain Controllers + 0 additional OUs
+    ⚠️  Consider linking to Domain level for complete coverage
+    ⚠️  Sub-optimal settings detected:
+      - AES128 not enabled
+      - AES256 not enabled
+      - DES not disabled
+        💡 Note: If your numeric value doesn't include DES bits (1,2), DES is already disabled
+        💡 To explicitly disable DES: Ensure GPO unchecks 'DES-CBC-CRC' and 'DES-CBC-MD5'
+  🔍 Checking GPO application status...
+    📊 GPO Application Status (sample analysis):
+    ℹ️  Legend:
+      • GPO Applied (AES-only): Objects with msDS-SupportedEncryptionTypes = 24 (AES128+AES256)
+      • Manual Settings (custom): Objects with non-standard encryption values (not 24)
+      • Not Set (RC4 fallback): Objects without msDS-SupportedEncryptionTypes attribute
+
+    🖥️  Domain Controllers (3 total):
+      • GPO Applied (AES-only): 0
+      • Manual Settings (custom values): 3
+      • Not Set (RC4 fallback): 0
+    💻 Regular Computers (sample of 4):
+      • GPO Applied (AES-only): 1
+      • Manual Settings (custom values): 3
+      • Not Set (RC4 fallback): 0
+    👤 Users (sample of 7):
+      • GPO Applied (AES-only): 0
+      • Manual Settings (custom values): 0
+      • Not Set (RC4 fallback): 7
+    💡 RECOMMENDATIONS:
+      • Ensure GPO is linked to Domain level and refreshed
+      • Run 'gpupdate /force' on affected systems
+      • Objects with 'Not Set' status will be flagged in detailed scan below
+  💡 GPO LINKING BEST PRACTICES:
+     • Domain Level: Affects all users and computers (recommended for organization-wide policy)
+     • Domain Controllers OU: Affects only DCs (recommended for DC-specific requirements)
+     • Both Levels: Provides comprehensive coverage and allows for different settings if needed
+
+🔍 Scanning for objects with weak encryption...
+Scanning domain: contoso.com
+
+✅ AUDIT COMPLETE: No objects with RC4 encryption or weak settings found!
+All objects in the forest are using strong AES encryption.
+```
 ```
 🔍 Checking Group Policy settings...
 Checking GPO settings for Kerberos encryption in domain: contoso.com

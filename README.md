@@ -735,6 +735,10 @@ Scope: Both
   🌲 Scanning in target forest context: target.com
 Scanning domain: target.com
 
+✅ AUDIT COMPLETE: No objects with RC4 encryption or weak settings found!
+All objects in the target forest are using strong AES encryption.
+```
+
 ### Sample Output with Enhanced GPO Analysis
 
 ```

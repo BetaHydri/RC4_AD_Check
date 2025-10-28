@@ -146,9 +146,9 @@ function Test-KerberosGPOSettings {
         [string]$TargetForest
     )
     
-    Write-Host "`n" + ("="*80) -ForegroundColor DarkCyan
+    Write-Host "`n" + ("=" * 80) -ForegroundColor DarkCyan
     Write-Host "🏢 DOMAIN: $($Domain.ToUpper())" -ForegroundColor Cyan
-    Write-Host ("="*80) -ForegroundColor DarkCyan
+    Write-Host ("=" * 80) -ForegroundColor DarkCyan
     Write-Host "🔍 Checking GPO settings for Kerberos encryption" -ForegroundColor White
     Write-Host "📊 Scope: $Scope" -ForegroundColor Gray
     
@@ -505,7 +505,7 @@ function Test-KerberosGPOSettings {
         }
         else {
             Write-Host "`n✅ RESULT: Found $($kerberosGPOs.Count) Kerberos encryption GPO(s) in domain: $Domain" -ForegroundColor Green
-            Write-Host ("─"*73) -ForegroundColor Green
+            Write-Host ("─" * 73) -ForegroundColor Green
             
             # Report findings based on scope
             foreach ($gpo in $kerberosGPOs) {
@@ -591,9 +591,9 @@ function Test-KerberosGPOSettings {
         Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
     }
     
-    Write-Host "`n" + ("="*80) -ForegroundColor DarkCyan
+    Write-Host "`n" + ("=" * 80) -ForegroundColor DarkCyan
     Write-Host "✅ COMPLETED GPO CHECK FOR DOMAIN: $($Domain.ToUpper())" -ForegroundColor Green
-    Write-Host ("="*80) -ForegroundColor DarkCyan
+    Write-Host ("=" * 80) -ForegroundColor DarkCyan
 }
 
 function Test-GPOApplication {
@@ -784,7 +784,7 @@ if (-not $SkipGPOCheck) {
 }
 
 Write-Host "`n🔍 SCANNING FOR OBJECTS WITH WEAK ENCRYPTION..." -ForegroundColor Magenta
-Write-Host ("═"*80) -ForegroundColor Magenta
+Write-Host ("═" * 80) -ForegroundColor Magenta
 
 $computerTotal = 0
 $computerRC4Count = 0
@@ -792,9 +792,9 @@ $trustTotal = 0
 $trustRC4Count = 0
 
 foreach ($domain in $forest.Domains) {
-    Write-Host "`n" + ("─"*80) -ForegroundColor DarkYellow
+    Write-Host "`n" + ("─" * 80) -ForegroundColor DarkYellow
     Write-Host "🏢 SCANNING DOMAIN: $($domain.ToUpper())" -ForegroundColor Yellow
-    Write-Host ("─"*80) -ForegroundColor DarkYellow
+    Write-Host ("─" * 80) -ForegroundColor DarkYellow
 
     # Set up AD command parameters for target forest context
     $domainParams = @{}
@@ -891,9 +891,9 @@ foreach ($domain in $forest.Domains) {
 }
 
 # Output summary
-Write-Host "`n" + ("═"*80) -ForegroundColor Magenta
+Write-Host "`n" + ("═" * 80) -ForegroundColor Magenta
 Write-Host "📋 FINAL AUDIT SUMMARY" -ForegroundColor Magenta
-Write-Host ("═"*80) -ForegroundColor Magenta
+Write-Host ("═" * 80) -ForegroundColor Magenta
 
 Write-Host "🌲 Forest: $($forest.Name)" -ForegroundColor Cyan
 Write-Host "📊 Total domains scanned: $($forest.Domains.Count)" -ForegroundColor Cyan

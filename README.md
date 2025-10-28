@@ -1,6 +1,6 @@
 # RC4 Active Directory Security Audit Tool
 
-**Version**: 2.2  
+**Version**: 2.3  
 **Author**: Jan Tiedemann  
 **Created**: October 2025  
 **Updated**: October 2025
@@ -27,6 +27,7 @@ RC4 is a deprecated encryption algorithm that is considered cryptographically we
 - **Enhanced GPO security analysis**: Explicit categorization of GPO settings as "Excellent", "Good", or "Needs Improvement"
 - **Improved weak cipher detection**: Clear identification when DES is properly disabled by omission
 - **Detailed encryption value reporting**: Shows numeric encryption values and their decoded meanings
+- **Critical trust object documentation**: Explains why GPO settings don't apply to trust objects and provides remediation guidance
 - **Flexible server connectivity**: Support for connecting to specific domain controllers
 - **Intelligent GPO link detection**: Multiple detection methods for reliable GPO link discovery
 - **Detailed application status**: Analysis of current encryption settings across object types
@@ -204,39 +205,121 @@ When using `-Debug`, the script will:
 - Report encryption setting analysis details with decoded values
 - Help troubleshoot GPO detection issues with comprehensive logging
 
+## Critical Security Information: Trust Objects and GPO Limitations
+
+### ⚠️ Why GPO Doesn't Fix Trust Objects
+
+**IMPORTANT**: The Group Policy "Network security: Configure encryption types allowed for Kerberos" **DOES NOT** apply to trust objects. Here's why:
+
+#### What GPO Controls
+- ✅ **Domain Controllers** (computer accounts)
+- ✅ **Member computers and servers**
+- ✅ **What encryption types DCs accept/request**
+
+#### What GPO Does NOT Control  
+- ❌ **Trust objects** (forest/domain trusts)
+- ❌ **Trust encryption type offerings**
+- ❌ **Inter-domain authentication preferences**
+
+### 🔧 Trust Object Remediation Requirements
+
+Trust objects store their own `msDS-SupportedEncryptionTypes` attribute and require explicit modification:
+
+#### Manual Remediation Methods
+
+**Option 1: Use This Script**
+```powershell
+.\RC4_AD_SCAN.ps1 -ApplyFixes
+```
+The script will prompt for each trust object and apply the fix automatically.
+
+**Option 2: Manual PowerShell Commands**
+```powershell
+# Audit current trust encryption settings
+Get-ADObject -Filter 'ObjectClass -eq "trustedDomain"' -Properties msDS-SupportedEncryptionTypes | 
+    Select Name, msDS-SupportedEncryptionTypes
+
+# Fix trust objects (replace <TrustDN> with actual Distinguished Name)
+Set-ADObject -Identity "<TrustDN>" -Add @{msDS-SupportedEncryptionTypes=24}
+
+# Example for a specific trust
+Set-ADObject -Identity "CN=subdomain,CN=System,DC=contoso,DC=com" -Add @{msDS-SupportedEncryptionTypes=24}
+```
+
+#### Verification Commands
+```powershell
+# Verify trust settings after modification
+Get-ADObject -Filter 'ObjectClass -eq "trustedDomain"' -Properties msDS-SupportedEncryptionTypes | 
+    Select Name, msDS-SupportedEncryptionTypes
+
+# Monitor Kerberos authentication events for trusts
+# Check Event IDs 4768/4769 in Security log for AES usage confirmation
+```
+
+### 💡 Complete Security Strategy
+
+For comprehensive RC4 elimination, you need **both**:
+
+1. **GPO Deployment**
+   - Controls what DCs and computers accept/request
+   - Applies to computer accounts automatically
+   - Configured via Group Policy Management
+
+2. **Trust Object Remediation**  
+   - Controls what trust objects offer during inter-domain authentication
+   - Requires manual attribute modification
+   - Not affected by GPO settings
+
+**Without updating trust objects, RC4 can still appear in inter-domain authentication even with optimal GPO settings!**
+
+### 🚨 Common Misconception
+
+Many administrators assume that applying the Kerberos encryption GPO will fix all RC4 issues. This is **incorrect** for trust objects. The script specifically identifies and helps remediate trust objects separately from computer objects.
+
+### 📊 Trust Object Impact
+
+Trust objects affect:
+- **Forest-to-forest authentication**
+- **Domain-to-domain authentication within forest**
+- **Cross-domain resource access**
+- **Distributed application authentication**
+
+Leaving trust objects with RC4 creates security gaps that GPO cannot address.
+
 ## Understanding msDS-SupportedEncryptionTypes
 
 ### Computer-Based Setting Only
 
 The `msDS-SupportedEncryptionTypes` attribute is a **computer-based setting only** and does not apply to user objects. This is a common misconception in Kerberos security auditing.
 
-#### Why Users Are Not Scanned
+**CRITICAL NOTE**: Trust objects are a special case - they DO use `msDS-SupportedEncryptionTypes` but are NOT controlled by computer GPO policies. See the "Trust Objects and GPO Limitations" section above for details.
 
+#### Why Users Are Not Scanned
 - **User Kerberos encryption** is determined by the computer they authenticate from, not by a user attribute
 - **Domain policy** controls user authentication encryption types through GPO settings
 - **Domain Controllers** enforce encryption requirements based on computer and domain settings
+
 - **Setting user attributes** for encryption types has no effect on Kerberos authentication
 
 #### How User Kerberos Encryption Works
-
 1. **Computer-Side Control**: The computer account's `msDS-SupportedEncryptionTypes` determines what encryption types the computer supports
 2. **Domain Policy**: GPO settings like "Network security: Configure encryption types allowed for Kerberos" control domain-wide encryption requirements
 3. **DC Configuration**: Domain Controllers enforce these policies during authentication
+
 4. **Result**: User Kerberos tickets use encryption types based on computer capabilities and domain policy, not user attributes
 
 #### What This Tool Audits
-
 - ✅ **Computer Objects**: Have `msDS-SupportedEncryptionTypes` attribute that controls their Kerberos encryption capabilities
-- ✅ **Domain Trusts**: Have encryption type settings that affect cross-domain authentication
+- ✅ **Domain Trusts**: Have encryption type settings that affect cross-domain authentication (require manual remediation - see Trust Objects section)
 - ✅ **Domain Controllers**: Special computer objects that need secure encryption for all authentication
+
 - ❌ **User Objects**: Do not have relevant encryption type attributes (not scanned by this tool)
 
 ### Practical Implications
-
 - **User Security**: Controlled by ensuring all computers have strong encryption settings
 - **Domain Security**: Managed through Group Policy that applies to computer objects
 - **Audit Focus**: Concentrate on computer objects and domain trust relationships
-- **Remediation**: Fix computer encryption settings, not user settings
+- **Remediation**: Fix computer encryption settings via GPO; fix trust objects manually (see Trust Objects section)
 
 ## Parameters
 

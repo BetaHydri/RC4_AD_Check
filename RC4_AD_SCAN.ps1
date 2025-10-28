@@ -86,7 +86,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 2.2
+  Version: 2.4
   Created: October 2025
   Updated: October 2025
   
@@ -699,6 +699,34 @@ function Test-KerberosGPOSettings {
                 "• Both Levels: Comprehensive coverage"
             )
             Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $contentMessages -Color "Cyan"
+            
+            Write-Host ""
+            $headerMessages = @("⚠️  CRITICAL: GPO LIMITATIONS FOR TRUST OBJECTS")
+            $contentMessages = @(
+                "IMPORTANT: GPO settings DO NOT apply to trust objects!",
+                "",
+                "✅ What GPO Controls:",
+                "• Domain Controllers (computer accounts)",
+                "• Member computers and servers", 
+                "• What encryption types DCs accept/request",
+                "",
+                "❌ What GPO Does NOT Control:",
+                "• Trust objects (forest/domain trusts)",
+                "• Trust encryption type offerings",
+                "• Inter-domain authentication preferences",
+                "",
+                "🔧 Trust Remediation Requires:",
+                "• Manual attribute modification: msDS-SupportedEncryptionTypes",
+                "• Use this script with -ApplyFixes for trust objects",
+                "• Or PowerShell: Set-ADObject -Identity '<TrustDN>'",
+                "  -Add @{msDS-SupportedEncryptionTypes=24}",
+                "",
+                "💡 Complete Security Strategy:",
+                "1. Deploy GPO for computers and DCs",
+                "2. Manually fix trust objects (this script helps)",
+                "3. Monitor Event IDs 4768/4769 for verification"
+            )
+            Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $contentMessages -Color "Red"
         }
         
     }
@@ -1006,8 +1034,15 @@ foreach ($domain in $forest.Domains) {
             if ($ApplyFixes) {
                 $answer = Read-Host "    🔧 Remediate Trust $($_.Name) in $domain? (Y/N)"
                 if ($answer -match '^[Yy]') {
-                    Set-ADTrust -Identity $_.Name -Replace @{"msDS-SupportedEncryptionTypes" = 24 }
-                    Write-Host "    ✅ Fixed" -ForegroundColor Green
+                    try {
+                        Set-ADTrust -Identity $_.Name -Replace @{"msDS-SupportedEncryptionTypes" = 24 } @domainParams
+                        Write-Host "    ✅ Fixed: Trust $($_.Name) set to AES-only (value 24)" -ForegroundColor Green
+                        Write-Host "    ℹ️  Note: Trust fixes require explicit attribute modification, not GPO" -ForegroundColor Gray
+                    }
+                    catch {
+                        Write-Host "    ❌ Failed to fix trust $($_.Name): $($_.Exception.Message)" -ForegroundColor Red
+                        Write-Host "    💡 Alternative: Set-ADObject -Identity '$($_.DistinguishedName)' -Add @{msDS-SupportedEncryptionTypes=24}" -ForegroundColor Yellow
+                    }
                 }
             }
         }
@@ -1058,6 +1093,8 @@ else {
     
     # Check for objects with undefined encryption types (fallback scenario)
     $undefinedObjects = $results | Where-Object { $_.EncTypes -eq "Not Set (RC4 fallback)" }
+    $trustObjects = $results | Where-Object { $_.ObjectType -eq "Trust" }
+    
     if ($undefinedObjects.Count -gt 0) {
         Write-Host "`n🚨 CRITICAL WARNING - Windows Server 2025 Compatibility:" -ForegroundColor Red
         Write-Host "Found $($undefinedObjects.Count) object(s) with undefined encryption types (msDS-SupportedEncryptionTypes not set)." -ForegroundColor Red
@@ -1067,6 +1104,34 @@ else {
         Write-Host "- Run this script with -ApplyFixes to set AES encryption (value 24)" -ForegroundColor Yellow
         Write-Host "- Or configure via Group Policy: 'Network security: Configure encryption types allowed for Kerberos'" -ForegroundColor Yellow
         Write-Host "- Test thoroughly before deploying to production environments" -ForegroundColor Yellow
+    }
+    
+    if ($trustObjects.Count -gt 0) {
+        Write-Host "`n⚠️  TRUST OBJECT REMEDIATION NOTICE:" -ForegroundColor Red
+        Write-Host "Found $($trustObjects.Count) trust object(s) with weak encryption settings." -ForegroundColor Red
+        
+        $headerMessages = @("🔧 TRUST OBJECTS REQUIRE MANUAL REMEDIATION")
+        $contentMessages = @(
+            "❌ GPO Settings DO NOT Apply to Trust Objects",
+            "",
+            "Trust objects store their own msDS-SupportedEncryptionTypes",
+            "attribute and are not affected by computer GPO policies.",
+            "",
+            "✅ Required Actions for Trust Objects:",
+            "• Use this script with -ApplyFixes parameter, OR",
+            "• Manual PowerShell command:",
+            "  Set-ADObject -Identity '<TrustDN>'",
+            "    -Add @{msDS-SupportedEncryptionTypes=24}",
+            "",
+            "📊 Verification Commands:",
+            "• Get-ADObject -Filter 'ObjectClass -eq `"trustedDomain`"'",
+            "    -Properties msDS-SupportedEncryptionTypes",
+            "• Monitor Event IDs 4768/4769 for trust authentication",
+            "",
+            "⚠️  Without fixing trusts, RC4 will persist in inter-domain",
+            "   authentication even with optimal GPO settings!"
+        )
+        Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $contentMessages -Color "Red"
     }
 }
 

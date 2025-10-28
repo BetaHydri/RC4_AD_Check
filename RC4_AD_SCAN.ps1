@@ -54,9 +54,16 @@
   .\RC4_AD_SCAN.ps1 -GPOScope Domain
   Check GPO settings only at Domain level
 
+.PARAMETER Server
+  Specify a domain controller server to connect to (e.g., dc01.contoso.com)
+
 .EXAMPLE
-  .\RC4_AD_SCAN.ps1 -Debug
-  Run with debug output for troubleshooting GPO detection
+  .\RC4_AD_SCAN.ps1 -Server dc01.contoso.com
+  Connect to a specific domain controller for scanning
+
+.EXAMPLE
+  .\RC4_AD_SCAN.ps1 -Debug -Server dc01.contoso.com
+  Run with debug output using a specific domain controller
 
 .NOTES
   Author: Jan Tiedemann
@@ -73,7 +80,8 @@ param(
     [switch]$SkipGPOCheck,
     [ValidateSet("Domain", "DomainControllers", "Both")]
     [string]$GPOScope = "Both",
-    [switch]$Debug
+    [switch]$Debug,
+    [string]$Server
 )
 
 # Check if running as Administrator
@@ -119,19 +127,46 @@ function Test-KerberosGPOSettings {
     param(
         [string]$Domain,
         [string]$Scope = "Both",
-        [switch]$Debug
+        [switch]$Debug,
+        [string]$Server
     )
     
     Write-Host "Checking GPO settings for Kerberos encryption in domain: $Domain" -ForegroundColor Cyan
     Write-Host "Scope: $Scope" -ForegroundColor Gray
     
+    # Set up server parameter for AD commands
+    $adParams = @{}
+    if ($Server) {
+        $adParams['Server'] = $Server
+        if ($Debug) {
+            Write-Host "      🌐 Using server: $Server" -ForegroundColor Gray
+        }
+    }
+    
     try {
         # Get domain information
-        $domainDN = (Get-ADDomain -Server $Domain).DistinguishedName
+        $domainDN = (Get-ADDomain -Server $Domain @adParams).DistinguishedName
         $domainControllersOU = "OU=Domain Controllers,$domainDN"
         
+        if ($Debug) {
+            Write-Host "      📍 Domain DN: $domainDN" -ForegroundColor Gray
+            Write-Host "      📍 Domain Controllers OU: $domainControllersOU" -ForegroundColor Gray
+        }
+        
         # Get all GPOs in the domain
-        $gpos = Get-GPO -All -Domain $Domain -ErrorAction Stop
+        $gpoParams = @{
+            All         = $true
+            Domain      = $Domain
+            ErrorAction = 'Stop'
+        }
+        if ($Server) {
+            # Note: Get-GPO doesn't accept -Server parameter, but uses current session context
+            if ($Debug) {
+                Write-Host "      ℹ️  Note: Get-GPO uses current session context" -ForegroundColor Gray
+            }
+        }
+        
+        $gpos = Get-GPO @gpoParams
         $kerberosGPOs = @()
         
         # Check each GPO for Kerberos settings
@@ -184,15 +219,19 @@ function Test-KerberosGPOSettings {
                                 # Convert SOM path to friendly name
                                 $containerName = if ($somPath -eq $domainDN) { 
                                     "Domain Root" 
-                                } elseif ($somPath -eq $domainControllersOU) { 
+                                }
+                                elseif ($somPath -eq $domainControllersOU) { 
                                     "Domain Controllers OU" 
-                                } else {
+                                }
+                                else {
                                     # Extract OU name from DN
                                     if ($somPath -match "OU=([^,]+)") {
                                         $matches[1] + " OU"
-                                    } elseif ($somPath -match "CN=([^,]+)") {
+                                    }
+                                    elseif ($somPath -match "CN=([^,]+)") {
                                         $matches[1] + " Container"
-                                    } else {
+                                    }
+                                    else {
                                         $somPath
                                     }
                                 }
@@ -209,10 +248,18 @@ function Test-KerberosGPOSettings {
                         
                         # If no links found in XML, try alternative method
                         if ($allGPOLinks.Count -eq 0) {
-                            Write-Host "      🔍 Checking alternative GPO link detection..." -ForegroundColor Gray
+                            if ($Debug) {
+                                Write-Host "      🔍 XML parsing found no links, trying alternative GPO link detection..." -ForegroundColor Gray
+                            }
                             
                             # Search for containers where this GPO might be linked
                             $searchContainers = @($domainDN, $domainControllersOU)
+                            
+                            if ($Debug) {
+                                Write-Host "      🎯 Checking primary containers:" -ForegroundColor Gray
+                                Write-Host "         - Domain DN: $domainDN" -ForegroundColor Gray
+                                Write-Host "         - Domain Controllers OU: $domainControllersOU" -ForegroundColor Gray
+                            }
                             
                             # Add some common OUs
                             try {
@@ -220,25 +267,46 @@ function Test-KerberosGPOSettings {
                                 foreach ($ou in $commonOUs) {
                                     $searchContainers += $ou.DistinguishedName
                                 }
-                            } catch {
-                                # Continue if OU enumeration fails
+                                if ($Debug) {
+                                    Write-Host "      📂 Added $($commonOUs.Count) additional OUs to search" -ForegroundColor Gray
+                                }
+                            }
+                            catch {
+                                if ($Debug) {
+                                    Write-Host "      ⚠️  Could not enumerate additional OUs: $($_.Exception.Message)" -ForegroundColor Gray
+                                }
                             }
                             
                             foreach ($container in $searchContainers) {
                                 try {
+                                    if ($Debug) {
+                                        Write-Host "      🔍 Checking container: $container" -ForegroundColor Gray
+                                    }
+                                    
                                     $inheritance = Get-GPInheritance -Target $container -Domain $Domain -ErrorAction SilentlyContinue
                                     if ($inheritance -and $inheritance.GpoLinks) {
+                                        if ($Debug) {
+                                            Write-Host "      📋 Found $($inheritance.GpoLinks.Count) GPO links in this container" -ForegroundColor Gray
+                                        }
+                                        
                                         $linkedGPO = $inheritance.GpoLinks | Where-Object { $_.GpoId -eq $gpo.Id }
                                         if ($linkedGPO) {
+                                            if ($Debug) {
+                                                Write-Host "      ✅ Found matching GPO link! GPO ID: $($gpo.Id)" -ForegroundColor Green
+                                            }
+                                            
                                             $containerName = if ($container -eq $domainDN) { 
                                                 "Domain Root" 
-                                            } elseif ($container -eq $domainControllersOU) { 
+                                            }
+                                            elseif ($container -eq $domainControllersOU) { 
                                                 "Domain Controllers OU" 
-                                            } else {
+                                            }
+                                            else {
                                                 # Extract OU name from DN
                                                 if ($container -match "OU=([^,]+)") {
                                                     $matches[1] + " OU"
-                                                } else {
+                                                }
+                                                else {
                                                     $container
                                                 }
                                             }
@@ -251,14 +319,104 @@ function Test-KerberosGPOSettings {
                                                 Order       = $linkedGPO.Order
                                             }
                                         }
+                                        else {
+                                            if ($Debug) {
+                                                Write-Host "      ❌ No matching GPO found in this container (checked $($inheritance.GpoLinks.Count) links)" -ForegroundColor Gray
+                                            }
+                                        }
                                     }
-                                } catch {
-                                    # Continue if we can't check a specific container
+                                    else {
+                                        if ($Debug) {
+                                            Write-Host "      ❌ No GPO inheritance found for this container" -ForegroundColor Gray
+                                        }
+                                    }
+                                }
+                                catch {
+                                    if ($Debug) {
+                                        Write-Host "      ⚠️  Error checking container $container : $($_.Exception.Message)" -ForegroundColor Gray
+                                    }
                                     continue
                                 }
                             }
                         }
-                    } catch {
+                        
+                        # Final fallback: Try to get GPO links directly from Active Directory
+                        if ($allGPOLinks.Count -eq 0) {
+                            if ($Debug) {
+                                Write-Host "      🔄 Final fallback: Searching AD for GPO links..." -ForegroundColor Gray
+                            }
+                            
+                            try {
+                                # Search for objects that have gPLink attribute containing this GPO's GUID
+                                $gpoGuid = $gpo.Id.ToString()
+                                $filter = "gPLink -like '*$gpoGuid*'"
+                                
+                                if ($Debug) {
+                                    Write-Host "      🔍 Searching for gPLink containing: $gpoGuid" -ForegroundColor Gray
+                                }
+                                
+                                $linkedObjects = Get-ADObject -Filter $filter -Server $Domain -Properties gPLink, Name -ErrorAction SilentlyContinue
+                                
+                                if ($linkedObjects) {
+                                    if ($Debug) {
+                                        Write-Host "      📋 Found $($linkedObjects.Count) objects with gPLink containing this GPO" -ForegroundColor Gray
+                                    }
+                                    
+                                    foreach ($obj in $linkedObjects) {
+                                        if ($Debug) {
+                                            Write-Host "      🎯 Found link in: $($obj.Name) ($($obj.DistinguishedName))" -ForegroundColor Gray
+                                            Write-Host "      🔗 gPLink value: $($obj.gPLink)" -ForegroundColor Gray
+                                        }
+                                        
+                                        # Parse gPLink to determine if this GPO is enabled
+                                        $gpoEnabled = $true
+                                        if ($obj.gPLink -match "\[LDAP://[^;]*$gpoGuid[^;]*;(\d+)\]") {
+                                            $linkOptions = [int]$matches[1]
+                                            $gpoEnabled = ($linkOptions -band 1) -eq 0  # Bit 0 = disabled when set
+                                        }
+                                        
+                                        $containerName = if ($obj.DistinguishedName -eq $domainDN) { 
+                                            "Domain Root" 
+                                        }
+                                        elseif ($obj.DistinguishedName -eq $domainControllersOU) { 
+                                            "Domain Controllers OU" 
+                                        }
+                                        else {
+                                            # Extract OU name from DN
+                                            if ($obj.DistinguishedName -match "OU=([^,]+)") {
+                                                $matches[1] + " OU"
+                                            }
+                                            elseif ($obj.DistinguishedName -match "CN=([^,]+)") {
+                                                $matches[1] + " Container"
+                                            }
+                                            else {
+                                                $obj.Name
+                                            }
+                                        }
+                                        
+                                        $allGPOLinks += [PSCustomObject]@{
+                                            Container   = $obj.DistinguishedName
+                                            DisplayName = $containerName
+                                            Enabled     = $gpoEnabled
+                                            Enforced    = $false  # Would need additional parsing to determine
+                                            Order       = 1  # Would need additional parsing to determine
+                                        }
+                                    }
+                                }
+                                else {
+                                    if ($Debug) {
+                                        Write-Host "      ❌ No objects found with gPLink containing this GPO GUID" -ForegroundColor Gray
+                                    }
+                                }
+                            }
+                            catch {
+                                if ($Debug) {
+                                    Write-Host "      ⚠️  Error in AD search fallback: $($_.Exception.Message)" -ForegroundColor Gray
+                                }
+                            }
+                        }
+                    }
+                    catch {
                         Write-Host "      ⚠️  Error detecting GPO links: $($_.Exception.Message)" -ForegroundColor Yellow
                     }
                     
@@ -515,13 +673,32 @@ function Test-GPOApplication {
 }
 
 $results = @()
-$forest = Get-ADForest
+
+# Set up server parameter for AD commands
+$adParams = @{}
+if ($Server) {
+    $adParams['Server'] = $Server
+    Write-Host "🌐 Connecting to specified server: $Server" -ForegroundColor Cyan
+}
+
+try {
+    $forest = Get-ADForest @adParams
+}
+catch {
+    Write-Host "❌ ERROR: Could not connect to Active Directory" -ForegroundColor Red
+    Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
+    if (-not $Server) {
+        Write-Host "💡 TIP: Try specifying a domain controller with -Server parameter" -ForegroundColor Yellow
+        Write-Host "Example: .\RC4_AD_SCAN.ps1 -Server dc01.contoso.com" -ForegroundColor Yellow
+    }
+    exit 1
+}
 
 # Check GPO settings for each domain
 if (-not $SkipGPOCheck) {
     Write-Host "🔍 Checking Group Policy settings..." -ForegroundColor Magenta
     foreach ($domain in $forest.Domains) {
-        Test-KerberosGPOSettings -Domain $domain -Scope $GPOScope -Debug:$Debug
+        Test-KerberosGPOSettings -Domain $domain -Scope $GPOScope -Debug:$Debug -Server $Server
     }
 }
 
@@ -529,8 +706,16 @@ Write-Host "🔍 Scanning for objects with weak encryption..." -ForegroundColor 
 foreach ($domain in $forest.Domains) {
     Write-Host "Scanning domain: $domain" -ForegroundColor Cyan
 
+    # Set up AD command parameters
+    $domainParams = @{
+        Server = $domain
+    }
+    if ($Server) {
+        $domainParams['Server'] = $Server
+    }
+
     # Users
-    Get-ADUser -Filter * -Server $domain -Properties msDS-SupportedEncryptionTypes |
+    Get-ADUser -Filter * -Properties msDS-SupportedEncryptionTypes @domainParams |
     ForEach-Object {
         $enc = $_."msDS-SupportedEncryptionTypes"
         if (-not $enc -or ($enc -band 0x4)) {
@@ -554,7 +739,7 @@ foreach ($domain in $forest.Domains) {
     }
 
     # Computers
-    Get-ADComputer -Filter * -Server $domain -Properties msDS-SupportedEncryptionTypes |
+    Get-ADComputer -Filter * -Properties msDS-SupportedEncryptionTypes @domainParams |
     ForEach-Object {
         $enc = $_."msDS-SupportedEncryptionTypes"
         if (-not $enc -or ($enc -band 0x4)) {
@@ -578,7 +763,7 @@ foreach ($domain in $forest.Domains) {
     }
 
     # Trusts
-    Get-ADTrust -Filter * -Server $domain -Properties msDS-SupportedEncryptionTypes |
+    Get-ADTrust -Filter * -Properties msDS-SupportedEncryptionTypes @domainParams |
     ForEach-Object {
         $enc = $_."msDS-SupportedEncryptionTypes"
         if (-not $enc -or ($enc -band 0x4)) {

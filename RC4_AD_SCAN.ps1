@@ -1129,7 +1129,7 @@ else {
     Write-Host "`nDETAILED RESULTS:" -ForegroundColor White
     $results |
     Sort-Object Domain, ObjectType, Name |
-    Format-Table Domain, ObjectType, Name, EncTypes, @{Name="TrustType";Expression={if($_.TrustType){$_.TrustType}else{"N/A"}}}, @{Name="Direction";Expression={if($_.Direction){$_.Direction}else{"N/A"}}} -AutoSize
+    Format-Table Domain, ObjectType, Name, EncTypes, @{Name = "TrustType"; Expression = { if ($_.TrustType) { $_.TrustType }else { "N/A" } } }, @{Name = "Direction"; Expression = { if ($_.Direction) { $_.Direction }else { "N/A" } } } -AutoSize
     
     # Show trust type breakdown if trusts were found
     $trustObjects = $results | Where-Object { $_.ObjectType -eq "Trust" }

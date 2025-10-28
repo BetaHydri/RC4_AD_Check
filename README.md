@@ -18,6 +18,7 @@ RC4 is a deprecated encryption algorithm that is considered cryptographically we
 
 - **Forest-wide scanning**: Automatically discovers and scans all domains in the forest
 - **Comprehensive object coverage**: Audits Users, Computers, and Domain Trusts
+- **Group Policy verification**: Checks for existing Kerberos encryption GPO settings
 - **Detailed reporting**: Shows current encryption types for each flagged object
 - **Clear success/failure feedback**: Displays appropriate messages when no issues are found vs. when problems are detected
 - **Windows Server 2025 compatibility warnings**: Alerts for objects that will fail authentication on Server 2025 DCs
@@ -76,6 +77,29 @@ Run remediation and export results:
 .\RC4_AD_SCAN.ps1 -ApplyFixes -ExportResults
 ```
 
+### Skip GPO Checking
+
+Skip Group Policy verification (faster execution):
+
+```powershell
+.\RC4_AD_SCAN.ps1 -SkipGPOCheck
+```
+
+### GPO Scope Selection
+
+Check GPO settings at specific organizational levels:
+
+```powershell
+# Check only Domain Controllers OU
+.\RC4_AD_SCAN.ps1 -GPOScope DomainControllers
+
+# Check only Domain level
+.\RC4_AD_SCAN.ps1 -GPOScope Domain
+
+# Check both levels (default)
+.\RC4_AD_SCAN.ps1 -GPOScope Both
+```
+
 When using `-ApplyFixes`, the script will:
 - Prompt for each object that needs remediation
 - Allow you to choose whether to fix each individual object
@@ -85,6 +109,16 @@ When using `-ExportResults`, the script will:
 - Create a timestamped CSV file with all audit results
 - Save the file in the current directory with format: `RC4_Audit_Results_YYYYMMDD_HHMMSS.csv`
 - Display the export path upon completion
+
+When using `-SkipGPOCheck`, the script will:
+- Skip the Group Policy verification phase
+- Provide faster execution for object-only auditing
+- Still perform comprehensive object scanning
+
+When using `-GPOScope`, you can specify:
+- **Domain**: Check GPOs linked to the domain root (affects all objects)
+- **DomainControllers**: Check GPOs linked to Domain Controllers OU (affects DCs only)
+- **Both**: Check both levels for comprehensive coverage (default)
 
 ## Understanding the Output
 
@@ -128,7 +162,47 @@ This script specifically identifies objects showing **"Not Set (RC4 fallback)"**
 
 You can also configure encryption types through Group Policy instead of manually setting the `msDS-SupportedEncryptionTypes` attribute:
 
-### Computer Configuration
+### Automatic GPO Verification
+The script automatically checks for existing Kerberos encryption Group Policy settings and reports:
+- ✅ **Compliant GPOs**: Policies with recommended AES-only settings
+- ⚠️ **Non-optimal GPOs**: Policies that may still allow weak encryption
+- ❌ **Missing GPOs**: Domains without Kerberos encryption policies
+- 🔗 **Linking Status**: Where GPOs are applied (Domain vs Domain Controllers OU)
+
+### GPO Linking Strategy
+
+**Critical Decision Point**: Where to apply the Kerberos encryption policy:
+
+#### Option 1: Domain Level (Recommended for Most Organizations)
+- **Target**: Domain root
+- **Scope**: All users and computers in the domain
+- **Use Case**: Organization-wide security policy
+- **Pros**: Comprehensive coverage, consistent policy
+- **Cons**: May affect legacy applications
+
+#### Option 2: Domain Controllers OU Only
+- **Target**: Domain Controllers OU
+- **Scope**: Domain Controllers only
+- **Use Case**: DC-specific hardening while maintaining compatibility
+- **Pros**: Secures critical infrastructure, minimal application impact
+- **Cons**: Client computers still vulnerable to RC4
+
+#### Option 3: Both Levels (Maximum Security)
+- **Target**: Domain root + Domain Controllers OU
+- **Scope**: Different policies for DCs vs other objects
+- **Use Case**: Graduated security approach
+- **Pros**: Flexible, allows different settings per object type
+- **Cons**: More complex to manage
+
+### Recommended Implementation Strategy
+1. **Phase 1**: Apply to Domain Controllers OU first (minimize risk)
+2. **Phase 2**: Test with pilot groups using domain-level GPO
+3. **Phase 3**: Roll out domain-level GPO organization-wide
+4. **Phase 4**: Optionally maintain separate DC-specific settings
+
+### Policy Location
+
+### Policy Location
 **Path**: `Computer Configuration > Policies > Windows Settings > Security Settings > Local Policies > Security Options`
 
 **Policy**: `Network security: Configure encryption types allowed for Kerberos`
@@ -141,11 +215,52 @@ You can also configure encryption types through Group Policy instead of manually
 - ❌ **RC4_HMAC_MD5** (uncheck - weak)
 
 ### User Configuration
-**Path**: `Computer Configuration > Policies > Windows Settings > Security Settings > Local Policies > Security Options`
+**Note**: The same policy also exists under User Configuration, but Computer Configuration takes precedence for computer accounts.
 
-**Policy**: `Network security: Configure encryption types allowed for Kerberos`
+### GPO Application Timeline
+
+**CRITICAL**: Understanding when GPO settings take effect is essential for planning:
+
+#### For Computer Accounts
+- **GPO Application**: Next computer startup or `gpupdate /force`
+- **Kerberos Ticket Refresh**: New tickets issued use new encryption settings immediately after GPO application
+- **Active Tickets**: Existing tickets continue with old encryption until they expire (typically 10 hours)
+- **Full Effect**: Complete transition occurs after ticket expiration + GPO refresh
+
+#### For User Accounts  
+- **GPO Application**: Next user logon or `gpupdate /force`
+- **Kerberos Ticket Refresh**: New tickets issued use new encryption settings immediately after GPO application
+- **Active Tickets**: Existing tickets continue with old encryption until they expire (typically 10 hours)
+- **Full Effect**: Complete transition occurs after ticket expiration + GPO refresh
+
+#### Timeline Summary
+1. **Immediate (0-15 minutes)**: GPO refresh on clients
+2. **Short-term (15 minutes - 10 hours)**: Mixed encryption environment (new tickets AES, old tickets may still be RC4)
+3. **Complete (10+ hours)**: All tickets using new encryption settings
+
+#### Monitoring GPO Application
+Use these commands to verify GPO application:
+```cmd
+# Check GPO application status
+gpresult /h gpresult.html
+
+# Force GPO refresh
+gpupdate /force
+
+# Check current Kerberos tickets after GPO refresh
+klist
+```
 
 **Note**: This GPO setting affects the same underlying `msDS-SupportedEncryptionTypes` attribute that this script audits. Applying the recommended GPO settings will resolve the issues identified by this audit tool.
+
+### GPO vs Direct Attribute Setting
+
+| Method | Scope | Management | Recommendation |
+|--------|-------|------------|----------------|
+| **GPO** | Organization-wide, inherited | Centralized, version controlled | ✅ **Preferred for production** |
+| **Direct Attribute** | Per-object, explicit | Manual, script-based | ⚠️ **Use for exceptions only** |
+
+**Best Practice**: Use GPO for organization-wide policy, use direct attribute setting only for specific exceptions or emergency remediation.
 
 ### GPO Deployment Strategy
 1. **Test first**: Deploy to a test OU before production
@@ -217,6 +332,18 @@ If you still see RC4-HMAC encryption types after remediation, it indicates that 
 
 ### When No Issues Are Found
 ```
+🔍 Checking Group Policy settings...
+Checking GPO settings for Kerberos encryption in domain: contoso.com
+Scope: Both
+  📋 Found Kerberos encryption GPO: Secure Kerberos Settings
+    🔗 Linked to: Domain + Domain Controllers OU (Complete coverage)
+    ✅ Optimal settings (AES128+256 enabled, RC4+DES disabled)
+  💡 GPO LINKING BEST PRACTICES:
+     • Domain Level: Affects all users and computers (recommended for organization-wide policy)
+     • Domain Controllers OU: Affects only DCs (recommended for DC-specific requirements)
+     • Both Levels: Provides comprehensive coverage and allows for different settings if needed
+
+🔍 Scanning for objects with weak encryption...
 Scanning domain: contoso.com
 
 ✅ AUDIT COMPLETE: No objects with RC4 encryption or weak settings found!
@@ -225,6 +352,16 @@ All objects in the forest are using strong AES encryption.
 
 ### When Issues Are Detected
 ```
+🔍 Checking Group Policy settings...
+Checking GPO settings for Kerberos encryption in domain: contoso.com
+Scope: Both
+  ❌ No Kerberos encryption GPOs found in domain: contoso.com
+  💡 RECOMMENDATION: Create and link GPO with 'Network security: Configure encryption types allowed for Kerberos'
+     • For Domain Controllers: Link to 'Domain Controllers' OU (affects DC authentication)
+     • For All Objects: Link to Domain root (affects all computers and users)
+     • Best Practice: Use both for comprehensive coverage
+
+🔍 Scanning for objects with weak encryption...
 Scanning domain: contoso.com
 
 ⚠️  AUDIT RESULTS: Found 3 object(s) with weak encryption settings:

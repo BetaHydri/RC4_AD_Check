@@ -17,6 +17,12 @@
 .PARAMETER ExportResults
   Switch to export results to CSV file
 
+.PARAMETER SkipGPOCheck
+  Switch to skip Group Policy settings verification
+
+.PARAMETER GPOScope
+  Specify where to check for GPO links: Domain, DomainControllers, or Both (default)
+
 .EXAMPLE
   .\RC4_AD_SCAN.ps1
   Run in audit-only mode to identify RC4 usage
@@ -33,6 +39,18 @@
   .\RC4_AD_SCAN.ps1 -ApplyFixes -ExportResults
   Run with remediation prompts and export results to CSV
 
+.EXAMPLE
+  .\RC4_AD_SCAN.ps1 -SkipGPOCheck
+  Run audit without checking Group Policy settings
+
+.EXAMPLE
+  .\RC4_AD_SCAN.ps1 -GPOScope DomainControllers
+  Check GPO settings only on Domain Controllers OU
+
+.EXAMPLE
+  .\RC4_AD_SCAN.ps1 -GPOScope Domain
+  Check GPO settings only at Domain level
+
 .NOTES
   Author: Jan Tiedemann
   Version: 1.0
@@ -44,7 +62,10 @@
 
 param(
     [switch]$ApplyFixes,
-    [switch]$ExportResults
+    [switch]$ExportResults,
+    [switch]$SkipGPOCheck,
+    [ValidateSet("Domain", "DomainControllers", "Both")]
+    [string]$GPOScope = "Both"
 )
 
 # Check if running as Administrator
@@ -86,9 +107,143 @@ function Get-EncryptionTypes {
     return ($enabled -join ", ")
 }
 
+function Test-KerberosGPOSettings {
+    param(
+        [string]$Domain,
+        [string]$Scope = "Both"
+    )
+    
+    Write-Host "Checking GPO settings for Kerberos encryption in domain: $Domain" -ForegroundColor Cyan
+    Write-Host "Scope: $Scope" -ForegroundColor Gray
+    
+    try {
+        # Get domain information
+        $domainDN = (Get-ADDomain -Server $Domain).DistinguishedName
+        $domainControllersOU = "OU=Domain Controllers,$domainDN"
+        
+        # Get all GPOs in the domain
+        $gpos = Get-GPO -All -Domain $Domain -ErrorAction Stop
+        $kerberosGPOs = @()
+        
+        # Check each GPO for Kerberos settings
+        foreach ($gpo in $gpos) {
+            try {
+                $gpoReport = Get-GPOReport -Guid $gpo.Id -ReportType Xml -Domain $Domain -ErrorAction SilentlyContinue
+                
+                if ($gpoReport -and $gpoReport -match "Configure encryption types allowed for Kerberos") {
+                    # Get GPO links
+                    $gpoLinks = Get-GPInheritance -Target $domainDN -Domain $Domain -ErrorAction SilentlyContinue
+                    $dcGpoLinks = Get-GPInheritance -Target $domainControllersOU -Domain $Domain -ErrorAction SilentlyContinue
+                    
+                    $linkedToDomain = $gpoLinks.GpoLinks | Where-Object { $_.GpoId -eq $gpo.Id }
+                    $linkedToDC = $dcGpoLinks.GpoLinks | Where-Object { $_.GpoId -eq $gpo.Id }
+                    
+                    # Analyze settings
+                    $hasAES128 = $gpoReport -match "AES128_HMAC_SHA1.*?Enabled"
+                    $hasAES256 = $gpoReport -match "AES256_HMAC_SHA1.*?Enabled"
+                    $hasRC4Disabled = $gpoReport -match "RC4_HMAC_MD5.*?Disabled"
+                    $hasDESDisabled = $gpoReport -match "DES_CBC.*?Disabled"
+                    
+                    $isOptimal = $hasAES128 -and $hasAES256 -and $hasRC4Disabled -and $hasDESDisabled
+                    
+                    $kerberosGPO = [PSCustomObject]@{
+                        Name           = $gpo.DisplayName
+                        Id             = $gpo.Id
+                        LinkedToDomain = [bool]$linkedToDomain
+                        LinkedToDC     = [bool]$linkedToDC
+                        IsOptimal      = $isOptimal
+                        HasAES128      = $hasAES128
+                        HasAES256      = $hasAES256
+                        HasRC4Disabled = $hasRC4Disabled
+                        HasDESDisabled = $hasDESDisabled
+                    }
+                    $kerberosGPOs += $kerberosGPO
+                }
+            }
+            catch {
+                continue
+            }
+        }
+        
+        if ($kerberosGPOs.Count -eq 0) {
+            Write-Host "  ❌ No Kerberos encryption GPOs found in domain: $Domain" -ForegroundColor Red
+            Write-Host "  💡 RECOMMENDATION: Create and link GPO with 'Network security: Configure encryption types allowed for Kerberos'" -ForegroundColor Yellow
+            Write-Host "     • For Domain Controllers: Link to 'Domain Controllers' OU (affects DC authentication)" -ForegroundColor Yellow
+            Write-Host "     • For All Objects: Link to Domain root (affects all computers and users)" -ForegroundColor Yellow
+            Write-Host "     • Best Practice: Use both for comprehensive coverage" -ForegroundColor Yellow
+        }
+        else {
+            # Report findings based on scope
+            foreach ($gpo in $kerberosGPOs) {
+                Write-Host "  📋 Found Kerberos encryption GPO: $($gpo.Name)" -ForegroundColor Green
+                
+                # Check linking based on scope
+                $scopeCompliant = $false
+                if ($Scope -eq "Domain" -and $gpo.LinkedToDomain) { $scopeCompliant = $true }
+                elseif ($Scope -eq "DomainControllers" -and $gpo.LinkedToDC) { $scopeCompliant = $true }
+                elseif ($Scope -eq "Both" -and ($gpo.LinkedToDomain -or $gpo.LinkedToDC)) { $scopeCompliant = $true }
+                
+                # Report linking status
+                if ($gpo.LinkedToDomain -and $gpo.LinkedToDC) {
+                    Write-Host "    🔗 Linked to: Domain + Domain Controllers OU (Complete coverage)" -ForegroundColor Green
+                }
+                elseif ($gpo.LinkedToDomain) {
+                    Write-Host "    🔗 Linked to: Domain level (All objects)" -ForegroundColor Cyan
+                    if ($Scope -eq "DomainControllers" -or $Scope -eq "Both") {
+                        Write-Host "    ⚠️  Consider also linking to Domain Controllers OU for DC-specific settings" -ForegroundColor Yellow
+                    }
+                }
+                elseif ($gpo.LinkedToDC) {
+                    Write-Host "    🔗 Linked to: Domain Controllers OU only" -ForegroundColor Cyan
+                    if ($Scope -eq "Domain" -or $Scope -eq "Both") {
+                        Write-Host "    ⚠️  Consider also linking to Domain level for complete coverage" -ForegroundColor Yellow
+                    }
+                }
+                else {
+                    Write-Host "    ❌ Not linked to checked scopes" -ForegroundColor Red
+                }
+                
+                # Report settings compliance
+                if ($gpo.IsOptimal) {
+                    Write-Host "    ✅ Optimal settings (AES128+256 enabled, RC4+DES disabled)" -ForegroundColor Green
+                }
+                else {
+                    Write-Host "    ⚠️  Sub-optimal settings detected:" -ForegroundColor Yellow
+                    if (-not $gpo.HasAES128) { Write-Host "      - AES128 not enabled" -ForegroundColor Yellow }
+                    if (-not $gpo.HasAES256) { Write-Host "      - AES256 not enabled" -ForegroundColor Yellow }
+                    if (-not $gpo.HasRC4Disabled) { Write-Host "      - RC4 not disabled" -ForegroundColor Yellow }
+                    if (-not $gpo.HasDESDisabled) { Write-Host "      - DES not disabled" -ForegroundColor Yellow }
+                }
+            }
+            
+            # Provide scope-specific recommendations
+            Write-Host "  💡 GPO LINKING BEST PRACTICES:" -ForegroundColor Cyan
+            Write-Host "     • Domain Level: Affects all users and computers (recommended for organization-wide policy)" -ForegroundColor Gray
+            Write-Host "     • Domain Controllers OU: Affects only DCs (recommended for DC-specific requirements)" -ForegroundColor Gray
+            Write-Host "     • Both Levels: Provides comprehensive coverage and allows for different settings if needed" -ForegroundColor Gray
+        }
+        
+    }
+    catch {
+        Write-Host "  ⚠️  Unable to check GPO settings in domain: $Domain" -ForegroundColor Yellow
+        Write-Host "  Error: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+    
+    Write-Host ""
+}
+
 $results = @()
 $forest = Get-ADForest
 
+# Check GPO settings for each domain
+if (-not $SkipGPOCheck) {
+    Write-Host "🔍 Checking Group Policy settings..." -ForegroundColor Magenta
+    foreach ($domain in $forest.Domains) {
+        Test-KerberosGPOSettings -Domain $domain -Scope $GPOScope
+    }
+}
+
+Write-Host "🔍 Scanning for objects with weak encryption..." -ForegroundColor Magenta
 foreach ($domain in $forest.Domains) {
     Write-Host "Scanning domain: $domain" -ForegroundColor Cyan
 

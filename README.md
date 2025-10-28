@@ -1,6 +1,6 @@
 # RC4 Active Directory Security Audit Tool
 
-**Version**: 2.7  
+**Version**: 2.9  
 **Author**: Jan Tiedemann  
 **Created**: October 2025  
 **Updated**: October 2025
@@ -28,12 +28,18 @@ RC4 is a deprecated encryption algorithm that is considered cryptographically we
 - **Improved weak cipher detection**: Clear identification when DES is properly disabled by omission
 - **Detailed encryption value reporting**: Shows numeric encryption values and their decoded meanings
 - **Critical trust object documentation**: Explains why GPO settings don't apply to trust objects and provides remediation guidance
+- **Enhanced trust analysis**: Detailed trust type breakdown with direction and categorization
 - **Flexible server connectivity**: Support for connecting to specific domain controllers
-- **Intelligent GPO link detection**: Multiple detection methods for reliable GPO link discovery
+- **Cross-forest scanning**: Scan different forests via forest trust relationships
+- **Intelligent GPO link detection**: Multiple detection methods for reliable GPO link discovery with duplicate prevention
 - **Detailed application status**: Analysis of current encryption settings across object types
 - **Clear categorization**: Distinguishes between GPO-applied, manual, and unset encryption settings
-- **Detailed reporting**: Shows current encryption types for each flagged object
-- **Clear success/failure feedback**: Displays appropriate messages when no issues are found vs. when problems are detected
+- **Secure objects tracking**: Comprehensive reporting of objects that already have secure AES encryption settings
+- **Smart output formatting**: Dynamic display adjustment based on object count with detailed/summary views
+- **Detailed trust reporting**: Shows trust types, directions, and encryption status with explanations
+- **Comprehensive debug output**: Enhanced troubleshooting with detailed trust and computer object analysis
+- **Consolidated recommendations**: Single recommendation section to avoid repetition across domains
+- **Professional output formatting**: Clean, organized display with boxed messages and dynamic sizing
 - **Windows Server 2025 compatibility warnings**: Alerts for objects that will fail authentication on Server 2025 DCs
 - **Optional remediation**: Interactive mode to fix issues by setting AES-only encryption
 - **Export capability**: Results can be exported to CSV for further analysis
@@ -204,6 +210,53 @@ When using `-Debug`, the script will:
 - Display GPO link detection progress with multiple detection methods
 - Report encryption setting analysis details with decoded values
 - Help troubleshoot GPO detection issues with comprehensive logging
+- Show detailed trust information during scanning (name, type, direction, encryption status)
+- Display secure object findings during scanning for comprehensive visibility
+
+## Enhanced Trust Analysis
+
+### Detailed Trust Information
+The script now provides comprehensive trust analysis including:
+- **Trust Types**: TreeRoot, ParentChild, External, Forest, Shortcut, Unknown
+- **Trust Directions**: Inbound, Outbound, Bidirectional  
+- **Trust Status**: Shows which trusts have weak vs secure encryption
+- **Trust Breakdown**: Categorized summary of trust types found
+
+### Trust Type Explanations
+- **TreeRoot**: Root domain of forest tree (automatically created)
+- **ParentChild**: Child domain to parent domain (automatically created)
+- **External**: Trust to external domain/forest (manually configured)
+- **Forest**: Forest-level trust relationship (enterprise trust)
+- **Shortcut**: Shortcut trust for optimization (performance enhancement)
+- **Unknown**: Unrecognized trust type (requires investigation)
+
+### Why You Might See More Trusts Than Expected
+The script discovers all trust objects in Active Directory, including:
+- **System-created trusts**: Automatic forest structure trusts
+- **Implicit trusts**: Not always visible in GUI management tools
+- **Historical trusts**: Previously configured relationships
+- **Kerberos realm trusts**: For mixed authentication environments
+
+## Secure Objects Reporting
+
+### Comprehensive Security Overview
+The script now tracks and reports on objects that already have secure encryption settings:
+
+#### Secure Objects Summary
+- **Total secure objects count**: Complete inventory of properly configured objects
+- **Breakdown by type**: Separate counts for computers vs trusts
+- **Encryption type analysis**: Shows what specific AES configurations are in use
+
+#### Smart Display Logic
+- **Detailed view (≤50 objects)**: Full table with all secure objects
+- **Summary view (>50 objects)**: Domain-grouped summary to prevent output overflow
+- **Debug visibility**: Enhanced debug output shows secure objects during scanning
+
+#### Benefits of Secure Objects Tracking
+- **Progress monitoring**: Track remediation progress over time
+- **Compliance verification**: Validate that security improvements are effective
+- **Complete picture**: See both problems AND successes in your environment
+- **Audit evidence**: Document current secure configuration status
 
 ## Critical Security Information: Trust Objects and GPO Limitations
 
@@ -824,17 +877,57 @@ Scope: Both
 
 🔍 Scanning for objects with weak encryption...
 Scanning domain: contoso.com
+    🔍 Found trust: CHILD.CONTOSO.COM | Type: ParentChild | Direction: Bidirectional | DN: CN=CHILD,CN=System,DC=contoso,DC=com
+    ⚠️  Trust 'CHILD.CONTOSO.COM' has weak encryption: Not Set (RC4 fallback)
+       Type: ParentChild | Direction: Bidirectional
+    ✅ Computer 'DC01$' has secure encryption: AES128-CTS-HMAC-SHA1-96, AES256-CTS-HMAC-SHA1-96
 
-⚠️  AUDIT RESULTS: Found 3 object(s) with weak encryption settings:
+⚠️  AUDIT RESULTS: Found 4 object(s) with weak encryption settings:
 
-Domain      ObjectType Name           EncTypes
-------      ---------- ----           --------
-contoso.com User       john.doe       RC4-HMAC
-contoso.com Computer   WORKSTATION1$  Not Set (RC4 fallback)
-contoso.com Trust      subdomain      RC4-HMAC
+Domain      ObjectType Name           EncTypes              TrustType    Direction
+------      ---------- ----           --------              ---------    ---------
+contoso.com Computer   WORKSTATION1$  Not Set (RC4 fallback) N/A          N/A
+contoso.com Trust      CHILD          Not Set (RC4 fallback) ParentChild  Bidirectional
+contoso.com Trust      EXTERNAL       RC4-HMAC              External     Outbound
+contoso.com Trust      SUBDOMAIN      Not Set (RC4 fallback) TreeRoot     Bidirectional
+
+📊 TRUST TYPE BREAKDOWN:
+  • ParentChild: 1 trust(s)
+    - CHILD (Direction: Bidirectional)
+  • External: 1 trust(s)
+    - EXTERNAL (Direction: Outbound)
+  • TreeRoot: 1 trust(s)
+    - SUBDOMAIN (Direction: Bidirectional)
+
+💡 TRUST TYPE EXPLANATIONS:
+  • TreeRoot: Root domain of forest tree
+  • ParentChild: Child domain to parent domain
+  • External: Trust to external domain/forest
+  • Forest: Forest-level trust relationship
+  • Shortcut: Shortcut trust for optimization
+  • Unknown: Unrecognized trust type
+
+═══════════════════════════════════════════════════════════════════════════════
+✅ OBJECTS WITH SECURE ENCRYPTION SETTINGS
+═══════════════════════════════════════════════════════════════════════════════
+📊 Summary: Found 23 object(s) with secure AES encryption
+  • Computers with secure encryption: 20
+  • Trusts with secure encryption: 3
+
+📋 DETAILED SECURE OBJECTS:
+Domain      ObjectType Name         EncTypes                                TrustType Direction
+------      ---------- ----         --------                                --------- ---------
+contoso.com Computer   DC01$        AES128-CTS-HMAC-SHA1-96, AES256-CTS-HMAC-SHA1-96 N/A       N/A
+contoso.com Computer   DC02$        AES256-CTS-HMAC-SHA1-96                N/A       N/A
+contoso.com Computer   SERVER01$    AES128-CTS-HMAC-SHA1-96, AES256-CTS-HMAC-SHA1-96 N/A       N/A
+contoso.com Trust      PARTNER      AES256-CTS-HMAC-SHA1-96                Forest    Bidirectional
+
+🔐 SECURE ENCRYPTION TYPES BREAKDOWN:
+  • AES128-CTS-HMAC-SHA1-96, AES256-CTS-HMAC-SHA1-96: 18 object(s)
+  • AES256-CTS-HMAC-SHA1-96: 5 object(s)
 
 🚨 CRITICAL WARNING - Windows Server 2025 Compatibility:
-Found 1 object(s) with undefined encryption types (msDS-SupportedEncryptionTypes not set).
+Found 3 object(s) with undefined encryption types (msDS-SupportedEncryptionTypes not set).
 Windows Server 2025 disables the RC4 fallback mechanism by default.
 These objects will experience authentication failures on Windows Server 2025 domain controllers!
 
@@ -844,6 +937,53 @@ RECOMMENDATION:
 - Test thoroughly before deploying to production environments
 
 📄 Results exported to: .\RC4_Audit_Results_20251028_143025.csv
+```
+
+### Sample Output with Consolidated Recommendations
+
+```
+🔍 Checking Group Policy settings...
+Checking GPO settings for Kerberos encryption in domain: contoso.com
+Checking GPO settings for Kerberos encryption in domain: child.contoso.com
+
+═══════════════════════════════════════════════════════════════════════════════
+📋 GPO CONFIGURATION RECOMMENDATIONS
+═══════════════════════════════════════════════════════════════════════════════
+💡 GPO ENCRYPTION SETTINGS RECOMMENDATIONS
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│ OPTIMAL CONFIGURATION (Recommended):                                            │
+│ • AES128-CTS-HMAC-SHA1-96: ✅ Enabled                                            │
+│ • AES256-CTS-HMAC-SHA1-96: ✅ Enabled                                            │
+│ • RC4-HMAC: ❌ Disabled (uncheck in GPO)                                        │
+│ • DES-CBC-CRC: ❌ Disabled (uncheck in GPO)                                     │
+│ • DES-CBC-MD5: ❌ Disabled (uncheck in GPO)                                     │
+│                                                                                  │
+│ ENCRYPTION VALUE EXAMPLES:                                                      │
+│ • Value 24 (0x18): AES128+AES256 only - EXCELLENT                              │
+│ • Value 28 (0x1C): AES+RC4 mixed - NEEDS IMPROVEMENT                           │
+│ • Value 31 (0x1F): All types enabled - SECURITY RISK                           │
+└──────────────────────────────────────────────────────────────────────────────────┘
+
+⚠️  CRITICAL: GPO LIMITATIONS FOR TRUST OBJECTS
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│ IMPORTANT: GPO settings DO NOT apply to trust objects!                          │
+│                                                                                  │
+│ ✅ What GPO Controls:                                                            │
+│ • Domain Controllers (computer accounts)                                        │
+│ • Member computers and servers                                                  │
+│ • What encryption types DCs accept/request                                      │
+│                                                                                  │
+│ ❌ What GPO Does NOT Control:                                                    │
+│ • Trust objects (forest/domain trusts)                                          │
+│ • Trust encryption type offerings                                               │
+│ • Inter-domain authentication preferences                                       │
+│                                                                                  │
+│ 🔧 Trust Remediation Requires:                                                  │
+│ • Manual attribute modification: msDS-SupportedEncryptionTypes                  │
+│ • Use this script with -ApplyFixes for trust objects                            │
+│ • Or PowerShell: Set-ADObject -Identity '<TrustDN>'                             │
+│   -Add @{msDS-SupportedEncryptionTypes=24}                                      │
+└──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Exporting Results

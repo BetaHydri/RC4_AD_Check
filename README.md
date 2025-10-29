@@ -1,4 +1,4 @@
-# RC4 Active Directory Security Audit Tool
+# Kerberos RC4/DES Active Directory Security Scanning Tool
 
 **Version**: 2.9  
 **Author**: Jan Tiedemann  

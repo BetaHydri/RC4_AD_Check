@@ -1059,10 +1059,10 @@ function Test-KerberosGPOSettings {
                         if ($computersWithAES.Count -gt 0) {
                             $commonValue = $computersWithAES[0]."msDS-SupportedEncryptionTypes"
                             $verificationResult = @{
-                                Found = $true
-                                Count = $computersWithAES.Count
-                                Total = $sampleComputers.Count
-                                Value = $commonValue
+                                Found       = $true
+                                Count       = $computersWithAES.Count
+                                Total       = $sampleComputers.Count
+                                Value       = $commonValue
                                 Description = Get-EncryptionTypes $commonValue
                             }
                         }

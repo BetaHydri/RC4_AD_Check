@@ -1,6 +1,6 @@
 # Kerberos RC4/DES Active Directory Security Scanning Tool
 
-**Version**: 3.7  
+**Version**: 3.8  
 **Author**: Jan Tiedemann  
 **Created**: October 2025  
 **Updated**: October 2025
@@ -1049,40 +1049,40 @@ Checking GPO settings for Kerberos encryption in domain: child.contoso.com
 📋 GPO CONFIGURATION RECOMMENDATIONS
 ═══════════════════════════════════════════════════════════════════════════════
 💡 GPO ENCRYPTION SETTINGS RECOMMENDATIONS
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│ OPTIMAL CONFIGURATION (Recommended):                                            │
-│ • AES128-CTS-HMAC-SHA1-96: ✅ Enabled                                            │
-│ • AES256-CTS-HMAC-SHA1-96: ✅ Enabled                                            │
-│ • RC4-HMAC: ❌ Disabled (uncheck in GPO)                                        │
-│ • DES-CBC-CRC: ❌ Disabled (uncheck in GPO)                                     │
-│ • DES-CBC-MD5: ❌ Disabled (uncheck in GPO)                                     │
-│                                                                                  │
-│ ENCRYPTION VALUE EXAMPLES:                                                      │
-│ • Value 24 (0x18): AES128+AES256 only - EXCELLENT                              │
-│ • Value 28 (0x1C): AES+RC4 mixed - NEEDS IMPROVEMENT                           │
-│ • Value 31 (0x1F): All types enabled - SECURITY RISK                           │
-└──────────────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ OPTIMAL CONFIGURATION (Recommended):                                        │
+│ • AES128-CTS-HMAC-SHA1-96: ✅ Enabled                                        │
+│ • AES256-CTS-HMAC-SHA1-96: ✅ Enabled                                        │
+│ • RC4-HMAC: ❌ Disabled (uncheck in GPO)                                    │
+│ • DES-CBC-CRC: ❌ Disabled (uncheck in GPO)                                 │
+│ • DES-CBC-MD5: ❌ Disabled (uncheck in GPO)                                 │
+│                                                                              │
+│ ENCRYPTION VALUE EXAMPLES:                                                  │
+│ • Value 24 (0x18): AES128+AES256 only - EXCELLENT                          │
+│ • Value 28 (0x1C): AES+RC4 mixed - NEEDS IMPROVEMENT                       │
+│ • Value 31 (0x1F): All types enabled - SECURITY RISK                       │
+└──────────────────────────────────────────────────────────────────────────────┘
 
 ⚠️  CRITICAL: GPO LIMITATIONS FOR TRUST OBJECTS
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│ IMPORTANT: GPO settings DO NOT apply to trust objects!                          │
-│                                                                                  │
-│ ✅ What GPO Controls:                                                            │
-│ • Domain Controllers (computer accounts)                                        │
-│ • Member computers and servers                                                  │
-│ • What encryption types DCs accept/request                                      │
-│                                                                                  │
-│ ❌ What GPO Does NOT Control:                                                    │
-│ • Trust objects (forest/domain trusts)                                          │
-│ • Trust encryption type offerings                                               │
-│ • Inter-domain authentication preferences                                       │
-│                                                                                  │
-│ 🔧 Trust Remediation Requires:                                                  │
-│ • Manual attribute modification: msDS-SupportedEncryptionTypes                  │
-│ • Use this script with -ApplyFixes for trust objects                            │
-│ • Or PowerShell: Set-ADObject -Identity '<TrustDN>'                             │
-│   -Add @{msDS-SupportedEncryptionTypes=24}                                      │
-└──────────────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ IMPORTANT: GPO settings DO NOT apply to trust objects!                      │
+│                                                                              │
+│ ✅ What GPO Controls:                                                        │
+│ • Domain Controllers (computer accounts)                                    │
+│ • Member computers and servers                                              │
+│ • What encryption types DCs accept/request                                  │
+│                                                                              │
+│ ❌ What GPO Does NOT Control:                                                │
+│ • Trust objects (forest/domain trusts)                                      │
+│ • Trust encryption type offerings                                           │
+│ • Inter-domain authentication preferences                                   │
+│                                                                              │
+│ 🔧 Trust Remediation Requires:                                              │
+│ • Manual attribute modification: msDS-SupportedEncryptionTypes              │
+│ • Use this script with -ApplyFixes for trust objects                        │
+│ • Or PowerShell: Set-ADObject -Identity '<TrustDN>'                         │
+│   -Add @{msDS-SupportedEncryptionTypes=24}                                  │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Exporting Results
@@ -1195,6 +1195,11 @@ Debug output includes:
 - Consider gradual rollout with proper monitoring
 
 ## Changelog
+
+### Version 3.8 (October 2025)
+- **🎨 [FORMATTING]** Fixed misaligned box characters in README.md sample output
+- **✅ [IMPROVED]** Standardized bullet points and visual formatting in script output
+- **📖 [ENHANCED]** Better visual consistency in GPO recommendations display
 
 ### Version 3.7 (October 2025)
 - **🔧 [CRITICAL FIX]** Fixed PowerShell ContinueException error in trust remediation

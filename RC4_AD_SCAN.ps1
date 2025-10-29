@@ -1467,12 +1467,3 @@ if ($ExportResults) {
 
 # Optional export
 # $results | Export-Csv ".\\RC4_Audit_Results.csv" -NoTypeInformation -Encoding UTF8
-
-
-
-
-
-
-
-
-

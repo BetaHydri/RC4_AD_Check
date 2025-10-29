@@ -1,6 +1,6 @@
 # Kerberos RC4/DES Active Directory Security Scanning Tool
 
-**Version**: 3.4  
+**Version**: 3.5  
 **Author**: Jan Tiedemann  
 **Created**: October 2025  
 **Updated**: October 2025
@@ -308,16 +308,32 @@ The script automatically uses the ksetup command following Microsoft's official 
 This GUI option is equivalent to Method 3 from Microsoft's official documentation and sets AES-only encryption.
 
 **Option 3: Manual ksetup Command (Advanced)**
+
+⚠️ **CRITICAL: ksetup Domain Context Requirements**
+
+The ksetup command has a strict requirement: **You can ONLY configure encryption types for the OTHER domain in the trust relationship.** Running ksetup from the wrong domain controller will result in error `0xc0000034`.
+
+**Examples of Correct Usage:**
 ```powershell
-# Microsoft Method 3: AES-only configuration (matches GUI checkbox)
-ksetup /setenctypeattr <trustdomain> AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96
+# Scenario 1: From child.contoso.com DC, configure parent domain trust
+ksetup /setenctypeattr contoso.com AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96
+
+# Scenario 2: From contoso.com DC, configure child domain trust  
+ksetup /setenctypeattr child.contoso.com AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96
 
 # Verify the setting
 ksetup /getenctypeattr <trustdomain>
-
-# Example for child domain trust
-ksetup /setenctypeattr child.contoso.com AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96
 ```
+
+**Trust Direction Guidelines:**
+- **Outbound Trust**: Run ksetup from the target domain's DC to configure your domain
+- **Inbound Trust**: Run ksetup from your domain's DC to configure the target domain  
+- **Bidirectional Trust**: Must run ksetup from BOTH domain controllers
+
+**Common Error 0xc0000034:**
+This error occurs when you try to configure a domain from the wrong context. The solution is to run the ksetup command from the OTHER domain's domain controller.
+
+**Alternative**: Use the GUI method (Active Directory Domains and Trusts) which handles the domain context automatically and is often more reliable for complex trust scenarios.
 
 **Reference**: [Microsoft Official Documentation](https://learn.microsoft.com/en-us/troubleshoot/windows-server/windows-security/unsupported-etype-error-accessing-trusted-domain#method-3-configure-the-trust-to-support-aes128-and-aes-256-encryption-instead-of-rc4-encryption)
 
@@ -1179,6 +1195,18 @@ Debug output includes:
 - Consider gradual rollout with proper monitoring
 
 ## Changelog
+
+### Version 3.5 (October 2025)
+- **🔧 [CRITICAL FIX]** Fixed false success reporting when ksetup commands fail with error codes
+- **✅ [ENHANCED]** Improved ksetup error detection by parsing output text instead of relying only on exit codes
+- **📖 [ADDED]** Critical documentation about ksetup domain context requirements
+- **🎯 [CLARIFIED]** Added specific guidance for trust direction vs. required domain controller context
+- **🔍 [ENHANCED]** Enhanced error code 0xc0000034 explanation with domain context requirements
+- **📋 [IMPROVED]** Trust direction-specific ksetup command guidance (Outbound/Inbound/Bidirectional)
+- **⚠️ [ADDED]** Clear warnings about ksetup limitation: "You can ONLY configure encryption for the OTHER domain"
+- **🎨 [ENHANCED]** Better error messaging distinguishing between setup failure and verification failure
+- **🛡️ [RELIABILITY]** More accurate success/failure detection prevents misleading "SUCCESS" messages
+- **📚 [DOCUMENTED]** Added examples showing correct domain controller context for different trust scenarios
 
 ### Version 3.4 (October 2025)
 - **🔧 [ENHANCED]** Complete rewrite of trust remediation logic based on official Microsoft documentation

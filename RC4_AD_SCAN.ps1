@@ -115,7 +115,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 3.4
+  Version: 3.5
   Created: October 2025
   Updated: October 2025
   

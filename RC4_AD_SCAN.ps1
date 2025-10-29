@@ -1286,7 +1286,8 @@ foreach ($domain in $forest.Domains) {
                         # Trust objects may need the attribute replaced rather than added
                         if ($domainParams.Count -gt 0) {
                             Set-ADObject -Identity $_.DistinguishedName -Replace @{"msDS-SupportedEncryptionTypes" = 24 } @domainParams
-                        } else {
+                        }
+                        else {
                             Set-ADObject -Identity $_.DistinguishedName -Replace @{"msDS-SupportedEncryptionTypes" = 24 }
                         }
                         Write-Host "    > Fixed: Trust $($_.Name) set to AES-only (value 24)" -ForegroundColor Green
@@ -1301,7 +1302,8 @@ foreach ($domain in $forest.Domains) {
                             Write-Host "    >> Trying alternative approach with -Add parameter..." -ForegroundColor Yellow
                             if ($domainParams.Count -gt 0) {
                                 Set-ADObject -Identity $_.DistinguishedName -Add @{"msDS-SupportedEncryptionTypes" = 24 } @domainParams
-                            } else {
+                            }
+                            else {
                                 Set-ADObject -Identity $_.DistinguishedName -Add @{"msDS-SupportedEncryptionTypes" = 24 }
                             }
                             Write-Host "    > Fixed: Trust $($_.Name) set to AES-only (value 24) using -Add" -ForegroundColor Green

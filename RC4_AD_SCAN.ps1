@@ -115,7 +115,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 4.0
+  Version: 4.1
   Created: October 2025
   Updated: October 2025
   
@@ -1137,15 +1137,20 @@ if (-not $SkipGPOCheck) {
         "• Trust encryption type offerings",
         "• Inter-domain authentication preferences",
         "",
-        "🔧 Trust Remediation Requires:",
-        "• Manual attribute modification: msDS-SupportedEncryptionTypes",
-        "• Use this script with -ApplyFixes for trust objects",
-        "• Or PowerShell: Set-ADObject -Identity '<TrustDN>'",
-        "  -Add @{msDS-SupportedEncryptionTypes=24}",
+        "🔧 Trust Remediation Methods (this script uses):",
+        "• Primary: ksetup command (Microsoft Method 3 - AES only)",
+        "• Equivalent to GUI checkbox: 'AES Encryption' in domain.msc",
+        "• Command: ksetup /setenctypeattr <domain> AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96",
+        "• Fallback: PowerShell Set-ADObject for manual remediation",
+        "",
+        "⚠️  CRITICAL: ksetup Domain Context Requirements:",
+        "• Can ONLY configure encryption for the OTHER domain in trust",
+        "• Must run from correct domain controller context",
+        "• Script provides automatic domain context detection",
         "",
         ">> Complete Security Strategy:",
         "1. Deploy GPO for computers and DCs",
-        "2. Manually fix trust objects (this script helps)",
+        "2. Use this script with -ApplyFixes for trust objects",
         "3. Monitor Event IDs 4768/4769 for verification"
     )
     Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $contentMessages -Color "Red"

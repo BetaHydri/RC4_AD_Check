@@ -115,7 +115,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 3.6
+  Version: 3.7
   Created: October 2025
   Updated: October 2025
   
@@ -1293,12 +1293,11 @@ foreach ($domain in $forest.Domains) {
                         Write-Host "    >> Cannot configure a domain's trust to itself using ksetup" -ForegroundColor Yellow
                         Write-Host "    >> This may be a misconfigured trust object or forest artifact" -ForegroundColor Gray
                         Write-Host "    >> RECOMMENDATION: Verify trust configuration via GUI (domain.msc)" -ForegroundColor Cyan
-                        continue
                     }
-                    
-                    Write-Host "`n    >> TRUST AES ENCRYPTION REMEDIATION" -ForegroundColor Cyan
-                    Write-Host "    >> Trust: $trustName (Type: $trustType, Direction: $trustDirection)" -ForegroundColor White
-                    Write-Host "    >> Domain: $domain" -ForegroundColor White
+                    else {
+                        Write-Host "`n    >> TRUST AES ENCRYPTION REMEDIATION" -ForegroundColor Cyan
+                        Write-Host "    >> Trust: $trustName (Type: $trustType, Direction: $trustDirection)" -ForegroundColor White
+                        Write-Host "    >> Domain: $domain" -ForegroundColor White
                     
                     # Method 1: Use ksetup command (most reliable programmatic method)
                     $remediated = $false
@@ -1502,6 +1501,7 @@ foreach ($domain in $forest.Domains) {
                     }
                 }
             }
+            } # Close the else block for non-self-referential trusts
             else {
                 Write-Host "    > ERROR: Could not determine trust object identity" -ForegroundColor Red
                 Write-Host "    >> Trust name: $($_.Name)" -ForegroundColor Yellow

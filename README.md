@@ -1,6 +1,6 @@
 # Kerberos RC4/DES Active Directory Security Scanning Tool
 
-**Version**: 3.3  
+**Version**: 3.4  
 **Author**: Jan Tiedemann  
 **Created**: October 2025  
 **Updated**: October 2025
@@ -291,7 +291,13 @@ Trust objects store their own `msDS-SupportedEncryptionTypes` attribute and requ
 
 #### Manual Remediation Methods
 
-**Option 1: Active Directory Domains and Trusts Console (GUI)**
+**Option 1: Use This Script (Recommended)**
+```powershell
+.\RC4_AD_SCAN.ps1 -ApplyFixes
+```
+The script automatically uses the ksetup command following Microsoft's official Method 3 for AES-only trust configuration.
+
+**Option 2: Active Directory Domains and Trusts Console (GUI)**
 1. Open **Active Directory Domains and Trusts**
 2. Right-click on your domain → **Properties**
 3. Go to the **Trusts** tab
@@ -299,26 +305,21 @@ Trust objects store their own `msDS-SupportedEncryptionTypes` attribute and requ
 5. Check the box: **"The other domain supports Kerberos AES Encryption"**
 6. Click **OK** to apply the setting
 
-This GUI option automatically sets the appropriate `msDS-SupportedEncryptionTypes` value for AES encryption.
+This GUI option is equivalent to Method 3 from Microsoft's official documentation and sets AES-only encryption.
 
-**Option 2: Use This Script**
+**Option 3: Manual ksetup Command (Advanced)**
 ```powershell
-.\RC4_AD_SCAN.ps1 -ApplyFixes
+# Microsoft Method 3: AES-only configuration (matches GUI checkbox)
+ksetup /setenctypeattr <trustdomain> AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96
+
+# Verify the setting
+ksetup /getenctypeattr <trustdomain>
+
+# Example for child domain trust
+ksetup /setenctypeattr child.contoso.com AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96
 ```
-The script will prompt for each trust object and apply the fix automatically.
 
-**Option 3: Manual PowerShell Commands**
-```powershell
-# Audit current trust encryption settings
-Get-ADObject -Filter 'ObjectClass -eq "trustedDomain"' -Properties msDS-SupportedEncryptionTypes | 
-    Select Name, msDS-SupportedEncryptionTypes
-
-# Fix trust objects (replace <TrustDN> with actual Distinguished Name)
-Set-ADObject -Identity "<TrustDN>" -Add @{msDS-SupportedEncryptionTypes=24}
-
-# Example for a specific trust
-Set-ADObject -Identity "CN=subdomain,CN=System,DC=contoso,DC=com" -Add @{msDS-SupportedEncryptionTypes=24}
-```
+**Reference**: [Microsoft Official Documentation](https://learn.microsoft.com/en-us/troubleshoot/windows-server/windows-security/unsupported-etype-error-accessing-trusted-domain#method-3-configure-the-trust-to-support-aes128-and-aes-256-encryption-instead-of-rc4-encryption)
 
 #### Verification Commands
 ```powershell
@@ -1178,6 +1179,19 @@ Debug output includes:
 - Consider gradual rollout with proper monitoring
 
 ## Changelog
+
+### Version 3.4 (October 2025)
+- **🔧 [ENHANCED]** Complete rewrite of trust remediation logic based on official Microsoft documentation
+- **✅ [NEW]** Implemented ksetup command for programmatic trust AES encryption configuration  
+- **📖 [ALIGNED]** Trust remediation now follows Microsoft Method 3 (AES-only) from official docs
+- **🎯 [IMPROVED]** AES-only trust configuration matches "The other domain supports Kerberos AES Encryption" checkbox behavior
+- **🔗 [ADDED]** Direct reference to Microsoft troubleshooting documentation (learn.microsoft.com)
+- **⚡ [SIMPLIFIED]** Removed complex PowerShell AD object manipulation that was causing "Illegal modify operation" errors
+- **🔍 [ENHANCED]** Added automatic ksetup verification with /getenctypeattr command
+- **📋 [IMPROVED]** Clear manual guidance prioritizing GUI method and official Microsoft approaches
+- **✅ [FIXED]** Trust identity resolution now properly handles empty Distinguished Name properties
+- **🎨 [ENHANCED]** Better user messaging explaining relationship between ksetup and GUI checkbox
+- **🛡️ [SECURITY]** Default to AES-only mode instead of RC4+AES mixed mode for better security posture
 
 ### Version 3.3 (October 2025)
 - **[IMPROVED]** Replaced Unicode characters with ASCII equivalents for better terminal compatibility

@@ -870,17 +870,17 @@ function Test-KerberosGPOSettings {
                     # - May show as numeric values or as enabled/disabled strings
                     
                     $hasAES128 = $gpoReport -match "AES128.*CTS.*HMAC.*SHA1.*96.*>.*(?:Enabled|True|1)" -or 
-                                $gpoReport -match "AES128.*>.*(?:Enabled|True|1)" -or
-                                $gpoReport -match "0x0+8" # AES128 bit flag
+                    $gpoReport -match "AES128.*>.*(?:Enabled|True|1)" -or
+                    $gpoReport -match "0x0+8" # AES128 bit flag
                     $hasAES256 = $gpoReport -match "AES256.*CTS.*HMAC.*SHA1.*96.*>.*(?:Enabled|True|1)" -or 
-                                $gpoReport -match "AES256.*>.*(?:Enabled|True|1)" -or
-                                $gpoReport -match "0x0*10" # AES256 bit flag
+                    $gpoReport -match "AES256.*>.*(?:Enabled|True|1)" -or
+                    $gpoReport -match "0x0*10" # AES256 bit flag
                     $hasRC4Disabled = $gpoReport -match "RC4.*HMAC.*>.*(?:Disabled|False|0)" -or 
-                                     $gpoReport -notmatch "RC4.*>.*(?:Enabled|True|1)" -or
-                                     $gpoReport -notmatch "0x0*4" # RC4 bit flag not present
+                    $gpoReport -notmatch "RC4.*>.*(?:Enabled|True|1)" -or
+                    $gpoReport -notmatch "0x0*4" # RC4 bit flag not present
                     $hasDESDisabled = $gpoReport -match "DES.*CBC.*>.*(?:Disabled|False|0)" -or 
-                                     $gpoReport -notmatch "DES.*>.*(?:Enabled|True|1)" -or
-                                     $gpoReport -notmatch "0x0*[123]" # DES bit flags not present
+                    $gpoReport -notmatch "DES.*>.*(?:Enabled|True|1)" -or
+                    $gpoReport -notmatch "0x0*[123]" # DES bit flags not present
                     
                     # Also check for numeric values that might indicate the settings
                     $encValue = $null

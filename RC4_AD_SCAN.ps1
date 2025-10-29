@@ -904,29 +904,29 @@ function Test-KerberosGPOSettings {
                     
                     # AES128 Pattern Detection - Comprehensive patterns
                     $hasAES128 = $gpoReport -match "(?i)AES128.*(?:CTS.*)?(?:HMAC.*)?(?:SHA1.*)?(?:96)?.*>.*(?:Enabled|True|1|Checked)" -or 
-                                 $gpoReport -match "(?i)AES128[_-](?:CTS[_-])?(?:HMAC[_-])?(?:SHA1[_-])?(?:96)?.*>.*(?:Enabled|True|1|Checked)" -or
-                                 $gpoReport -match "(?i)AES128.*HMAC.*SHA1.*>.*(?:Enabled|True|1|Checked)" -or
-                                 $gpoReport -match "(?i)>AES128[<\s]" -or  # Simple AES128 in tags
-                                 $gpoReport -match "(?i)\bAES128\b.*(?:enable|allow|permit|select)" -or
-                                 $gpoReport -match "0x0*8" # AES128 bit flag (0x8)
+                    $gpoReport -match "(?i)AES128[_-](?:CTS[_-])?(?:HMAC[_-])?(?:SHA1[_-])?(?:96)?.*>.*(?:Enabled|True|1|Checked)" -or
+                    $gpoReport -match "(?i)AES128.*HMAC.*SHA1.*>.*(?:Enabled|True|1|Checked)" -or
+                    $gpoReport -match "(?i)>AES128[<\s]" -or # Simple AES128 in tags
+                    $gpoReport -match "(?i)\bAES128\b.*(?:enable|allow|permit|select)" -or
+                    $gpoReport -match "0x0*8" # AES128 bit flag (0x8)
                     
                     # AES256 Pattern Detection - Comprehensive patterns  
                     $hasAES256 = $gpoReport -match "(?i)AES256.*(?:CTS.*)?(?:HMAC.*)?(?:SHA1.*)?(?:96)?.*>.*(?:Enabled|True|1|Checked)" -or 
-                                 $gpoReport -match "(?i)AES256[_-](?:CTS[_-])?(?:HMAC[_-])?(?:SHA1[_-])?(?:96)?.*>.*(?:Enabled|True|1|Checked)" -or
-                                 $gpoReport -match "(?i)AES256.*HMAC.*SHA1.*>.*(?:Enabled|True|1|Checked)" -or
-                                 $gpoReport -match "(?i)>AES256[<\s]" -or  # Simple AES256 in tags
-                                 $gpoReport -match "(?i)\bAES256\b.*(?:enable|allow|permit|select)" -or
-                                 $gpoReport -match "0x0*10" # AES256 bit flag (0x10)
+                    $gpoReport -match "(?i)AES256[_-](?:CTS[_-])?(?:HMAC[_-])?(?:SHA1[_-])?(?:96)?.*>.*(?:Enabled|True|1|Checked)" -or
+                    $gpoReport -match "(?i)AES256.*HMAC.*SHA1.*>.*(?:Enabled|True|1|Checked)" -or
+                    $gpoReport -match "(?i)>AES256[<\s]" -or # Simple AES256 in tags
+                    $gpoReport -match "(?i)\bAES256\b.*(?:enable|allow|permit|select)" -or
+                    $gpoReport -match "0x0*10" # AES256 bit flag (0x10)
                     
                     # RC4 Disabled Detection - More thorough
                     $hasRC4Disabled = $gpoReport -match "(?i)RC4.*(?:HMAC.*)?(?:MD5)?.*>.*(?:Disabled|False|0|Unchecked)" -or 
-                                      $gpoReport -match "(?i)\bRC4\b.*(?:disable|deny|block|uncheck)" -or
-                                      $gpoReport -notmatch "(?i)RC4.*>.*(?:Enabled|True|1|Checked)" # RC4 not explicitly enabled
+                    $gpoReport -match "(?i)\bRC4\b.*(?:disable|deny|block|uncheck)" -or
+                    $gpoReport -notmatch "(?i)RC4.*>.*(?:Enabled|True|1|Checked)" # RC4 not explicitly enabled
                     
                     # DES Disabled Detection - More thorough
                     $hasDESDisabled = $gpoReport -match "(?i)DES.*(?:CBC.*)?(?:CRC|MD5)?.*>.*(?:Disabled|False|0|Unchecked)" -or 
-                                      $gpoReport -match "(?i)\bDES\b.*(?:disable|deny|block|uncheck)" -or
-                                      $gpoReport -notmatch "(?i)DES.*>.*(?:Enabled|True|1|Checked)" # DES not explicitly enabled
+                    $gpoReport -match "(?i)\bDES\b.*(?:disable|deny|block|uncheck)" -or
+                    $gpoReport -notmatch "(?i)DES.*>.*(?:Enabled|True|1|Checked)" # DES not explicitly enabled
                     
                     # Also check for numeric values that might indicate the settings
                     $encValue = $null
@@ -951,34 +951,34 @@ function Test-KerberosGPOSettings {
                     # Sometimes GPO XML uses checkbox names, policy display names, or registry values
                     if (-not $hasAES128) {
                         $hasAES128 = $gpoReport -match "(?i)checkbox.*AES128" -or
-                                     $gpoReport -match "(?i)policy.*AES.*128" -or
-                                     $gpoReport -match "(?i)name=.*AES128" -or
-                                     $gpoReport -match "(?i)value.*8\b" -or  # Numeric 8 for AES128
-                                     $gpoReport -match "(?i)AES.*128.*allow|permit|enable"
+                        $gpoReport -match "(?i)policy.*AES.*128" -or
+                        $gpoReport -match "(?i)name=.*AES128" -or
+                        $gpoReport -match "(?i)value.*8\b" -or # Numeric 8 for AES128
+                        $gpoReport -match "(?i)AES.*128.*allow|permit|enable"
                     }
                     
                     if (-not $hasAES256) {
                         $hasAES256 = $gpoReport -match "(?i)checkbox.*AES256" -or
-                                     $gpoReport -match "(?i)policy.*AES.*256" -or
-                                     $gpoReport -match "(?i)name=.*AES256" -or
-                                     $gpoReport -match "(?i)value.*16\b" -or  # Numeric 16 (0x10) for AES256
-                                     $gpoReport -match "(?i)AES.*256.*allow|permit|enable"
+                        $gpoReport -match "(?i)policy.*AES.*256" -or
+                        $gpoReport -match "(?i)name=.*AES256" -or
+                        $gpoReport -match "(?i)value.*16\b" -or # Numeric 16 (0x10) for AES256
+                        $gpoReport -match "(?i)AES.*256.*allow|permit|enable"
                     }
                     
                     # Try to detect the overall AES configuration even if individual detection fails
                     $hasAnyAES = $hasAES128 -or $hasAES256 -or 
-                                 $gpoReport -match "(?i)AES.*(?:128|256)" -or
-                                 $gpoReport -match "(?i)encrypt.*AES" -or
-                                 $gpoReport -match "(?i)advanced.*encrypt" -or
-                                 $gpoReport -match "(?i)strong.*encrypt"
+                    $gpoReport -match "(?i)AES.*(?:128|256)" -or
+                    $gpoReport -match "(?i)encrypt.*AES" -or
+                    $gpoReport -match "(?i)advanced.*encrypt" -or
+                    $gpoReport -match "(?i)strong.*encrypt"
                     
                     # Enhanced debug output for GPO content analysis
                     if ($DebugMode) {
                         Write-Host "      >> GPO XML Analysis Results:" -ForegroundColor Yellow
-                        Write-Host "        > AES128 detected: $hasAES128" -ForegroundColor $(if($hasAES128){"Green"}else{"Red"})
-                        Write-Host "        > AES256 detected: $hasAES256" -ForegroundColor $(if($hasAES256){"Green"}else{"Red"})
-                        Write-Host "        > Any AES detected: $hasAnyAES" -ForegroundColor $(if($hasAnyAES){"Green"}else{"Red"})
-                        Write-Host "        > RC4 disabled: $hasRC4Disabled" -ForegroundColor $(if($hasRC4Disabled){"Green"}else{"Red"})
+                        Write-Host "        > AES128 detected: $hasAES128" -ForegroundColor $(if ($hasAES128) { "Green" }else { "Red" })
+                        Write-Host "        > AES256 detected: $hasAES256" -ForegroundColor $(if ($hasAES256) { "Green" }else { "Red" })
+                        Write-Host "        > Any AES detected: $hasAnyAES" -ForegroundColor $(if ($hasAnyAES) { "Green" }else { "Red" })
+                        Write-Host "        > RC4 disabled: $hasRC4Disabled" -ForegroundColor $(if ($hasRC4Disabled) { "Green" }else { "Red" })
                         
                         Write-Host "      >> GPO Report contains these Kerberos-related entries:" -ForegroundColor Yellow
                         $kerberosLines = $gpoReport -split "`n" | Where-Object { $_ -match "(?i)(AES|RC4|DES|Kerberos|Encryption|encrypt)" }
@@ -1199,7 +1199,8 @@ function Test-KerberosGPOSettings {
                         Write-Host "      > GPO name suggests Kerberos encryption: '$($gpo.Name)'" -ForegroundColor Green
                         if ($hasAnyAES) {
                             Write-Host "      > GPO XML contains AES encryption references" -ForegroundColor Green
-                        } else {
+                        }
+                        else {
                             Write-Host "      > GPO contains encryption-related settings" -ForegroundColor Green
                         }
                         Write-Host "      > No computers found with applied settings yet" -ForegroundColor Yellow

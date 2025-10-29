@@ -1330,9 +1330,11 @@ foreach ($domain in $forest.Domains) {
                     
                     # Proceed with remediation if we have a valid identity
                     if ($trustIdentity) {
+                        $remediated = $false
+                        
+                        # Method 1: Try -Replace first (standard approach)
                         try {
-                            # Use Set-ADObject with -Replace instead of -Add for trust objects
-                            # Trust objects may need the attribute replaced rather than added
+                            Write-Host "    >> Attempting trust remediation with -Replace method..." -ForegroundColor Gray
                             if ($domainParams.Count -gt 0) {
                                 Set-ADObject -Identity $trustIdentity -Replace @{"msDS-SupportedEncryptionTypes" = 24 } @domainParams
                             }
@@ -1341,12 +1343,14 @@ foreach ($domain in $forest.Domains) {
                             }
                             Write-Host "    > Fixed: Trust $($_.Name) set to AES-only (value 24)" -ForegroundColor Green
                             Write-Host "    >>  Note: Trust fixes require explicit attribute modification, not GPO" -ForegroundColor Gray
+                            $remediated = $true
                         }
                         catch {
-                            Write-Host "    > Failed to fix trust $($_.Name): $($_.Exception.Message)" -ForegroundColor Red
-                            Write-Host "    >> Alternative: Set-ADObject -Identity '$trustIdentity' -Replace @{msDS-SupportedEncryptionTypes=24}" -ForegroundColor Yellow
-                            
-                            # Try alternative approach with -Add in case -Replace fails
+                            Write-Host "    > -Replace method failed: $($_.Exception.Message)" -ForegroundColor Red
+                        }
+                        
+                        # Method 2: Try -Add if -Replace failed
+                        if (-not $remediated) {
                             try {
                                 Write-Host "    >> Trying alternative approach with -Add parameter..." -ForegroundColor Yellow
                                 if ($domainParams.Count -gt 0) {
@@ -1356,11 +1360,66 @@ foreach ($domain in $forest.Domains) {
                                     Set-ADObject -Identity $trustIdentity -Add @{"msDS-SupportedEncryptionTypes" = 24 }
                                 }
                                 Write-Host "    > Fixed: Trust $($_.Name) set to AES-only (value 24) using -Add" -ForegroundColor Green
+                                $remediated = $true
                             }
                             catch {
-                                Write-Host "    > Both -Replace and -Add methods failed: $($_.Exception.Message)" -ForegroundColor Red
-                                Write-Host "    >> Manual remediation required. See trust remediation guidance below." -ForegroundColor Yellow
+                                Write-Host "    > -Add method also failed: $($_.Exception.Message)" -ForegroundColor Red
                             }
+                        }
+                        
+                        # Method 3: Try using different server context if available
+                        if (-not $remediated -and $Server) {
+                            try {
+                                Write-Host "    >> Trying with explicit server context: $Server..." -ForegroundColor Yellow
+                                Set-ADObject -Identity $trustIdentity -Replace @{"msDS-SupportedEncryptionTypes" = 24 } -Server $Server
+                                Write-Host "    > Fixed: Trust $($_.Name) set to AES-only (value 24) using explicit server" -ForegroundColor Green
+                                $remediated = $true
+                            }
+                            catch {
+                                Write-Host "    > Explicit server method failed: $($_.Exception.Message)" -ForegroundColor Red
+                            }
+                        }
+                        
+                        # Method 4: Try using domain context without additional parameters
+                        if (-not $remediated) {
+                            try {
+                                Write-Host "    >> Trying with minimal parameters (no domain context)..." -ForegroundColor Yellow
+                                Set-ADObject -Identity $trustIdentity -Replace @{"msDS-SupportedEncryptionTypes" = 24 }
+                                Write-Host "    > Fixed: Trust $($_.Name) set to AES-only (value 24) using minimal context" -ForegroundColor Green
+                                $remediated = $true
+                            }
+                            catch {
+                                Write-Host "    > Minimal context method failed: $($_.Exception.Message)" -ForegroundColor Red
+                            }
+                        }
+                        
+                        # If all automated methods failed, provide comprehensive manual guidance
+                        if (-not $remediated) {
+                            Write-Host "`n    >>  ALL AUTOMATED METHODS FAILED - MANUAL REMEDIATION REQUIRED" -ForegroundColor Red
+                            Write-Host "    >> Trust: $($_.Name)" -ForegroundColor Yellow
+                            Write-Host "    >> Identity: $trustIdentity" -ForegroundColor Yellow
+                            Write-Host "`n    >> MANUAL REMEDIATION OPTIONS:" -ForegroundColor Cyan
+                            Write-Host "    >> Option 1 - PowerShell (run as Enterprise Admin):" -ForegroundColor White
+                            Write-Host "       Set-ADObject -Identity '$trustIdentity' -Replace @{msDS-SupportedEncryptionTypes=24}" -ForegroundColor Gray
+                            Write-Host "    >> Option 2 - Active Directory Domains and Trusts GUI:" -ForegroundColor White
+                            Write-Host "       1. Open 'Active Directory Domains and Trusts'" -ForegroundColor Gray
+                            Write-Host "       2. Right-click domain > Properties > Trusts tab" -ForegroundColor Gray
+                            Write-Host "       3. Select trust > Properties > Check 'The other domain supports Kerberos AES Encryption'" -ForegroundColor Gray
+                            Write-Host "    >> Option 3 - LDIF file (using ldifde.exe):" -ForegroundColor White
+                            Write-Host "       Create trust_fix.ldif with content:" -ForegroundColor Gray
+                            Write-Host "       dn: $trustIdentity" -ForegroundColor Gray
+                            Write-Host "       changetype: modify" -ForegroundColor Gray
+                            Write-Host "       replace: msDS-SupportedEncryptionTypes" -ForegroundColor Gray
+                            Write-Host "       msDS-SupportedEncryptionTypes: 24" -ForegroundColor Gray
+                            Write-Host "       Then run: ldifde -i -f trust_fix.ldif" -ForegroundColor Gray
+                            Write-Host "`n    >> COMMON CAUSES OF 'ILLEGAL MODIFY OPERATION':" -ForegroundColor Yellow
+                            Write-Host "       - Insufficient permissions (need Enterprise Admin for trusts)" -ForegroundColor Gray
+                            Write-Host "       - Trust object is in read-only state" -ForegroundColor Gray
+                            Write-Host "       - Cross-domain permissions not properly delegated" -ForegroundColor Gray
+                            Write-Host "       - Domain controller replication lag" -ForegroundColor Gray
+                            Write-Host "       - Trust relationship needs to be re-established" -ForegroundColor Gray
+                            Write-Host "`n    >> VERIFICATION AFTER MANUAL FIX:" -ForegroundColor Cyan
+                            Write-Host "       Get-ADObject -Identity '$trustIdentity' -Properties msDS-SupportedEncryptionTypes" -ForegroundColor Gray
                         }
                     }
                     else {

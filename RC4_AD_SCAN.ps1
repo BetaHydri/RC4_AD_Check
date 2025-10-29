@@ -47,14 +47,6 @@
 .PARAMETER DebugMode
   Enable debug output for troubleshooting GPO detection
 
-.PARAMETER KerberosHardeningAssessment
-  Perform comprehensive Kerberos security posture assessment including:
-  - Complete GPO coverage analysis (DC + member computers)
-  - Service account encryption attribute audit
-  - Tiered security recommendations (Current/Minimum/Recommended/Maximum)
-  - Kerberos negotiation scenario analysis
-  - Post-2022 security compliance evaluation
-
 .EXAMPLE
   .\RC4_AD_SCAN.ps1
   Run in audit-only mode to identify RC4 usage
@@ -103,14 +95,6 @@
   .\RC4_AD_SCAN.ps1 -GPOScope "OU=IT,DC=contoso,DC=com"
   Check GPO settings on a specific OU only
 
-.EXAMPLE
-  .\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment
-  Perform comprehensive Kerberos security posture assessment with tiered recommendations
-
-.EXAMPLE
-  .\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -ExportResults
-  Run hardening assessment and export detailed security analysis to CSV
-
 .PARAMETER Server
   Specify a domain controller server to connect to (e.g., dc01.contoso.com)
 
@@ -158,7 +142,6 @@
   
   Parameter Sets:
   - Standard: Normal operation with optional GPO scope
-  - KerberosHardening: Comprehensive Kerberos security posture assessment
   - SkipGPO: Skip all GPO checks (mutually exclusive with GPOScope/GPOCheckOnly)
   - GPOOnly: GPO analysis only (mutually exclusive with SkipGPOCheck/ApplyFixes)
   - Help: Display detailed help information
@@ -182,7 +165,6 @@ param(
     [Parameter(ParameterSetName = 'GPOOnly')]
     [Parameter(ParameterSetName = 'Help')]
     [Parameter(ParameterSetName = 'QuickHelp')]
-    [Parameter(ParameterSetName = 'KerberosHardening')]
     [switch]$ExportResults,
     
     [Parameter(ParameterSetName = 'SkipGPO', Mandatory)]
@@ -205,7 +187,6 @@ param(
     [Parameter(ParameterSetName = 'GPOOnly')]
     [Parameter(ParameterSetName = 'Help')]
     [Parameter(ParameterSetName = 'QuickHelp')]
-    [Parameter(ParameterSetName = 'KerberosHardening')]
     [switch]$DebugMode,
     
     [Parameter(ParameterSetName = 'Standard')]
@@ -213,7 +194,6 @@ param(
     [Parameter(ParameterSetName = 'GPOOnly')]
     [Parameter(ParameterSetName = 'Help')]
     [Parameter(ParameterSetName = 'QuickHelp')]
-    [Parameter(ParameterSetName = 'KerberosHardening')]
     [string]$Server,
     
     [Parameter(ParameterSetName = 'Standard')]
@@ -221,11 +201,7 @@ param(
     [Parameter(ParameterSetName = 'GPOOnly')]
     [Parameter(ParameterSetName = 'Help')]
     [Parameter(ParameterSetName = 'QuickHelp')]
-    [Parameter(ParameterSetName = 'KerberosHardening')]
     [string]$TargetForest,
-    
-    [Parameter(ParameterSetName = 'KerberosHardening', Mandatory)]
-    [switch]$KerberosHardeningAssessment,
     
     [Parameter(ParameterSetName = 'Help', Mandatory)]
     [switch]$Help,
@@ -251,11 +227,6 @@ function Show-QuickHelp {
     Write-Host "  .\RC4_AD_SCAN.ps1 -ApplyFixes -Force  # Automatic remediation (no prompts)" -ForegroundColor White
     Write-Host "  .\RC4_AD_SCAN.ps1 -ExportResults      # Export results to CSV" -ForegroundColor White
     Write-Host "  .\RC4_AD_SCAN.ps1 -Help               # Show detailed help" -ForegroundColor White
-    
-    Write-Host ""
-    Write-Host ">> KERBEROS HARDENING ASSESSMENT:" -ForegroundColor Magenta
-    Write-Host "  .\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment          # Comprehensive security analysis" -ForegroundColor White
-    Write-Host "  .\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -ExportResults  # Assessment + JSON export" -ForegroundColor White
     
     Write-Host ""
     Write-Host ">> GPO SCOPE OPTIONS:" -ForegroundColor Yellow

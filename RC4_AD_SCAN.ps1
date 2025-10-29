@@ -115,7 +115,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 3.9
+  Version: 4.0
   Created: October 2025
   Updated: October 2025
   
@@ -1227,18 +1227,46 @@ foreach ($domain in $forest.Domains) {
                     }
                     catch {
                         Write-Host "    > FAILED: $($_.Exception.Message)" -ForegroundColor Red
+                        
+                        # Get current user context for better troubleshooting
+                        $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+                        $currentDomain = [System.DirectoryServices.ActiveDirectory.Domain]::GetCurrentDomain().Name
+                        
+                        Write-Host "    >> CONTEXT INFORMATION:" -ForegroundColor Cyan
+                        Write-Host "       Current User: $currentUser" -ForegroundColor Gray
+                        Write-Host "       Current Domain: $currentDomain" -ForegroundColor Gray
+                        Write-Host "       Target Domain: $domain" -ForegroundColor Gray
+                        Write-Host "       Target Computer: $($_.SamAccountName) ($($_.DistinguishedName))" -ForegroundColor Gray
+                        
                         if ($_.Exception.Message -match "Insufficient access rights") {
-                            Write-Host "    >> PERMISSION ERROR: Need Domain Administrator rights to modify computer objects" -ForegroundColor Yellow
-                            Write-Host "    >> This is especially common when modifying Domain Controller objects" -ForegroundColor Yellow
-                            Write-Host "    >> Try running as Enterprise Administrator or from a different DC" -ForegroundColor Yellow
+                            Write-Host "    >> PERMISSION ERROR ANALYSIS:" -ForegroundColor Yellow
+                            
+                            if ($currentDomain -ne $domain) {
+                                Write-Host "    >> CROSS-DOMAIN PERMISSION ISSUE DETECTED!" -ForegroundColor Red
+                                Write-Host "       You're authenticated to '$currentDomain' but trying to modify '$domain'" -ForegroundColor Yellow
+                                Write-Host "       Domain Admins have permissions only within their own domain" -ForegroundColor Yellow
+                                Write-Host "" -ForegroundColor Yellow
+                                Write-Host "    >> SOLUTIONS:" -ForegroundColor Cyan
+                                Write-Host "       1. Use Enterprise Administrator account (has cross-domain rights)" -ForegroundColor Green
+                                Write-Host "       2. Run from a Domain Controller in the target domain ($domain)" -ForegroundColor Green
+                                Write-Host "       3. Use domain-specific credentials:" -ForegroundColor Green
+                                Write-Host "          RunAs: runas /netonly /user:$domain\\administrator powershell" -ForegroundColor Gray
+                                Write-Host "       4. Manually run command in target domain context:" -ForegroundColor Green
+                                Write-Host "          Set-ADComputer -Identity '$($_.SamAccountName)' -Replace @{msDS-SupportedEncryptionTypes=24} -Server $domain" -ForegroundColor Gray
+                            }
+                            else {
+                                Write-Host "       Need Domain Administrator rights in '$domain'" -ForegroundColor Yellow
+                                Write-Host "       This is especially common when modifying Domain Controller objects" -ForegroundColor Yellow
+                                Write-Host "       Try running as Enterprise Administrator" -ForegroundColor Yellow
+                            }
                         }
                         elseif ($_.Exception.Message -match "server is not operational") {
-                            Write-Host "    >> CONNECTION ERROR: Cannot reach domain controller" -ForegroundColor Yellow
+                            Write-Host "    >> CONNECTION ERROR: Cannot reach domain controller in '$domain'" -ForegroundColor Yellow
                             Write-Host "    >> Try specifying a different server with -Server parameter" -ForegroundColor Yellow
                         }
                         else {
                             Write-Host "    >> Manual remediation required:" -ForegroundColor Yellow
-                            Write-Host "       Set-ADComputer -Identity '$($_.SamAccountName)' -Replace @{msDS-SupportedEncryptionTypes=24}" -ForegroundColor Gray
+                            Write-Host "       Set-ADComputer -Identity '$($_.SamAccountName)' -Replace @{msDS-SupportedEncryptionTypes=24} -Server $domain" -ForegroundColor Gray
                         }
                     }
                 }

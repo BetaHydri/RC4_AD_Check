@@ -1,6 +1,6 @@
 # Kerberos RC4/DES Active Directory Security Scanning Tool
 
-**Version**: 3.9  
+**Version**: 4.0  
 **Author**: Jan Tiedemann  
 **Created**: October 2025  
 **Updated**: October 2025
@@ -1195,6 +1195,14 @@ Debug output includes:
 - Consider gradual rollout with proper monitoring
 
 ## Changelog
+
+### Version 4.0 (October 2025)
+- **🚀 [MAJOR ENHANCEMENT]** Added comprehensive cross-domain permission analysis
+- **🔍 [DIAGNOSTIC]** Shows current user context vs target domain for permission troubleshooting
+- **🎯 [SMART DETECTION]** Automatically detects cross-domain permission issues
+- **📖 [ENHANCED GUIDANCE]** Specific solutions for Enterprise Admin vs Domain Admin scenarios
+- **💡 [ACTIONABLE SOLUTIONS]** Provides exact RunAs commands and manual remediation steps
+- **⚠️ [IMPROVED TROUBLESHOOTING]** Clear context information for multi-domain environments
 
 ### Version 3.9 (October 2025)
 - **🔧 [CRITICAL FIX]** Fixed false success reporting for computer object remediation failures

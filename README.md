@@ -1018,20 +1018,15 @@ The script provides comprehensive output including:
 ## Exporting Results
 
 ### Automatic Export with Switch
-📊 Forest contains domains: target.com, subdomain.target.com
+Use the `-ExportResults` parameter to automatically export results:
 
-🔍 Checking Group Policy settings...
-Checking GPO settings for Kerberos encryption in domain: target.com
-      🌲 Operating in target forest: target.com
-Scope: Both
-      🔍 Checking GPO: Target Forest Kerberos Policy
-      ✅ Found Kerberos encryption configuration
-    🔗 Linked to the following locations:
-      ✅ Domain Root [Order: 1]
-    📈 Coverage: Domain-wide (All objects + 0 additional OUs)
-    ✅ Optimal settings (AES128+256 enabled, RC4+DES disabled)
+```powershell
+.\RC4_AD_SCAN.ps1 -ExportResults
+```
 
-🔍 Scanning for objects with weak encryption...
+This creates a timestamped CSV file: `RC4_Audit_Results_YYYYMMDD_HHMMSS.csv`
+
+### Manual Export (Legacy)
   🌲 Scanning in target forest context: target.com
 Scanning domain: target.com
 

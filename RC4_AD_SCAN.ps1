@@ -25,7 +25,9 @@
   Switch to perform only Group Policy analysis without scanning objects (mutually exclusive with SkipGPOCheck and ApplyFixes)
 
 .PARAMETER GPOScope
-  Specify where to check for GPO links (only valid with Standard or GPOOnly modes): 
+  Specify where to check for GPO links (only valid with Standard or GPOOnly modes).
+  Use tab completion for common values: Domain, DomainControllers, Both, AllOUs
+  Or specify custom OU path: "OU=IT,DC=contoso,DC=com"
   - Domain: Check domain root only
   - DomainControllers: Check Domain Controllers OU only  
   - Both: Check both domain root and Domain Controllers OU (default)
@@ -151,6 +153,11 @@ param(
     
     [Parameter(ParameterSetName = 'Standard')]
     [Parameter(ParameterSetName = 'GPOOnly')]
+    [ArgumentCompleter({
+            param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameters)
+            $completions = @('Domain', 'DomainControllers', 'Both', 'AllOUs')
+            $completions | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object { "'$_'" }
+        })]
     [string]$GPOScope = "Both",
     
     [Parameter(ParameterSetName = 'Standard')]

@@ -480,13 +480,19 @@ The parameter sets automatically prevent these contradictory combinations:
 
 ## GPOScope Parameter Options
 
-The `-GPOScope` parameter supports the following values:
+The `-GPOScope` parameter supports the following values with **intelligent tab completion** for common options:
 
 - **Domain**: Check GPO links at domain root level only
 - **DomainControllers**: Check GPO links at Domain Controllers OU only  
 - **Both**: Check both domain root and Domain Controllers OU (default)
 - **AllOUs**: Check all organizational units in the domain
 - **OU=<Distinguished Name>**: Check a specific OU path only
+
+### Enhanced Usability Features
+
+- **Tab Completion**: Press `Tab` after `-GPOScope ` to cycle through common values (Domain, DomainControllers, Both, AllOUs)
+- **Custom OU Support**: Still accepts any valid OU distinguished name for specific targeting
+- **IntelliSense**: PowerShell ISE and VS Code provide automatic suggestions
 
 ### GPOScope Examples
 

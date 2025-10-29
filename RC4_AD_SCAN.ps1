@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Audit AD forest for RC4 usage and optionally remediate.
+  Audit AD forest for RC4/DES Kerberos encryption usage and optionally remediate.
 
 .DESCRIPTION
   This script enumerates all domains in the forest and checks Computers and Trusts.
@@ -216,6 +216,15 @@ if ($SkipGPOCheck -and $GPOCheckOnly) {
 if ($GPOCheckOnly -and $ApplyFixes) {
     Write-Host "❌ ERROR: Cannot specify both -GPOCheckOnly and -ApplyFixes parameters!" -ForegroundColor Red
     Write-Host "GPO-only mode is for analysis purposes and does not modify objects." -ForegroundColor Yellow
+    exit 1
+}
+
+if ($SkipGPOCheck -and $GPOScope -ne "Both") {
+    Write-Host "❌ ERROR: Cannot specify both -SkipGPOCheck and -GPOScope parameters!" -ForegroundColor Red
+    Write-Host "When skipping GPO checks, GPO scope is irrelevant." -ForegroundColor Yellow
+    Write-Host "Use either:" -ForegroundColor Yellow
+    Write-Host "  • -SkipGPOCheck (to skip all GPO analysis)" -ForegroundColor Yellow
+    Write-Host "  • -GPOScope <value> (to analyze GPOs with specific scope)" -ForegroundColor Yellow
     exit 1
 }
 

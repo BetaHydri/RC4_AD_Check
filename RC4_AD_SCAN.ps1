@@ -864,29 +864,68 @@ function Test-KerberosGPOSettings {
                     # Analyze settings with more detailed checking
                     Write-Host "      >> Analyzing GPO settings..." -ForegroundColor Gray
                     
-                    # Check for different possible setting patterns
-                    $hasAES128 = $gpoReport -match "AES128_HMAC_SHA1.*>(>:Enabled|True)" -or $gpoReport -match "AES128.*>1"
-                    $hasAES256 = $gpoReport -match "AES256_HMAC_SHA1.*>(>:Enabled|True)" -or $gpoReport -match "AES256.*>1"
-                    $hasRC4Disabled = $gpoReport -match "RC4_HMAC_MD5.*>(>:Disabled|False)" -or $gpoReport -notmatch "RC4.*>1"
-                    $hasDESDisabled = $gpoReport -match "DES_CBC.*>(>:Disabled|False)" -or $gpoReport -notmatch "DES.*>1"
+                    # Check for different possible setting patterns - GPO XML uses different naming conventions
+                    # Common patterns in GPO XML reports:
+                    # - AES128-CTS-HMAC-SHA1-96 or AES128_CTS_HMAC_SHA1_96
+                    # - May show as numeric values or as enabled/disabled strings
+                    
+                    $hasAES128 = $gpoReport -match "AES128.*CTS.*HMAC.*SHA1.*96.*>.*(?:Enabled|True|1)" -or 
+                                $gpoReport -match "AES128.*>.*(?:Enabled|True|1)" -or
+                                $gpoReport -match "0x0+8" # AES128 bit flag
+                    $hasAES256 = $gpoReport -match "AES256.*CTS.*HMAC.*SHA1.*96.*>.*(?:Enabled|True|1)" -or 
+                                $gpoReport -match "AES256.*>.*(?:Enabled|True|1)" -or
+                                $gpoReport -match "0x0*10" # AES256 bit flag
+                    $hasRC4Disabled = $gpoReport -match "RC4.*HMAC.*>.*(?:Disabled|False|0)" -or 
+                                     $gpoReport -notmatch "RC4.*>.*(?:Enabled|True|1)" -or
+                                     $gpoReport -notmatch "0x0*4" # RC4 bit flag not present
+                    $hasDESDisabled = $gpoReport -match "DES.*CBC.*>.*(?:Disabled|False|0)" -or 
+                                     $gpoReport -notmatch "DES.*>.*(?:Enabled|True|1)" -or
+                                     $gpoReport -notmatch "0x0*[123]" # DES bit flags not present
                     
                     # Also check for numeric values that might indicate the settings
                     $encValue = $null
-                    if ($gpoReport -match "SupportedEncryptionTypes.*>(\d+)") {
+                    if ($gpoReport -match "SupportedEncryptionTypes.*>(\d+)" -or $gpoReport -match "msDS-SupportedEncryptionTypes.*>(\d+)") {
                         $encValue = [int]$matches[1]
                         if ($DebugMode) {
                             Write-Host "      >> Found numeric encryption value: $encValue" -ForegroundColor Gray
                             Write-Host "      >> Decoding value: $(Get-EncryptionTypes $encValue)" -ForegroundColor Gray
                         }
                         
-                        # Decode the value using bitwise operations
+                        # Decode the value using bitwise operations - be more precise about disabled vs enabled
                         $hasAES128 = $hasAES128 -or (($encValue -band 0x8) -ne 0)   # Bit 3 = AES128
                         $hasAES256 = $hasAES256 -or (($encValue -band 0x10) -ne 0)  # Bit 4 = AES256
-                        $hasRC4Disabled = $hasRC4Disabled -or (($encValue -band 0x4) -eq 0)  # Bit 2 = RC4 (disabled when bit not set)
-                        $hasDESDisabled = $hasDESDisabled -or (($encValue -band 0x3) -eq 0)  # Bits 0-1 = DES (disabled when bits not set)
+                        # For RC4/DES disabled, we need to check if the bits are explicitly NOT set when we have a defined value
+                        if ($encValue -ne $null) {
+                            $hasRC4Disabled = (($encValue -band 0x4) -eq 0)  # RC4 disabled when bit not set in defined value
+                            $hasDESDisabled = (($encValue -band 0x3) -eq 0)  # DES disabled when bits not set in defined value
+                        }
+                    }
+                    
+                    # Enhanced debug output for GPO content analysis
+                    if ($DebugMode) {
+                        Write-Host "      >> GPO Report contains these Kerberos-related entries:" -ForegroundColor Yellow
+                        $kerberosLines = $gpoReport -split "`n" | Where-Object { $_ -match "(AES|RC4|DES|Kerberos|Encryption)" }
+                        foreach ($line in $kerberosLines | Select-Object -First 10) {
+                            Write-Host "        > $($line.Trim())" -ForegroundColor Gray
+                        }
+                        if ($kerberosLines.Count -gt 10) {
+                            Write-Host "        > ... and $($kerberosLines.Count - 10) more lines" -ForegroundColor Gray
+                        }
                     }
                     
                     Write-Host "      >> Settings analysis: AES128=$hasAES128, AES256=$hasAES256, RC4Disabled=$hasRC4Disabled, DESDisabled=$hasDESDisabled" -ForegroundColor Gray
+                    
+                    # If we couldn't detect AES settings through text parsing but found a numeric value indicating AES-only, trust the numeric value
+                    if ((-not $hasAES128 -or -not $hasAES256) -and $encValue -eq 24) {
+                        Write-Host "      >> Detected AES-only configuration (value 24) - overriding text parsing results" -ForegroundColor Green
+                        $hasAES128 = $true
+                        $hasAES256 = $true
+                        $hasRC4Disabled = $true
+                        $hasDESDisabled = $true
+                    }
+                    
+                    # Final verification: if objects in this domain have AES settings but we think GPO doesn't provide them,
+                    # there might be a parsing issue - let's be more lenient in our assessment
                     
                     $isOptimal = $hasAES128 -and $hasAES256 -and $hasRC4Disabled -and $hasDESDisabled
                     $isSecure = $hasAES128 -and $hasAES256 -and $hasRC4Disabled  # Secure even if DES status is unclear
@@ -1010,6 +1049,40 @@ function Test-KerberosGPOSettings {
                     if ($gpo.EncryptionValue) {
                         Write-Host "      > Current encryption value: $($gpo.EncryptionValue) = $(Get-EncryptionTypes $gpo.EncryptionValue)" -ForegroundColor Cyan
                     }
+                    
+                    # Cross-verification: Check if objects actually have AES encryption despite GPO parsing issues
+                    Write-Host "      >> Performing GPO effectiveness verification..." -ForegroundColor Cyan
+                    try {
+                        # Set up server parameter for verification
+                        $verifyParams = @{}
+                        if ($Server) {
+                            $verifyParams['Server'] = $Server
+                        }
+                        else {
+                            $verifyParams['Server'] = $Domain
+                        }
+                        
+                        $sampleComputers = Get-ADComputer -Filter * -Properties msDS-SupportedEncryptionTypes -ResultSetSize 5 @verifyParams -ErrorAction SilentlyContinue
+                        $computersWithAES = $sampleComputers | Where-Object { 
+                            $_."msDS-SupportedEncryptionTypes" -and (($_."msDS-SupportedEncryptionTypes" -band 0x18) -gt 0) 
+                        }
+                        
+                        if ($computersWithAES.Count -gt 0) {
+                            Write-Host "      >> VERIFICATION: Found $($computersWithAES.Count)/$($sampleComputers.Count) sampled computers with AES encryption" -ForegroundColor Green
+                            Write-Host "      >> This suggests the GPO IS working correctly, but our parsing may have missed the configuration" -ForegroundColor Yellow
+                            Write-Host "      >> Consider this a POTENTIAL FALSE NEGATIVE in GPO analysis" -ForegroundColor Yellow
+                            
+                            # Show what value the computers actually have
+                            $commonValue = $computersWithAES[0]."msDS-SupportedEncryptionTypes"
+                            Write-Host "      >> Sample computer encryption value: $commonValue = $(Get-EncryptionTypes $commonValue)" -ForegroundColor Cyan
+                        }
+                        else {
+                            Write-Host "      >> VERIFICATION: No computers found with AES encryption - GPO analysis appears accurate" -ForegroundColor Red
+                        }
+                    }
+                    catch {
+                        Write-Host "      >> VERIFICATION: Could not sample domain computers for cross-verification" -ForegroundColor Gray
+                    }
                 }
             }
             
@@ -1029,6 +1102,9 @@ function Test-KerberosGPOSettings {
     Write-Host ("=" * 80) -ForegroundColor DarkCyan
     Write-Host "> COMPLETED GPO CHECK FOR DOMAIN: $($Domain.ToUpper())" -ForegroundColor Green
     Write-Host ("=" * 80) -ForegroundColor DarkCyan
+    
+    # Return GPO analysis results for post-November 2022 summary
+    return $gpos
 }
 
 function Test-GPOApplication {
@@ -1214,8 +1290,36 @@ catch {
 # Check GPO settings for each domain
 if (-not $SkipGPOCheck) {
     Write-Host ">> Checking Group Policy settings..." -ForegroundColor Magenta
+    
+    # Track GPO analysis results for post-November 2022 summary
+    $forestGPOAnalysis = @{
+        DomainsWithOptimalGPO    = @()
+        DomainsWithSecureGPO     = @()
+        DomainsWithSuboptimalGPO = @()
+        DomainsWithNoGPO         = @()
+        TotalDomainsAnalyzed     = 0
+    }
+    
     foreach ($domain in $forest.Domains) {
-        Test-KerberosGPOSettings -Domain $domain -Scope $GPOScope -DebugMode:$DebugMode -Server $Server -TargetForest $TargetForest
+        $gpoResults = Test-KerberosGPOSettings -Domain $domain -Scope $GPOScope -DebugMode:$DebugMode -Server $Server -TargetForest $TargetForest
+        $forestGPOAnalysis.TotalDomainsAnalyzed++
+        
+        # Categorize domain based on GPO configuration quality
+        if ($gpoResults -and $gpoResults.Count -gt 0) {
+            $bestGPO = $gpoResults | Sort-Object { $_.IsOptimal }, { $_.IsSecure } -Descending | Select-Object -First 1
+            if ($bestGPO.IsOptimal) {
+                $forestGPOAnalysis.DomainsWithOptimalGPO += $domain
+            }
+            elseif ($bestGPO.IsSecure) {
+                $forestGPOAnalysis.DomainsWithSecureGPO += $domain
+            }
+            else {
+                $forestGPOAnalysis.DomainsWithSuboptimalGPO += $domain
+            }
+        }
+        else {
+            $forestGPOAnalysis.DomainsWithNoGPO += $domain
+        }
     }
     
     # Show recommendations once after all domains are checked
@@ -1285,6 +1389,139 @@ if ($GPOCheckOnly) {
     Write-Host (">" * 80) -ForegroundColor Magenta
     Write-Host ">> GPO ANALYSIS COMPLETE" -ForegroundColor Magenta
     Write-Host (">" * 80) -ForegroundColor Magenta
+    
+    # Provide post-November 2022 analysis based on GPO configuration
+    Write-Host ""
+    Write-Host ">> POST-NOVEMBER 2022 ENVIRONMENT ANALYSIS" -ForegroundColor Green
+    Write-Host (">" * 80) -ForegroundColor Green
+    
+    $totalDomains = $forestGPOAnalysis.TotalDomainsAnalyzed
+    $optimalDomains = $forestGPOAnalysis.DomainsWithOptimalGPO.Count
+    $secureDomains = $forestGPOAnalysis.DomainsWithSecureGPO.Count
+    $suboptimalDomains = $forestGPOAnalysis.DomainsWithSuboptimalGPO.Count
+    $noGPODomains = $forestGPOAnalysis.DomainsWithNoGPO.Count
+    
+    Write-Host ">> Forest: $($forest.Name)" -ForegroundColor Cyan
+    Write-Host ">> Total domains analyzed: $totalDomains" -ForegroundColor White
+    Write-Host ""
+    
+    # Determine overall security posture
+    $isEnvironmentSecure = ($optimalDomains + $secureDomains) -eq $totalDomains -and $totalDomains -gt 0
+    $hasPartialSecurity = ($optimalDomains + $secureDomains) -gt 0
+    
+    if ($isEnvironmentSecure) {
+        Write-Host "> ENVIRONMENT SECURITY STATUS: EXCELLENT" -ForegroundColor Green
+        Write-Host ""
+        
+        $messages = @(
+            "All domains have secure or optimal GPO configuration!",
+            "Post-November 2022 Analysis: Environment supports secure defaults",
+            "• Trust objects: Will default to AES when encryption types undefined (secure by default)",
+            "• Computer objects: Will inherit secure DC policies from proper GPO configuration",
+            "• Object scanning would likely show minimal issues due to proper GPO foundation"
+        )
+        Write-BoxedMessage -Messages $messages -Color "Green"
+        
+        Write-Host ""
+        Write-Host ">> SECURE ENVIRONMENT BREAKDOWN:" -ForegroundColor Green
+        if ($optimalDomains -gt 0) {
+            Write-Host "  ✅ Domains with OPTIMAL settings: $optimalDomains" -ForegroundColor Green
+            foreach ($domain in $forestGPOAnalysis.DomainsWithOptimalGPO) {
+                Write-Host "     • $domain" -ForegroundColor White
+            }
+        }
+        if ($secureDomains -gt 0) {
+            Write-Host "  ✅ Domains with SECURE settings: $secureDomains" -ForegroundColor Green
+            foreach ($domain in $forestGPOAnalysis.DomainsWithSecureGPO) {
+                Write-Host "     • $domain" -ForegroundColor White
+            }
+        }
+    }
+    elseif ($hasPartialSecurity) {
+        Write-Host "> ENVIRONMENT SECURITY STATUS: MIXED" -ForegroundColor Yellow
+        Write-Host ""
+        
+        $messages = @(
+            "Mixed GPO configuration detected across domains",
+            "Post-November 2022 Analysis: Partial security benefits available",
+            "• Some domains support secure defaults, others may have vulnerabilities",
+            "• Object scanning recommended to identify specific risks",
+            "• Consider standardizing GPO configuration across all domains"
+        )
+        Write-BoxedMessage -Messages $messages -Color "Yellow"
+        
+        Write-Host ""
+        Write-Host ">> MIXED ENVIRONMENT BREAKDOWN:" -ForegroundColor Yellow
+        if ($optimalDomains -gt 0) {
+            Write-Host "  ✅ Domains with OPTIMAL settings: $optimalDomains" -ForegroundColor Green
+            foreach ($domain in $forestGPOAnalysis.DomainsWithOptimalGPO) {
+                Write-Host "     • $domain" -ForegroundColor White
+            }
+        }
+        if ($secureDomains -gt 0) {
+            Write-Host "  ✅ Domains with SECURE settings: $secureDomains" -ForegroundColor Green
+            foreach ($domain in $forestGPOAnalysis.DomainsWithSecureGPO) {
+                Write-Host "     • $domain" -ForegroundColor White
+            }
+        }
+        if ($suboptimalDomains -gt 0) {
+            Write-Host "  ⚠️  Domains with SUBOPTIMAL settings: $suboptimalDomains" -ForegroundColor Yellow
+            foreach ($domain in $forestGPOAnalysis.DomainsWithSuboptimalGPO) {
+                Write-Host "     • $domain" -ForegroundColor Yellow
+            }
+        }
+        if ($noGPODomains -gt 0) {
+            Write-Host "  ❌ Domains with NO Kerberos GPO: $noGPODomains" -ForegroundColor Red
+            foreach ($domain in $forestGPOAnalysis.DomainsWithNoGPO) {
+                Write-Host "     • $domain" -ForegroundColor Red
+            }
+        }
+    }
+    else {
+        Write-Host "> ENVIRONMENT SECURITY STATUS: NEEDS IMPROVEMENT" -ForegroundColor Red
+        Write-Host ""
+        
+        $messages = @(
+            "No domains have adequate GPO configuration!",
+            "Post-November 2022 Analysis: Environment vulnerable to RC4 fallback",
+            "• Trust objects may fall back to RC4 in some scenarios",
+            "• Computer objects likely lack proper AES enforcement",
+            "• Object scanning will likely reveal multiple security issues",
+            "• Immediate GPO remediation recommended before object-level fixes"
+        )
+        Write-BoxedMessage -Messages $messages -Color "Red"
+        
+        Write-Host ""
+        Write-Host ">> SECURITY GAPS DETECTED:" -ForegroundColor Red
+        if ($suboptimalDomains -gt 0) {
+            Write-Host "  ⚠️  Domains with SUBOPTIMAL settings: $suboptimalDomains" -ForegroundColor Yellow
+            foreach ($domain in $forestGPOAnalysis.DomainsWithSuboptimalGPO) {
+                Write-Host "     • $domain" -ForegroundColor Yellow
+            }
+        }
+        if ($noGPODomains -gt 0) {
+            Write-Host "  ❌ Domains with NO Kerberos GPO: $noGPODomains" -ForegroundColor Red
+            foreach ($domain in $forestGPOAnalysis.DomainsWithNoGPO) {
+                Write-Host "     • $domain" -ForegroundColor Red
+            }
+        }
+    }
+    
+    Write-Host ""
+    Write-Host ">> NEXT STEPS:" -ForegroundColor Cyan
+    if ($isEnvironmentSecure) {
+        Write-Host "  1. Run full object scan to verify: .\RC4_AD_SCAN.ps1" -ForegroundColor White
+        Write-Host "  2. Focus on trust objects (GPO doesn't apply to trusts)" -ForegroundColor White
+        Write-Host "  3. Monitor authentication logs for any remaining RC4 usage" -ForegroundColor White
+    }
+    else {
+        Write-Host "  1. Fix GPO configuration in domains with issues" -ForegroundColor White
+        Write-Host "  2. Ensure proper GPO linking (Domain + Domain Controllers OU)" -ForegroundColor White
+        Write-Host "  3. Run full object scan: .\RC4_AD_SCAN.ps1" -ForegroundColor White
+        Write-Host "  4. Apply fixes with: .\RC4_AD_SCAN.ps1 -ApplyFixes" -ForegroundColor White
+    }
+    
+    Write-Host ""
     Write-Host ">> GPO-only mode: Object scanning was skipped as requested." -ForegroundColor Cyan
     Write-Host ">> To scan objects as well, run the script without -GPOCheckOnly parameter." -ForegroundColor Gray
     exit 0

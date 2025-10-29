@@ -384,11 +384,13 @@ function Get-EncryptionTypes {
             if ($ObjectType -eq "Trust") {
                 # Post-Nov 2022: Trust objects default to AES when undefined
                 return "Not Set (AES default post-Nov2022)"
-            } else {
+            }
+            else {
                 # Computer objects: Safe when DCs have proper AES settings
                 return "Not Set (inherits DC policy - likely AES)"
             }
-        } else {
+        }
+        else {
             # Legacy behavior when DC status unknown or DCs lack AES
             return "Not Set (RC4 fallback risk)"
         }
@@ -426,9 +428,9 @@ function Get-DomainControllerEncryptionStatus {
         $DCs = Get-ADDomainController -Filter * -Server $Server
         $dcStatus = @{
             DCsHaveAESSettings = $false
-            DCsWithAES = 0
-            TotalDCs = $DCs.Count
-            Details = @()
+            DCsWithAES         = 0
+            TotalDCs           = $DCs.Count
+            Details            = @()
         }
         
         foreach ($dc in $DCs) {
@@ -444,9 +446,9 @@ function Get-DomainControllerEncryptionStatus {
                 }
                 
                 $dcStatus.Details += @{
-                    Name = $dc.Name
+                    Name            = $dc.Name
                     EncryptionValue = $encValue
-                    HasAES = $hasAES
+                    HasAES          = $hasAES
                     EncryptionTypes = if ($encValue) { Get-EncryptionTypes -EncValue $encValue } else { "Not Set" }
                 }
                 
@@ -1337,13 +1339,14 @@ foreach ($domain in $forest.Domains) {
     $dcStatus = Get-DomainControllerEncryptionStatus -Domain $domain -Server $domainParams['Server'] -DebugMode:$DebugMode
     $domainContext = @{
         DCsHaveAESSettings = $dcStatus.DCsHaveAESSettings
-        DCAnalysis = $dcStatus
+        DCAnalysis         = $dcStatus
     }
     
     if ($dcStatus.DCsHaveAESSettings) {
         Write-Host "  >> DC Analysis: Domain Controllers have adequate AES settings" -ForegroundColor Green
         Write-Host "     Post-Nov 2022: Computer objects with undefined encryption inherit secure DC policy" -ForegroundColor Gray
-    } else {
+    }
+    else {
         Write-Host "  >> DC Analysis: Domain Controllers may lack proper AES configuration" -ForegroundColor Yellow
         Write-Host "     WARNING: Undefined computer encryption types may fall back to RC4" -ForegroundColor Yellow
     }
@@ -1368,7 +1371,8 @@ foreach ($domain in $forest.Domains) {
         if (-not $enc) {
             # Post-November 2022: Computer with undefined encryption only problematic if DCs also lack AES
             $isComputerWeak = -not $domainContext.DCsHaveAESSettings
-        } else {
+        }
+        else {
             # Computer has defined encryption, check if it includes RC4 without AES
             $hasAES = ($enc -band 0x18) -gt 0  # AES128 (0x8) or AES256 (0x10)
             $hasRC4 = ($enc -band 0x4) -gt 0   # RC4 (0x4)

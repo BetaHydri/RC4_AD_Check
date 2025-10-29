@@ -25,7 +25,12 @@
   Switch to perform only Group Policy analysis without scanning objects
 
 .PARAMETER GPOScope
-  Specify where to check for GPO links: Domain, DomainControllers, or Both (default)
+  Specify where to check for GPO links: 
+  - Domain: Check domain root only
+  - DomainControllers: Check Domain Controllers OU only  
+  - Both: Check both domain root and Domain Controllers OU (default)
+  - AllOUs: Check all OUs in the domain
+  - OU=<Distinguished Name>: Check specific OU path (e.g., "OU=IT,DC=contoso,DC=com")
 
 .PARAMETER Debug
   Enable debug output for troubleshooting GPO detection
@@ -62,6 +67,14 @@
   .\RC4_AD_SCAN.ps1 -GPOScope Domain
   Check GPO settings only at Domain level
 
+.EXAMPLE
+  .\RC4_AD_SCAN.ps1 -GPOScope AllOUs
+  Check GPO settings on all OUs in the domain
+
+.EXAMPLE
+  .\RC4_AD_SCAN.ps1 -GPOScope "OU=IT,DC=contoso,DC=com"
+  Check GPO settings on a specific OU only
+
 .PARAMETER Server
   Specify a domain controller server to connect to (e.g., dc01.contoso.com)
 
@@ -86,7 +99,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 2.9
+  Version: 3.0
   Created: October 2025
   Updated: October 2025
   
@@ -99,7 +112,6 @@ param(
     [switch]$ExportResults,
     [switch]$SkipGPOCheck,
     [switch]$GPOCheckOnly,
-    [ValidateSet("Domain", "DomainControllers", "Both")]
     [string]$GPOScope = "Both",
     [switch]$Debug,
     [string]$Server,
@@ -132,6 +144,19 @@ if ($SkipGPOCheck -and $GPOCheckOnly) {
 if ($GPOCheckOnly -and $ApplyFixes) {
     Write-Host "❌ ERROR: Cannot specify both -GPOCheckOnly and -ApplyFixes parameters!" -ForegroundColor Red
     Write-Host "GPO-only mode is for analysis purposes and does not modify objects." -ForegroundColor Yellow
+    exit 1
+}
+
+# Validate GPOScope parameter
+$validScopes = @("Domain", "DomainControllers", "Both", "AllOUs")
+if ($GPOScope -notin $validScopes -and $GPOScope -notmatch "^OU=.*") {
+    Write-Host "❌ ERROR: Invalid GPOScope value: '$GPOScope'" -ForegroundColor Red
+    Write-Host "Valid options:" -ForegroundColor Yellow
+    Write-Host "  • Domain - Check domain root only" -ForegroundColor Yellow
+    Write-Host "  • DomainControllers - Check Domain Controllers OU only" -ForegroundColor Yellow
+    Write-Host "  • Both - Check both domain root and Domain Controllers OU (default)" -ForegroundColor Yellow
+    Write-Host "  • AllOUs - Check all OUs in the domain" -ForegroundColor Yellow
+    Write-Host "  • OU=<Distinguished Name> - Check specific OU (e.g., 'OU=IT,DC=contoso,DC=com')" -ForegroundColor Yellow
     exit 1
 }
 
@@ -354,28 +379,77 @@ function Test-KerberosGPOSettings {
                                 Write-Host "      🔍 XML parsing found no links, trying alternative GPO link detection..." -ForegroundColor Gray
                             }
                             
-                            # Search for containers where this GPO might be linked
-                            $searchContainers = @($domainDN, $domainControllersOU)
+                            # Determine search containers based on scope
+                            $searchContainers = @()
+                            
+                            switch ($Scope) {
+                                "Domain" {
+                                    $searchContainers = @($domainDN)
+                                    if ($Debug) {
+                                        Write-Host "      🎯 Scope: Domain - checking domain root only" -ForegroundColor Gray
+                                    }
+                                }
+                                "DomainControllers" {
+                                    $searchContainers = @($domainControllersOU)
+                                    if ($Debug) {
+                                        Write-Host "      🎯 Scope: DomainControllers - checking DC OU only" -ForegroundColor Gray
+                                    }
+                                }
+                                "Both" {
+                                    $searchContainers = @($domainDN, $domainControllersOU)
+                                    if ($Debug) {
+                                        Write-Host "      🎯 Scope: Both - checking domain root and DC OU" -ForegroundColor Gray
+                                    }
+                                }
+                                "AllOUs" {
+                                    $searchContainers = @($domainDN, $domainControllersOU)
+                                    # Add all OUs in the domain
+                                    try {
+                                        $allOUs = Get-ADOrganizationalUnit -Filter * -Server $Domain -ErrorAction SilentlyContinue
+                                        foreach ($ou in $allOUs) {
+                                            $searchContainers += $ou.DistinguishedName
+                                        }
+                                        if ($Debug) {
+                                            Write-Host "      🎯 Scope: AllOUs - checking domain root, DC OU, and $($allOUs.Count) additional OUs" -ForegroundColor Gray
+                                        }
+                                    }
+                                    catch {
+                                        if ($Debug) {
+                                            Write-Host "      ⚠️  Could not enumerate all OUs: $($_.Exception.Message)" -ForegroundColor Gray
+                                        }
+                                    }
+                                }
+                                default {
+                                    # Custom OU specified
+                                    if ($Scope -match "^OU=.*") {
+                                        # Validate that the OU exists
+                                        try {
+                                            $null = Get-ADOrganizationalUnit -Identity $Scope -Server $Domain -ErrorAction Stop
+                                            $searchContainers = @($Scope)
+                                            if ($Debug) {
+                                                Write-Host "      🎯 Scope: Custom OU - checking specified OU: $Scope" -ForegroundColor Gray
+                                            }
+                                        }
+                                        catch {
+                                            Write-Host "      ❌ ERROR: Specified OU not found: $Scope" -ForegroundColor Red
+                                            Write-Host "      💡 Using fallback to domain root and DC OU" -ForegroundColor Yellow
+                                            $searchContainers = @($domainDN, $domainControllersOU)
+                                        }
+                                    }
+                                    else {
+                                        # Fallback to default behavior
+                                        $searchContainers = @($domainDN, $domainControllersOU)
+                                        if ($Debug) {
+                                            Write-Host "      🎯 Fallback: Using domain root and DC OU" -ForegroundColor Gray
+                                        }
+                                    }
+                                }
+                            }
                             
                             if ($Debug) {
-                                Write-Host "      🎯 Checking primary containers:" -ForegroundColor Gray
-                                Write-Host "         - Domain DN: $domainDN" -ForegroundColor Gray
-                                Write-Host "         - Domain Controllers OU: $domainControllersOU" -ForegroundColor Gray
-                            }
-                            
-                            # Add some common OUs
-                            try {
-                                $commonOUs = Get-ADOrganizationalUnit -Filter "Name -like '*'" -Server $Domain -ErrorAction SilentlyContinue | Select-Object -First 10
-                                foreach ($ou in $commonOUs) {
-                                    $searchContainers += $ou.DistinguishedName
-                                }
-                                if ($Debug) {
-                                    Write-Host "      📂 Added $($commonOUs.Count) additional OUs to search" -ForegroundColor Gray
-                                }
-                            }
-                            catch {
-                                if ($Debug) {
-                                    Write-Host "      ⚠️  Could not enumerate additional OUs: $($_.Exception.Message)" -ForegroundColor Gray
+                                Write-Host "      📂 Final search containers ($($searchContainers.Count) total):" -ForegroundColor Gray
+                                foreach ($container in $searchContainers) {
+                                    Write-Host "         - $container" -ForegroundColor Gray
                                 }
                             }
                             
@@ -636,19 +710,21 @@ function Test-KerberosGPOSettings {
                     }
                     elseif ($domainLinked) {
                         Write-Host "    � Coverage: Domain-wide (All objects + $($otherOUs.Count) additional OUs)" -ForegroundColor Cyan
-                        if ($Scope -eq "DomainControllers" -or $Scope -eq "Both") {
+                        if ($Scope -in @("DomainControllers", "Both", "AllOUs")) {
                             Write-Host "    ⚠️  Consider linking to Domain Controllers OU for explicit DC coverage" -ForegroundColor Yellow
                         }
                     }
                     elseif ($dcLinked) {
                         Write-Host "    � Coverage: Domain Controllers + $($otherOUs.Count) additional OUs" -ForegroundColor Cyan
-                        if ($Scope -eq "Domain" -or $Scope -eq "Both") {
+                        if ($Scope -in @("Domain", "Both", "AllOUs")) {
                             Write-Host "    ⚠️  Consider linking to Domain level for complete coverage" -ForegroundColor Yellow
                         }
                     }
                     else {
                         Write-Host "    📈 Coverage: $($gpo.AllLinks.Count) specific OUs only" -ForegroundColor Yellow
-                        Write-Host "    💡 Consider linking to Domain level for broader coverage" -ForegroundColor Yellow
+                        if ($Scope -notin @("AllOUs") -and $Scope -notmatch "^OU=.*") {
+                            Write-Host "    💡 Consider linking to Domain level for broader coverage" -ForegroundColor Yellow
+                        }
                     }
                 }
                 else {
@@ -694,8 +770,8 @@ function Test-KerberosGPOSettings {
                 }
             }
             
-            # Check GPO application on objects if scope includes both or we have GPOs
-            if ($Scope -eq "Both" -and $kerberosGPOs.Count -gt 0) {
+            # Check GPO application on objects if we have GPOs and scope is appropriate
+            if ($kerberosGPOs.Count -gt 0 -and $Scope -in @("Both", "AllOUs", "Domain", "DomainControllers")) {
                 Test-GPOApplication -Domain $Domain -KerberosGPOs $kerberosGPOs -Server $Server
             }
         }

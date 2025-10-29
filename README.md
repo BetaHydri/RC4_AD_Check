@@ -1,6 +1,6 @@
 # Kerberos RC4/DES Active Directory Security Scanning Tool
 
-**Version**: 2.9  
+**Version**: 3.0  
 **Author**: Jan Tiedemann  
 **Created**: October 2025  
 **Updated**: October 2025
@@ -124,8 +124,17 @@ Check GPO settings at specific organizational levels:
 # Check only Domain level
 .\RC4_AD_SCAN.ps1 -GPOScope Domain
 
-# Check both levels (default)
+# Check both Domain and Domain Controllers OU (default)
 .\RC4_AD_SCAN.ps1 -GPOScope Both
+
+# Check all OUs in the domain
+.\RC4_AD_SCAN.ps1 -GPOScope AllOUs
+
+# Check a specific OU only
+.\RC4_AD_SCAN.ps1 -GPOScope "OU=IT,DC=contoso,DC=com"
+
+# Check a specific OU with debug output
+.\RC4_AD_SCAN.ps1 -GPOScope "OU=Servers,OU=IT,DC=contoso,DC=com" -Debug
 ```
 
 ### Cross-Forest Scanning
@@ -180,7 +189,9 @@ When using `-GPOCheckOnly`, the script will:
 When using `-GPOScope`, you can specify:
 - **Domain**: Check GPOs linked to the domain root (affects all objects)
 - **DomainControllers**: Check GPOs linked to Domain Controllers OU (affects DCs only)
-- **Both**: Check both levels for comprehensive coverage (default)
+- **Both**: Check both domain root and Domain Controllers OU for comprehensive coverage (default)
+- **AllOUs**: Check GPOs linked to all organizational units in the domain
+- **OU=<DN>**: Check GPOs linked to a specific organizational unit only
 
 ### Debug Mode
 
@@ -392,7 +403,7 @@ The `msDS-SupportedEncryptionTypes` attribute is a **computer-based setting only
 | `ExportResults` | Switch | Export results to timestamped CSV file | False |
 | `SkipGPOCheck` | Switch | Skip Group Policy settings verification | False |
 | `GPOCheckOnly` | Switch | Perform only GPO analysis without object scanning | False |
-| `GPOScope` | String | Where to check GPO links: Domain, DomainControllers, Both | Both |
+| `GPOScope` | String | Where to check GPO links: Domain, DomainControllers, Both, AllOUs, or OU=<DN> | Both |
 | `Debug` | Switch | Enable detailed troubleshooting output | False |
 | `Server` | String | Specify domain controller to connect to | Auto-discover |
 | `TargetForest` | String | Target forest to scan via forest trust | Current forest |
@@ -404,37 +415,42 @@ The `msDS-SupportedEncryptionTypes` attribute is a **computer-based setting only
 - `-GPOCheckOnly -Debug` ✅ Detailed GPO analysis only
 - `-SkipGPOCheck -ApplyFixes` ✅ Fast object remediation without GPO check
 - `-TargetForest domain.com -Server dc01.domain.com` ✅ Cross-forest with specific DC
+- `-GPOScope AllOUs -Debug` ✅ Comprehensive GPO analysis across all OUs
+- `-GPOScope "OU=IT,DC=contoso,DC=com" -GPOCheckOnly` ✅ Focused GPO analysis on specific OU
 
 **Invalid Combinations:**
 - `-SkipGPOCheck -GPOCheckOnly` ❌ Conflicting GPO options
 - `-GPOCheckOnly -ApplyFixes` ❌ GPO-only mode cannot modify objects
 
-- Test thoroughly before deploying to production environments" -ForegroundColor Yellow
+## GPOScope Parameter Options
 
-## Parameters
+The `-GPOScope` parameter supports the following values:
 
-| Parameter | Type | Description | Default |
-|-----------|------|-------------|---------|
-| `ApplyFixes` | Switch | Enable interactive remediation mode | False |
-| `ExportResults` | Switch | Export results to timestamped CSV file | False |
-| `SkipGPOCheck` | Switch | Skip Group Policy settings verification | False |
-| `GPOCheckOnly` | Switch | Perform only GPO analysis without object scanning | False |
-| `GPOScope` | String | Where to check GPO links: Domain, DomainControllers, Both | Both |
-| `Debug` | Switch | Enable detailed troubleshooting output | False |
-| `Server` | String | Specify domain controller to connect to | Auto-discover |
-| `TargetForest` | String | Target forest to scan via forest trust | Current forest |
+- **Domain**: Check GPO links at domain root level only
+- **DomainControllers**: Check GPO links at Domain Controllers OU only  
+- **Both**: Check both domain root and Domain Controllers OU (default)
+- **AllOUs**: Check all organizational units in the domain
+- **OU=<Distinguished Name>**: Check a specific OU path only
 
-### Parameter Combinations
+### GPOScope Examples
 
-**Valid Combinations:**
-- `-ApplyFixes -ExportResults` ✅ Remediate and export results
-- `-GPOCheckOnly -Debug` ✅ Detailed GPO analysis only
-- `-SkipGPOCheck -ApplyFixes` ✅ Fast object remediation without GPO check
-- `-TargetForest domain.com -Server dc01.domain.com` ✅ Cross-forest with specific DC
+```powershell
+# Check only Domain Controllers OU for GPO links
+.\RC4_AD_SCAN.ps1 -GPOScope DomainControllers
 
-**Invalid Combinations:**
-- `-SkipGPOCheck -GPOCheckOnly` ❌ Conflicting GPO options
-- `-GPOCheckOnly -ApplyFixes` ❌ GPO-only mode cannot modify objects
+# Check all OUs in the domain for GPO links
+.\RC4_AD_SCAN.ps1 -GPOScope AllOUs
+
+# Check a specific OU for GPO links
+.\RC4_AD_SCAN.ps1 -GPOScope "OU=IT,DC=contoso,DC=com"
+
+# Check specific nested OU with debug output
+.\RC4_AD_SCAN.ps1 -GPOScope "OU=Servers,OU=IT,DC=contoso,DC=com" -Debug
+```
+
+### GPOScope Validation
+
+The script validates the specified OU exists before proceeding. If an invalid OU path is provided, it will fall back to the default "Both" behavior and display an error message.
 
 ## Understanding the Output
 

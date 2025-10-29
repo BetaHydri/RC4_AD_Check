@@ -1651,7 +1651,7 @@ function Invoke-KerberosHardeningAssessment {
     }
     
     Write-Host "`n🔄 Phase 6: Kerberos Negotiation Scenarios" -ForegroundColor Yellow
-    Write-Host "=" * 50 -ForegroundColor Yellow
+    Write-Host ("=" * 50) -ForegroundColor Yellow
     
     # Analyze what happens in different scenarios
     $scenarios = @{

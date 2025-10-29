@@ -953,80 +953,65 @@ Scope: Both
   🌲 Scanning in target forest context: target.com
 Scanning domain: target.com
 
-✅ AUDIT COMPLETE: No objects with RC4 encryption or weak settings found!
-All objects in the target forest are using strong AES encryption.
+  >> Analyzing Domain Controller encryption status...
+  >> DC Analysis: Domain Controllers have adequate AES settings
+     Post-Nov 2022: Computer objects with undefined encryption inherit secure DC policy
+
+  >> Scanning Computer Objects...
+  >> Computer scan complete: 450 total, 0 with RC4/weak encryption
+
+  >> Scanning Trust Objects...
+  >> Trust scan complete: 3 total, 0 with RC4/weak encryption
+
+> AUDIT RESULT: SUCCESS!
++------------------------------------------------------------------------------+
+| No objects with weak encryption settings found!                             |
+| All flagged objects benefit from modern Kerberos security (post-November 2022). |
+| Trust objects: Default to AES when undefined (secure by default)           |
+| Computer objects: Inherit secure DC policies when DCs are properly configured |
++------------------------------------------------------------------------------+
 ```
 
-### Sample Output with Enhanced GPO Analysis
+### Sample Output with Enhanced GPO Analysis and Modern Logic
 
-```
-🔍 Checking Group Policy settings...
-Checking GPO settings for Kerberos encryption in domain: contoso.com
-Scope: Both
-      🔍 Decoding value: DES-CBC-CRC
-      📊 Settings analysis: AES128=False, AES256=False, RC4Disabled=True, DESDisabled=False
-  📋 Found Kerberos encryption GPO: EncryptionTypes
-    🔗 Linked to the following locations:
-      ✅ Domain Controllers OU [Order: 1]
-    📈 Coverage: Domain Controllers + 0 additional OUs
-    ⚠️  Consider linking to Domain level for complete coverage
-    ⚠️  Sub-optimal settings detected:
-      - AES128 not enabled
-      - AES256 not enabled
-      - DES not disabled
-        💡 Note: If your numeric value doesn't include DES bits (1,2), DES is already disabled
-        💡 To explicitly disable DES: Ensure GPO unchecks 'DES-CBC-CRC' and 'DES-CBC-MD5'
-  🔍 Checking GPO application status...
-    📊 GPO Application Status (sample analysis):
-    ℹ️  Legend:
-      • GPO Applied (AES-only): Objects with msDS-SupportedEncryptionTypes = 24 (AES128+AES256)
-      • Manual Settings (custom): Objects with non-standard encryption values (not 24)
-      • Not Set (RC4 fallback): Objects without msDS-SupportedEncryptionTypes attribute
-
-    🖥️  Domain Controllers (3 total):
-      • GPO Applied (AES-only): 0
-      • Manual Settings (custom values): 3
-      • Not Set (RC4 fallback): 0
-    💻 Regular Computers (sample of 4):
-      • GPO Applied (AES-only): 1
-      • Manual Settings (custom values): 3
-      • Not Set (RC4 fallback): 0
-    👤 Users (sample of 7):
-      • GPO Applied (AES-only): 0
-      • Manual Settings (custom values): 0
-      • Not Set (RC4 fallback): 7
-    💡 RECOMMENDATIONS:
-      • Ensure GPO is linked to Domain level and refreshed
-      • Run 'gpupdate /force' on affected systems
-      • Objects with 'Not Set' status will be flagged in detailed scan below
-  💡 GPO LINKING BEST PRACTICES:
-     • Domain Level: Affects all users and computers (recommended for organization-wide policy)
-     • Domain Controllers OU: Affects only DCs (recommended for DC-specific requirements)
-     • Both Levels: Provides comprehensive coverage and allows for different settings if needed
-
-🔍 Scanning for objects with weak encryption...
-Scanning domain: contoso.com
-
-✅ AUDIT COMPLETE: No objects with RC4 encryption or weak settings found!
-All objects in the forest are using strong AES encryption.
-```
 ```
 🔍 Checking Group Policy settings...
 Checking GPO settings for Kerberos encryption in domain: contoso.com
 Scope: Both
-  📋 Found Kerberos encryption GPO: Secure Kerberos Settings
+   Found Kerberos encryption GPO: Secure Kerberos Settings
     🔗 Linked to the following locations:
       ✅ Domain Root [Order: 1]
       ✅ Domain Controllers OU [Order: 1]
-      ✅ IT Department OU [Order: 2]
-      ✅ Servers OU [Order: 3] (Enforced)
-    📈 Coverage: Complete (Domain + DCs + 2 additional OUs)
+    📈 Coverage: Complete (Domain + DCs)
     ✅ Optimal settings (AES128+256 enabled, RC4+DES disabled)
-  🔍 Checking GPO application status...
-    📊 GPO Application Status (sample analysis):
-    🖥️  Domain Controllers (3 total):
-      • GPO Applied (AES-only): 3
-      • Manual Settings: 0
+
+� Scanning for objects with weak encryption...
+Scanning domain: contoso.com
+
+  >> Analyzing Domain Controller encryption status...
+  >> DC Analysis: Domain Controllers have adequate AES settings
+     Post-Nov 2022: Computer objects with undefined encryption inherit secure DC policy
+
+  >> Scanning Computer Objects...
+  >> Computer scan complete: 1250 total, 0 with RC4/weak encryption
+
+  >> Scanning Trust Objects...
+  >> Trust scan complete: 4 total, 0 with RC4/weak encryption
+
+>> INFO - Secure by Default (Post-November 2022):
+Found 125 object(s) that are secure despite undefined encryption types.
+These objects benefit from modern Kerberos defaults (AES for trusts, DC policy inheritance for computers).
+
+> AUDIT RESULT: SUCCESS!
++------------------------------------------------------------------------------+
+| No objects with weak encryption settings found!                             |
+| All flagged objects benefit from modern Kerberos security (post-November 2022). |
+| Trust objects: Default to AES when undefined (secure by default)           |
+| Computer objects: Inherit secure DC policies when DCs are properly configured |
++------------------------------------------------------------------------------+
+```
+
+### When Issues Are Detected (Version 5.0 Modern Analysis)
       • Not Set (RC4 fallback): 0
       ✅ All DCs have optimal encryption settings!
     💻 Regular Computers (sample of 10):
@@ -1086,7 +1071,7 @@ Scanning domain: contoso.com
 All objects in the forest are using strong AES encryption.
 ```
 
-### When Issues Are Detected
+### When Issues Are Detected (Version 5.0 Modern Analysis)
 ```
 🔍 Checking Group Policy settings...
 Checking GPO settings for Kerberos encryption in domain: contoso.com
@@ -1099,19 +1084,35 @@ Scope: Both
 
 🔍 Scanning for objects with weak encryption...
 Scanning domain: contoso.com
-    🔍 Found trust: CHILD.CONTOSO.COM | Type: ParentChild | Direction: Bidirectional | DN: CN=CHILD,CN=System,DC=contoso,DC=com
-    ⚠️  Trust 'CHILD.CONTOSO.COM' has weak encryption: Not Set (RC4 fallback)
-       Type: ParentChild | Direction: Bidirectional
-    ✅ Computer 'DC01$' has secure encryption: AES128-CTS-HMAC-SHA1-96, AES256-CTS-HMAC-SHA1-96
 
-⚠️  AUDIT RESULTS: Found 4 object(s) with weak encryption settings:
+  >> Analyzing Domain Controller encryption status...
+  ⚠️  DC Analysis: Some Domain Controllers lack proper AES configuration
+     WARNING - Computer objects with undefined encryption may be vulnerable
 
-Domain      ObjectType Name           EncTypes              TrustType    Direction
-------      ---------- ----           --------              ---------    ---------
-contoso.com Computer   WORKSTATION1$  Not Set (RC4 fallback) N/A          N/A
-contoso.com Trust      CHILD          Not Set (RC4 fallback) ParentChild  Bidirectional
-contoso.com Trust      EXTERNAL       RC4-HMAC              External     Outbound
-contoso.com Trust      SUBDOMAIN      Not Set (RC4 fallback) TreeRoot     Bidirectional
+  >> Scanning Computer Objects...
+  🔍 Found computer: WORKSTATION1$ | EncTypes: Not Set (inherited from DC policy)
+  ⚠️  Computer 'WORKSTATION1$' flagged due to inadequate DC encryption policy
+      Post-Nov 2022 Logic: Flagged because DC configuration is insufficient for secure inheritance
+  ✅ Computer 'DC01$' has secure encryption: AES128-CTS-HMAC-SHA1-96, AES256-CTS-HMAC-SHA1-96
+
+  >> Scanning Trust Objects...
+  🔍 Found trust: EXTERNAL | Type: External | Direction: Outbound | EncTypes: RC4-HMAC
+  ⚠️  Trust 'EXTERNAL' has explicitly weak encryption: RC4-HMAC (manually configured)
+      Type: External | Direction: Outbound
+      Note: Pre-November 2022 trust with explicit RC4 setting
+
+⚠️  AUDIT RESULTS: Found 2 object(s) with weak encryption settings:
+
+Domain      ObjectType Name           EncTypes                    TrustType    Direction   Reason
+------      ---------- ----           --------                    ---------    ---------   ------
+contoso.com Computer   WORKSTATION1$  Not Set (vulnerable)       N/A          N/A         Inadequate DC policy
+contoso.com Trust      EXTERNAL       RC4-HMAC (explicit)        External     Outbound    Explicit RC4 config
+
+>> INFO - Secure by Default Analysis (Post-November 2022):
+Found 23 object(s) that are secure despite undefined encryption types.
+These objects benefit from modern Kerberos defaults:
+  • Trust objects: Default to AES when undefined (secure by default)
+  • Computer objects: Only flagged when DC policy is inadequate
 
 📊 TRUST TYPE BREAKDOWN:
   • ParentChild: 1 trust(s)

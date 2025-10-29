@@ -370,6 +370,68 @@ When using `-DebugMode`, the script will:
 - Show detailed trust information during scanning (name, type, direction, encryption status)
 - Display secure object findings during scanning for comprehensive visibility
 
+## Enhanced GPO Analysis & Assessment Logic
+
+### Intelligent GPO Recognition (NEW in v6.0)
+
+The script now includes advanced pattern recognition to intelligently assess GPOs based on their names and content:
+
+#### Smart Pattern Detection
+- **Kerberos Name Patterns**: Recognizes GPO names containing keywords like "kerberos", "encrypt", "aes", "rc4", "cipher"
+- **Content Analysis**: Analyzes GPO content for encryption-related settings and keywords
+- **Context-Aware Assessment**: Provides different evaluation logic based on GPO purpose and configuration hints
+
+#### Three-Tier Assessment Categories
+
+**1. OPTIMAL (Green)**
+- GPO verified working through computer object analysis
+- Computers show proper AES encryption values applied
+- GPO XML parsing may fail, but verification confirms effectiveness
+
+**2. LIKELY SECURE (Yellow)**
+- GPO name/content suggests Kerberos encryption configuration
+- GPO appears properly configured but no computers show applied settings yet
+- Common scenario: Newly created/linked GPO or computers haven't refreshed policy
+- **Recommendation**: Run `gpupdate /force` on test computers and re-scan
+
+**3. CONFIGURATION UNCLEAR (Yellow)**
+- GPO appears to be Kerberos-related but settings cannot be parsed or verified
+- **Recommendation**: Manual verification in GPMC required
+
+**4. NEEDS IMPROVEMENT (Red)**
+- Clear configuration issues requiring immediate attention
+- Traditional assessment for GPOs that clearly need fixes
+
+#### Enhanced Messaging Examples
+
+**For Kerberos-Related GPOs (e.g., "KerberosEncTypes"):**
+```
+> ASSESSMENT: LIKELY SECURE (GPO appears configured for AES)
+  > GPO name suggests Kerberos encryption: 'KerberosEncTypes'
+  > GPO contains encryption-related settings
+  > No computers found with applied settings yet
+  > RECOMMENDATION: Run 'gpupdate /force' on a few computers and re-scan
+  > Note: New/recently modified GPOs may take time to apply
+```
+
+**For Non-Kerberos GPOs with Issues:**
+```
+> ASSESSMENT: NEEDS IMPROVEMENT
+  > AES128 not enabled
+  > AES256 not enabled
+  > RC4 not disabled (SECURITY RISK)
+  > RECOMMENDATION: Configure 'Network security: Configure encryption types
+    allowed for Kerberos' = AES128_HMAC_SHA1, AES256_HMAC_SHA1
+```
+
+### Benefits of Enhanced Assessment
+
+✅ **Eliminates Confusing False Negatives**: No more "NEEDS IMPROVEMENT" messages for properly configured GPOs  
+✅ **Provides Context-Specific Guidance**: Different recommendations based on GPO type and status  
+✅ **Handles GPO Refresh Timing**: Recognizes newly applied GPOs that need time to propagate  
+✅ **Improves Accuracy**: Combines name analysis, content detection, and computer verification  
+✅ **Reduces Administrative Confusion**: Clear, actionable assessments instead of contradictory messages
+
 ## Enhanced GPO-Only Mode Analysis
 
 ### Post-November 2022 Environment Security Assessment
@@ -1245,10 +1307,18 @@ This provides additional technical details including:
 - Secure object identification and reasoning
 - Cross-verification details and decision logic
 
-## What to Expect from Version 5.1
+## What to Expect from Version 6.0
+
+### For Users with Kerberos-Related GPOs
+If your GPOs have names like "KerberosEncTypes", "Kerberos Encryption", or similar Kerberos-related names:
+
+✅ **Now**: "LIKELY SECURE" assessment recognizing the GPO's intended purpose  
+✅ **Now**: Specific guidance about `gpupdate /force` for newly applied GPOs  
+✅ **Now**: Clear explanation when computers haven't refreshed policy yet  
+❌ **Before**: Confusing "NEEDS IMPROVEMENT" messages for properly named Kerberos GPOs
 
 ### For Users with Working GPOs
-If your GPOs are correctly configured but the script previously showed confusing "NEEDS IMPROVEMENT" messages:
+If your GPOs are correctly configured and computers show proper encryption:
 
 ✅ **Now**: Clear "ASSESSMENT: OPTIMAL (Verified via computer objects)" message  
 ✅ **Now**: Verification shows computer encryption values proving GPO effectiveness  
@@ -1266,7 +1336,9 @@ If your GPOs genuinely need improvement:
 ✅ **Cleaner Output**: Significantly reduced verbosity while maintaining essential information  
 ✅ **Faster Analysis**: Quick identification of security posture without wading through technical details  
 ✅ **Debug Details Available**: Technical information still accessible via `-DebugMode`  
-✅ **Accurate Assessment**: GPO effectiveness based on actual results, not XML parsing limitations
+✅ **Accurate Assessment**: GPO effectiveness based on actual results, not XML parsing limitations  
+✅ **Smart Recognition**: Intelligent handling of Kerberos-related GPOs based on naming patterns  
+✅ **Contextual Guidance**: Different recommendations based on GPO type and configuration state
 
 ```
 🔍 Checking Group Policy settings...
@@ -1636,6 +1708,11 @@ Debug output includes:
 - **🎨 [CLEANER OUTPUT]** Technical parsing details moved to DebugMode for cleaner user experience
 - **📈 [ACCURATE FINAL REPORTING]** Final assessment correctly reflects verified GPO effectiveness
 - **🎯 [USER-FRIENDLY]** Significantly improved readability and reduced confusion in output
+- **💡 [SMART GPO RECOGNITION]** Enhanced logic recognizes Kerberos-related GPOs by name and content patterns
+- **🔄 [LIKELY SECURE ASSESSMENT]** New "LIKELY SECURE" status for GPOs that appear configured but computers haven't refreshed policy yet
+- **🎯 [CONTEXTUAL MESSAGING]** Different assessment messages based on GPO name patterns and encryption keywords
+- **🔧 [CLEAR GUIDANCE]** Specific recommendations for newly applied GPOs including `gpupdate /force` guidance
+- **📊 [INTELLIGENT CATEGORIZATION]** Distinguishes between genuine configuration issues vs. GPO refresh timing
 
 ### Version 5.0 (October 2025) - **MAJOR UPDATE: November 2022 Logic Implementation**
 - **🚀 [BREAKING CHANGE]** Implemented Microsoft's November 2022 Kerberos encryption logic

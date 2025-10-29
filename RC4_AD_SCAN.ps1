@@ -1292,15 +1292,21 @@ foreach ($domain in $forest.Domains) {
                     # Method 1: Use ksetup command (most reliable programmatic method)
                     $remediated = $false
                     try {
-                        Write-Host "`n    >> Attempting ksetup method (RECOMMENDED)..." -ForegroundColor Green
-                        Write-Host "    >> Command: ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
+                        Write-Host "`n    >> Attempting ksetup method (MICROSOFT METHOD 3 - AES ONLY)..." -ForegroundColor Green
                         
-                        # Execute ksetup command
+                        # Microsoft Method 3: AES-only configuration (matches GUI checkbox behavior)
+                        # This is equivalent to checking "The other domain supports Kerberos AES Encryption"
+                        $ksetupCmd = "ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96"
+                        Write-Host "    >> Command: $ksetupCmd" -ForegroundColor Gray
+                        Write-Host "    >> Note: AES-only mode (same as GUI checkbox in Domains and Trusts)" -ForegroundColor Gray
+                        
+                        # Execute ksetup command with AES-only (Microsoft Method 3)
                         $ksetupResult = & ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96 2>&1
                         
                         if ($LASTEXITCODE -eq 0) {
-                            Write-Host "    > SUCCESS: Trust AES encryption enabled using ksetup" -ForegroundColor Green
+                            Write-Host "    > SUCCESS: Trust configured with AES-only encryption (Microsoft Method 3)" -ForegroundColor Green
                             Write-Host "    >> $ksetupResult" -ForegroundColor Green
+                            Write-Host "    >> This matches the 'AES Encryption' checkbox in AD Domains and Trusts" -ForegroundColor Green
                             $remediated = $true
                             
                             # Verify the setting
@@ -1311,7 +1317,7 @@ foreach ($domain in $forest.Domains) {
                             }
                         }
                         else {
-                            Write-Host "    > ksetup command failed with exit code: $LASTEXITCODE" -ForegroundColor Red
+                            Write-Host "    > AES-only method failed with exit code: $LASTEXITCODE" -ForegroundColor Red
                             Write-Host "    >> Output: $ksetupResult" -ForegroundColor Red
                         }
                     }
@@ -1324,25 +1330,33 @@ foreach ($domain in $forest.Domains) {
                         Write-Host "`n    >>  KSETUP METHOD FAILED - MANUAL REMEDIATION REQUIRED" -ForegroundColor Red
                         Write-Host "    >> Trust: $trustName" -ForegroundColor Yellow
                         
-                        Write-Host "`n    >> RECOMMENDED MANUAL METHODS:" -ForegroundColor Cyan
+                        Write-Host "`n    >> MICROSOFT OFFICIAL REMEDIATION METHODS:" -ForegroundColor Cyan
+                        Write-Host "    >> Reference: https://learn.microsoft.com/en-us/troubleshoot/windows-server/windows-security/unsupported-etype-error-accessing-trusted-domain" -ForegroundColor Gray
                         
-                        Write-Host "`n    >> Method 1 - GUI (MOST RELIABLE):" -ForegroundColor White
+                        Write-Host "`n    >> Method 1 - GUI (RECOMMENDED - matches checkbox behavior):" -ForegroundColor White
                         Write-Host "       1. Open 'Active Directory Domains and Trusts' (domain.msc)" -ForegroundColor Gray
                         Write-Host "       2. Right-click '$domain' > Properties > Trusts tab" -ForegroundColor Gray
                         Write-Host "       3. Select trust '$trustName' > Properties" -ForegroundColor Gray
                         Write-Host "       4. Check 'The other domain supports Kerberos AES Encryption'" -ForegroundColor Gray
                         Write-Host "       5. Click OK" -ForegroundColor Gray
+                        Write-Host "       >> This checkbox sets AES-only mode (same as Method 2 below)" -ForegroundColor Green
                         if ($trustDirection -eq "BiDirectional") {
                             Write-Host "       6. IMPORTANT: Repeat on the OTHER domain ($trustName) for bidirectional trust" -ForegroundColor Yellow
                         }
                         
-                        Write-Host "`n    >> Method 2 - ksetup command (try manually):" -ForegroundColor White
+                        Write-Host "`n    >> Method 2 - ksetup AES-only (equivalent to GUI checkbox):" -ForegroundColor White
                         Write-Host "       From domain controller in '$domain':" -ForegroundColor Gray
                         Write-Host "       ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
+                        Write-Host "       >> This is exactly what the GUI checkbox does programmatically" -ForegroundColor Green
                         if ($trustDirection -eq "BiDirectional") {
                             Write-Host "       From domain controller in '$trustName':" -ForegroundColor Gray
                             Write-Host "       ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
                         }
+                        
+                        Write-Host "`n    >> Method 3 - ksetup with RC4+AES (for compatibility issues only):" -ForegroundColor White
+                        Write-Host "       Use only if AES-only mode causes authentication problems:" -ForegroundColor Yellow
+                        Write-Host "       ksetup /setenctypeattr $trustName RC4-HMAC-MD5 AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
+                        Write-Host "       >> This maintains RC4 fallback for legacy systems" -ForegroundColor Yellow
                         
                         Write-Host "`n    >> Method 3 - Verification commands:" -ForegroundColor White
                         Write-Host "       ksetup /getenctypeattr $trustName" -ForegroundColor Gray

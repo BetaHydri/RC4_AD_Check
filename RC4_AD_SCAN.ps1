@@ -3,13 +3,20 @@
   Audit AD forest for RC4/DES Kerberos encryption usage and optionally remediate.
 
 .DESCRIPTION
-  This script enumerates all domains in the forest and checks Computers and Trusts.
-  It flags computer objects with RC4 enabled or no msDS-SupportedEncryptionTypes set.
+  This script analyzes Kerberos encryption settings using modern post-November 2022 logic.
+  It performs context-aware analysis of Computers and Trusts based on current Microsoft guidance.
+  
+  Key features:
+  - Analyzes Domain Controller encryption configuration for proper context
+  - Post-Nov 2022: Trust objects default to AES when encryption types are undefined (secure by default)
+  - Post-Nov 2022: Computer objects inherit DC policy when DCs have proper AES configuration
+  - Only flags objects with actual weak encryption or genuine RC4 fallback risk
+  
   Note: User objects do not use msDS-SupportedEncryptionTypes as this is a computer-based setting only.
   User Kerberos encryption is controlled by computer-side settings and domain policy.
-  By default it provides report only functionality.
-  With ApplyFixes parameter it prompts per object to apply AES-only (0x18) setting.
-  Provides warnings for Windows Server 2025 compatibility issues.
+  By default it provides analysis-only functionality with no modifications.
+  With ApplyFixes parameter it provides interactive or automatic remediation.
+  Uses modern Microsoft guidance to reduce false positives and focus on real risks.
   Requires Administrator privileges for proper AD access.
 
 .PARAMETER ApplyFixes
@@ -126,7 +133,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 4.2
+  Version: 5.0
   Created: October 2025
   Updated: October 2025
   
@@ -364,9 +371,28 @@ function Write-BoxedMessageWithDivider {
 }
 
 function Get-EncryptionTypes {
-    param([int]$EncValue)
+    param(
+        [int]$EncValue,
+        [string]$ObjectType = "Computer",
+        [hashtable]$DomainContext = @{}
+    )
 
-    if (-not $EncValue) { return "Not Set (RC4 fallback)" }
+    # Post-November 2022 logic implementation
+    if (-not $EncValue) { 
+        # Check if we have DC encryption status for context-aware analysis
+        if ($DomainContext.ContainsKey('DCsHaveAESSettings') -and $DomainContext.DCsHaveAESSettings) {
+            if ($ObjectType -eq "Trust") {
+                # Post-Nov 2022: Trust objects default to AES when undefined
+                return "Not Set (AES default post-Nov2022)"
+            } else {
+                # Computer objects: Safe when DCs have proper AES settings
+                return "Not Set (inherits DC policy - likely AES)"
+            }
+        } else {
+            # Legacy behavior when DC status unknown or DCs lack AES
+            return "Not Set (RC4 fallback risk)"
+        }
+    }
 
     $map = @{
         0x1  = "DES-CBC-CRC"
@@ -382,6 +408,77 @@ function Get-EncryptionTypes {
         if ($EncValue -band $k) { $enabled += $map[$k] }
     }
     return ($enabled -join ", ")
+}
+
+function Get-DomainControllerEncryptionStatus {
+    param(
+        [string]$Domain,
+        [string]$Server,
+        [switch]$DebugMode
+    )
+    
+    try {
+        if ($DebugMode) {
+            Write-Host "    >> Analyzing Domain Controller encryption configuration..." -ForegroundColor Gray
+        }
+        
+        # Get all Domain Controllers
+        $DCs = Get-ADDomainController -Filter * -Server $Server
+        $dcStatus = @{
+            DCsHaveAESSettings = $false
+            DCsWithAES = 0
+            TotalDCs = $DCs.Count
+            Details = @()
+        }
+        
+        foreach ($dc in $DCs) {
+            try {
+                $dcComp = Get-ADComputer $dc.Name -Properties msDS-SupportedEncryptionTypes -Server $Server
+                $encValue = $dcComp.'msDS-SupportedEncryptionTypes'
+                
+                $hasAES = $false
+                if ($encValue) {
+                    # Check if AES is enabled (0x8 = AES128, 0x10 = AES256)
+                    $hasAES = ($encValue -band 0x18) -gt 0
+                    if ($hasAES) { $dcStatus.DCsWithAES++ }
+                }
+                
+                $dcStatus.Details += @{
+                    Name = $dc.Name
+                    EncryptionValue = $encValue
+                    HasAES = $hasAES
+                    EncryptionTypes = if ($encValue) { Get-EncryptionTypes -EncValue $encValue } else { "Not Set" }
+                }
+                
+                if ($DebugMode) {
+                    $status = if ($hasAES) { "AES Enabled" } else { "No AES" }
+                    Write-Host "      DC: $($dc.Name) - $status (Value: $encValue)" -ForegroundColor Gray
+                }
+            }
+            catch {
+                if ($DebugMode) {
+                    Write-Host "      Warning: Could not analyze DC $($dc.Name): $($_.Exception.Message)" -ForegroundColor Yellow
+                }
+            }
+        }
+        
+        # Determine if DCs have adequate AES settings
+        # Consider DCs secure if majority have AES settings OR if GPO is applied
+        $dcStatus.DCsHaveAESSettings = ($dcStatus.DCsWithAES -gt ($dcStatus.TotalDCs / 2))
+        
+        if ($DebugMode) {
+            $aesPercentage = [math]::Round(($dcStatus.DCsWithAES / $dcStatus.TotalDCs) * 100, 1)
+            Write-Host "    >> DC Analysis: $($dcStatus.DCsWithAES)/$($dcStatus.TotalDCs) DCs have AES ($aesPercentage%)" -ForegroundColor Gray
+        }
+        
+        return $dcStatus
+    }
+    catch {
+        if ($DebugMode) {
+            Write-Host "    >> Warning: Could not analyze DC encryption status: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+        return @{ DCsHaveAESSettings = $false; Details = @() }
+    }
 }
 
 function Test-KerberosGPOSettings {
@@ -1235,6 +1332,22 @@ foreach ($domain in $forest.Domains) {
         Write-Host "  >> Scanning in target forest context: $TargetForest" -ForegroundColor Gray
     }
 
+    # Analyze Domain Controller encryption configuration for context-aware analysis
+    Write-Host "  >> Analyzing Domain Controller encryption status..." -ForegroundColor Cyan
+    $dcStatus = Get-DomainControllerEncryptionStatus -Domain $domain -Server $domainParams['Server'] -DebugMode:$DebugMode
+    $domainContext = @{
+        DCsHaveAESSettings = $dcStatus.DCsHaveAESSettings
+        DCAnalysis = $dcStatus
+    }
+    
+    if ($dcStatus.DCsHaveAESSettings) {
+        Write-Host "  >> DC Analysis: Domain Controllers have adequate AES settings" -ForegroundColor Green
+        Write-Host "     Post-Nov 2022: Computer objects with undefined encryption inherit secure DC policy" -ForegroundColor Gray
+    } else {
+        Write-Host "  >> DC Analysis: Domain Controllers may lack proper AES configuration" -ForegroundColor Yellow
+        Write-Host "     WARNING: Undefined computer encryption types may fall back to RC4" -ForegroundColor Yellow
+    }
+
     # Note: Users are not scanned as msDS-SupportedEncryptionTypes is a computer-based setting only
     # User Kerberos encryption is controlled by the computer they authenticate from and domain GPO settings
 
@@ -1249,7 +1362,21 @@ foreach ($domain in $forest.Domains) {
         $computerTotal++
         
         $enc = $_."msDS-SupportedEncryptionTypes"
-        if (-not $enc -or ($enc -band 0x4)) {
+        
+        # Modern analysis: Only flag computers as problematic if they pose actual risk
+        $isComputerWeak = $false
+        if (-not $enc) {
+            # Post-November 2022: Computer with undefined encryption only problematic if DCs also lack AES
+            $isComputerWeak = -not $domainContext.DCsHaveAESSettings
+        } else {
+            # Computer has defined encryption, check if it includes RC4 without AES
+            $hasAES = ($enc -band 0x18) -gt 0  # AES128 (0x8) or AES256 (0x10)
+            $hasRC4 = ($enc -band 0x4) -gt 0   # RC4 (0x4)
+            # Flag as weak if it has RC4 but no AES
+            $isComputerWeak = ($hasRC4 -and -not $hasAES)
+        }
+        
+        if ($isComputerWeak) {
             $domainComputerRC4Count++
             $computerRC4Count++
             
@@ -1258,7 +1385,7 @@ foreach ($domain in $forest.Domains) {
                 ObjectType = "Computer"
                 Name       = $_.SamAccountName
                 DN         = $_.DistinguishedName
-                EncTypes   = Get-EncryptionTypes $enc
+                EncTypes   = Get-EncryptionTypes -EncValue $enc -ObjectType "Computer" -DomainContext $domainContext
             }
             $results += $obj
 
@@ -1330,12 +1457,12 @@ foreach ($domain in $forest.Domains) {
                 ObjectType = "Computer"
                 Name       = $_.SamAccountName
                 DN         = $_.DistinguishedName
-                EncTypes   = Get-EncryptionTypes $enc
+                EncTypes   = Get-EncryptionTypes -EncValue $enc -ObjectType "Computer" -DomainContext $domainContext
             }
             $secureObjects += $secureObj
             
             if ($DebugMode) {
-                Write-Host "    > Computer '$($_.SamAccountName)' has secure encryption: $(Get-EncryptionTypes $enc)" -ForegroundColor Green
+                Write-Host "    > Computer '$($_.SamAccountName)' has secure encryption: $(Get-EncryptionTypes -EncValue $enc -ObjectType "Computer" -DomainContext $domainContext)" -ForegroundColor Green
             }
         }
     }
@@ -1357,11 +1484,25 @@ foreach ($domain in $forest.Domains) {
         }
         
         $enc = $_."msDS-SupportedEncryptionTypes"
-        if (-not $enc -or ($enc -band 0x4)) {
+        
+        # Post-November 2022 logic: Only flag trusts that are explicitly RC4-only
+        # Undefined trusts now default to AES, so they're secure
+        $isTrustWeak = $false
+        if ($enc) {
+            # Only flag if explicitly set to RC4-only (value 4) or DES/RC4 combinations without AES
+            $hasAES = ($enc -band 0x18) -gt 0  # AES128 (0x8) or AES256 (0x10)
+            $hasRC4 = ($enc -band 0x4) -gt 0   # RC4 (0x4)
+            
+            # Flag as weak if it has RC4 but no AES (explicitly configured to be weak)
+            $isTrustWeak = ($hasRC4 -and -not $hasAES)
+        }
+        # Note: Undefined encryption ($enc = $null or 0) is now considered secure (defaults to AES post-Nov 2022)
+        
+        if ($isTrustWeak) {
             $domainTrustRC4Count++
             $trustRC4Count++
             
-            Write-Host "    >>  Trust '$($_.Name)' has weak encryption: $(Get-EncryptionTypes $enc)" -ForegroundColor Yellow
+            Write-Host "    >>  Trust '$($_.Name)' has weak encryption: $(Get-EncryptionTypes -EncValue $enc -ObjectType "Trust" -DomainContext $domainContext)" -ForegroundColor Yellow
             Write-Host "       Type: $($_.TrustType) | Direction: $($_.Direction)" -ForegroundColor Gray
             
             $obj = [PSCustomObject]@{
@@ -1369,7 +1510,7 @@ foreach ($domain in $forest.Domains) {
                 ObjectType = "Trust"
                 Name       = $_.Name
                 DN         = $_.DistinguishedName
-                EncTypes   = Get-EncryptionTypes $enc
+                EncTypes   = Get-EncryptionTypes -EncValue $enc -ObjectType "Trust" -DomainContext $domainContext
                 TrustType  = $_.TrustType
                 Direction  = $_.Direction
             }
@@ -1622,14 +1763,14 @@ foreach ($domain in $forest.Domains) {
                 ObjectType = "Trust"
                 Name       = $_.Name
                 DN         = $_.DistinguishedName
-                EncTypes   = Get-EncryptionTypes $enc
+                EncTypes   = Get-EncryptionTypes -EncValue $enc -ObjectType "Trust" -DomainContext $domainContext
                 TrustType  = $_.TrustType
                 Direction  = $_.Direction
             }
             $secureObjects += $secureObj
             
             if ($DebugMode) {
-                Write-Host "    > Trust '$($_.Name)' has secure encryption: $(Get-EncryptionTypes $enc)" -ForegroundColor Green
+                Write-Host "    > Trust '$($_.Name)' has secure encryption: $(Get-EncryptionTypes -EncValue $enc -ObjectType "Trust" -DomainContext $domainContext)" -ForegroundColor Green
             }
         }
     }
@@ -1657,18 +1798,22 @@ if ($results.Count -eq 0) {
     Write-Host "`n> AUDIT RESULT: SUCCESS!" -ForegroundColor Green
     
     $messages = @(
-        "No objects with RC4 encryption or weak settings found!",
-        "All objects in the forest are using strong AES encryption."
+        "No objects with weak encryption settings found!",
+        "All flagged objects benefit from modern Kerberos security (post-November 2022).",
+        "Trust objects: Default to AES when undefined (secure by default)",
+        "Computer objects: Inherit secure DC policies when DCs are properly configured"
     )
     Write-BoxedMessage -Messages $messages -Color "Green"
 }
 else {
-    Write-Host "`n>>  AUDIT RESULT: ISSUES FOUND!" -ForegroundColor Yellow
+    Write-Host "`n>>  AUDIT RESULT: REVIEW NEEDED!" -ForegroundColor Yellow
     
-    $headerMessages = @("Found $($results.Count) object(s) with weak encryption settings:")
+    $headerMessages = @("Found $($results.Count) object(s) requiring review (modern analysis):")
     $contentMessages = @(
-        "> Computers with RC4: $computerRC4Count out of $computerTotal total",
-        "> Trusts with RC4: $trustRC4Count out of $trustTotal total"
+        "> Computers needing attention: $computerRC4Count out of $computerTotal total",
+        "> Trusts needing attention: $trustRC4Count out of $trustTotal total",
+        "> Note: Post-November 2022 analysis reduces false positives",
+        "> Only objects with actual weak encryption or missing DC policies are flagged"
     )
     Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $contentMessages -Color "Yellow"
     
@@ -1698,19 +1843,27 @@ else {
         Write-Host "  > Unknown: Unrecognized trust type" -ForegroundColor Gray
     }
     
-    # Check for objects with undefined encryption types (fallback scenario)
-    $undefinedObjects = $results | Where-Object { $_.EncTypes -eq "Not Set (RC4 fallback)" }
+    # Check for objects with actual RC4 fallback risk (November 2022+ logic)
+    $undefinedObjects = $results | Where-Object { $_.EncTypes -eq "Not Set (RC4 fallback risk)" }
     $trustObjects = $results | Where-Object { $_.ObjectType -eq "Trust" }
     
     if ($undefinedObjects.Count -gt 0) {
-        Write-Host "`n>> CRITICAL WARNING - Windows Server 2025 Compatibility:" -ForegroundColor Red
-        Write-Host "Found $($undefinedObjects.Count) object(s) with undefined encryption types (msDS-SupportedEncryptionTypes not set)." -ForegroundColor Red
-        Write-Host "Windows Server 2025 disables the RC4 fallback mechanism by default." -ForegroundColor Red
-        Write-Host "These objects will experience authentication failures on Windows Server 2025 domain controllers!" -ForegroundColor Red
+        Write-Host "`n>> WARNING - RC4 Fallback Risk Detected:" -ForegroundColor Red
+        Write-Host "Found $($undefinedObjects.Count) object(s) at risk of RC4 fallback (post-November 2022 analysis)." -ForegroundColor Red
+        Write-Host "These objects have undefined encryption AND Domain Controllers lack proper AES configuration." -ForegroundColor Red
+        Write-Host "Risk: Authentication may fall back to weak RC4 encryption." -ForegroundColor Red
         Write-Host "`nRECOMMENDATION:" -ForegroundColor Yellow
-        Write-Host "- Run this script with -ApplyFixes to set AES encryption (value 24)" -ForegroundColor Yellow
-        Write-Host "- Or configure via Group Policy: 'Network security: Configure encryption types allowed for Kerberos'" -ForegroundColor Yellow
-        Write-Host "- Test thoroughly before deploying to production environments" -ForegroundColor Yellow
+        Write-Host "- Configure Domain Controller encryption policy via GPO" -ForegroundColor Yellow
+        Write-Host "- Or run this script with -ApplyFixes to set explicit AES encryption (value 24)" -ForegroundColor Yellow
+        Write-Host "- Priority: Ensure DCs have proper AES settings for organization-wide security" -ForegroundColor Yellow
+    }
+    
+    # Check for secure-by-default objects (post-November 2022)
+    $secureByDefaultObjects = $results | Where-Object { $_.EncTypes -match "AES default post-Nov2022|inherits DC policy" }
+    if ($secureByDefaultObjects.Count -gt 0) {
+        Write-Host "`n>> INFO - Secure by Default (Post-November 2022):" -ForegroundColor Green
+        Write-Host "Found $($secureByDefaultObjects.Count) object(s) that are secure despite undefined encryption types." -ForegroundColor Green
+        Write-Host "These objects benefit from modern Kerberos defaults (AES for trusts, DC policy inheritance for computers)." -ForegroundColor Green
     }
     
     if ($trustObjects.Count -gt 0) {

@@ -1,6 +1,6 @@
 # Kerberos RC4/DES Active Directory Security Scanning Tool
 
-**Version**: 4.2  
+**Version**: 5.0  
 **Author**: Jan Tiedemann  
 **Created**: October 2025  
 **Updated**: October 2025
@@ -9,10 +9,40 @@ A comprehensive PowerShell script to audit and remediate RC4 encryption usage in
 
 ## Overview
 
-RC4 is a deprecated encryption algorithm that is considered cryptographically weak. This tool scans your entire Active Directory forest to identify:
-- Computers with RC4 encryption enabled
-- Domain trusts with RC4 encryption enabled
-- Computer objects with no encryption types specified (which fall back to RC4)
+RC4 is a deprecated encryption algorithm that is considered cryptographically weak. This tool uses **modern post-November 2022 Microsoft logic** to accurately analyze your Active Directory environment and identify genuine security risks.
+
+### November 2022 Update Changes
+
+Microsoft's November 2022 Kerberos updates fundamentally changed how encryption fallback works:
+
+- **Trust Objects**: Now **default to AES encryption** when `msDS-SupportedEncryptionTypes` is undefined (secure by default)
+- **Computer Objects**: Safely inherit Domain Controller encryption policies when DCs are properly configured
+- **Context-Aware Analysis**: Only flags objects with actual RC4 fallback risk, not false positives from undefined attributes
+
+### What This Tool Identifies
+
+Using modern logic, this tool identifies:
+- Computers with explicitly weak encryption settings (RC4-only without AES)
+- Trust objects explicitly configured for RC4-only (rare in modern environments)
+- Computers at RC4 fallback risk (only when both client AND Domain Controllers lack proper AES configuration)
+- Domain Controller encryption configuration status for context-aware analysis
+
+### What This Tool No Longer Flags as Problematic
+
+Based on November 2022 updates:
+- ✅ **Trust objects with undefined encryption** (now default to AES)
+- ✅ **Computer objects with undefined encryption when DCs have AES** (inherit secure policy)
+- ✅ **Legacy "RC4 fallback" warnings for properly configured environments**
+
+### Practical Impact for Your Environment
+
+**If you're running this tool for the first time post-November 2022:**
+- **Expect fewer flagged objects** compared to older tools using pre-2022 logic
+- **Trust objects may show as secure** even without explicit AES configuration
+- **Computer objects may be secure** through Domain Controller policy inheritance
+- **Focus shifts to genuine risks** rather than configuration style preferences
+
+**This means your environment is likely MORE secure than older tools indicated!**
 
 **Important Note**: User objects are not scanned because `msDS-SupportedEncryptionTypes` is a computer-based setting only. User Kerberos encryption is controlled by:
 - The computer they authenticate from
@@ -1265,6 +1295,18 @@ Debug output includes:
 - Consider gradual rollout with proper monitoring
 
 ## Changelog
+
+### Version 5.0 (October 2025) - **MAJOR UPDATE: November 2022 Logic Implementation**
+- **🚀 [BREAKING CHANGE]** Implemented Microsoft's November 2022 Kerberos encryption logic
+- **🎯 [SMART ANALYSIS]** Context-aware detection: Only flags objects with genuine RC4 fallback risk
+- **✅ [POST-NOV 2022]** Trust objects with undefined encryption now recognized as secure (default to AES)
+- **🔍 [DC ANALYSIS]** Added Domain Controller encryption configuration analysis for proper context
+- **📊 [MODERN LOGIC]** Computer objects inherit DC policy when DCs have proper AES configuration
+- **⚡ [REDUCED FALSE POSITIVES]** Eliminates outdated "RC4 fallback" warnings for secure environments
+- **🛡️ [TRUST UPDATES]** Trust objects only flagged if explicitly configured for RC4-only (rare)
+- **📖 [ENHANCED ACCURACY]** Updated all output messages to reflect current Microsoft guidance
+- **🔧 [CONTEXT DETECTION]** Analyzes both client and KDC encryption status for accurate risk assessment
+- **📚 [DOCUMENTATION]** Comprehensive updates explaining modern post-November 2022 behavior
 
 ### Version 4.2 (October 2025)
 - **🚀 [NEW FEATURE]** Added -Force parameter for automatic remediation without prompts

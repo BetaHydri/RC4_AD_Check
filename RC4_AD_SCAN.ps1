@@ -1021,6 +1021,14 @@ function Test-KerberosGPOSettings {
                         $isSecure = $true
                     }
                     
+                    if ($DebugMode) {
+                        Write-Host "      >> DEBUG: GPO '$($gpo.DisplayName)' assessment:" -ForegroundColor Gray
+                        Write-Host "        > EncValue: $encValue" -ForegroundColor Gray
+                        Write-Host "        > HasAES128: $hasAES128, HasAES256: $hasAES256" -ForegroundColor Gray
+                        Write-Host "        > HasRC4Disabled: $hasRC4Disabled, HasDESDisabled: $hasDESDisabled" -ForegroundColor Gray
+                        Write-Host "        > IsOptimal: $isOptimal, IsSecure: $isSecure" -ForegroundColor Gray
+                    }
+                    
                     $kerberosGPO = [PSCustomObject]@{
                         Name            = $gpo.DisplayName
                         Id              = $gpo.Id
@@ -1270,13 +1278,13 @@ function Test-KerberosGPOSettings {
             # Only show detailed GPO application status if we have issues or user wants debug detail
             if ($kerberosGPOs.Count -gt 0 -and $Scope -in @("Both", "AllOUs", "Domain", "DomainControllers")) {
                 # Check if we have any non-optimal GPOs that warrant detailed analysis
-                $needsDetailedAnalysis = $kerberosGPOs | Where-Object { -not $_.IsOptimal }
+                $needsDetailedAnalysis = $kerberosGPOs | Where-Object { -not $_.IsOptimal -and -not $_.IsSecure }
                 
                 if ($needsDetailedAnalysis.Count -gt 0 -or $DebugMode) {
                     Test-GPOApplication -Domain $Domain -KerberosGPOs $kerberosGPOs -Server $Server
                 }
                 else {
-                    Write-Host "`n  >> GPO application analysis skipped (all GPOs optimal)" -ForegroundColor Green
+                    Write-Host "`n  >> GPO application analysis skipped (all GPOs secure or optimal)" -ForegroundColor Green
                 }
             }
         }
@@ -1297,6 +1305,13 @@ function Test-KerberosGPOSettings {
         $optimalGPOs = $kerberosGPOs | Where-Object { $_.IsOptimal }
         $secureGPOs = $kerberosGPOs | Where-Object { $_.IsSecure -and -not $_.IsOptimal }
         
+        if ($DebugMode) {
+            Write-Host "    >> DEBUG: Total GPOs: $($kerberosGPOs.Count), Optimal: $($optimalGPOs.Count), Secure: $($secureGPOs.Count)" -ForegroundColor Gray
+            foreach ($gpo in $kerberosGPOs) {
+                Write-Host "    >> DEBUG: GPO '$($gpo.Name)' - IsOptimal: $($gpo.IsOptimal), IsSecure: $($gpo.IsSecure)" -ForegroundColor Gray
+            }
+        }
+        
         if ($optimalGPOs.Count -gt 0) {
             Write-Host "> FINAL ASSESSMENT: $($optimalGPOs.Count) OPTIMAL GPO(s) detected in $Domain" -ForegroundColor Green
         }
@@ -1305,6 +1320,11 @@ function Test-KerberosGPOSettings {
         }
         else {
             Write-Host "> FINAL ASSESSMENT: GPO(s) need improvement in $Domain" -ForegroundColor Yellow
+        }
+    }
+    else {
+        if ($DebugMode) {
+            Write-Host "    >> DEBUG: No Kerberos GPOs found in domain" -ForegroundColor Gray
         }
     }
     

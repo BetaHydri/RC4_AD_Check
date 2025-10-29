@@ -1144,7 +1144,91 @@ Scanning domain: target.com
 +------------------------------------------------------------------------------+
 ```
 
-### Sample Output with Enhanced GPO Analysis and Modern Logic
+### Sample Output with Streamlined GPO Analysis (Version 5.1)
+
+**Environment with Working GPOs (but XML parsing issues):**
+```
+================================================================================
+>> DOMAIN: CONTOSO.COM
+================================================================================
+>> Checking GPO settings for Kerberos encryption
+>> Scope: Both
+
+> RESULT: Found 1 Kerberos encryption GPO(s) in domain: contoso.com
+
+>> GPO: EncryptionTypes
+   >> Linked to the following locations:
+     > Domain Controllers OU [Order: 1]
+    > Coverage: Domain Controllers + 0 additional OUs
+    >>  Consider linking to Domain level for complete coverage
+    >> Performing GPO effectiveness verification...
+    > ASSESSMENT: OPTIMAL (Verified via computer objects)
+      > Verification: 4/4 computers have AES encryption
+      > Encryption value: 24 = AES128-CTS-HMAC-SHA1-96, AES256-CTS-HMAC-SHA1-96
+      > Note: GPO XML parsing failed, but GPO is working correctly
+
+  >> GPO application analysis skipped (all GPOs optimal)
+
+> FINAL ASSESSMENT: 1 OPTIMAL GPO(s) detected in CONTOSO.COM
+```
+
+**Environment with Actual GPO Issues:**
+```
+>> GPO: KerberosEncTypes
+   >> Linked to the following locations:
+     > Domain Root [Order: 1]
+    >>  NEEDS IMPROVEMENT: Sub-optimal settings detected
+      > AES128 not enabled
+      > AES256 not enabled
+      > Verification: No computers found with AES encryption - assessment confirmed
+
+> FINAL ASSESSMENT: GPO(s) need improvement in mylabs.contoso.com
+```
+
+### Key Improvements in Version 5.1 Output
+
+- **🎯 Single Clear Assessment**: No more confusing "NEEDS IMPROVEMENT" followed by "CORRECTED ASSESSMENT"
+- **✅ Verification-Based**: Assessment determined by actual computer encryption verification
+- **📊 Conditional Detail**: Detailed analysis only shown when there are actual issues
+- **🎨 Cleaner Design**: Technical details moved to DebugMode for better readability
+- **⚡ Faster Understanding**: Users can quickly identify their security posture
+
+### Debug Mode Output
+
+For detailed technical analysis, use `-DebugMode`:
+```powershell
+.\RC4_AD_SCAN.ps1 -DebugMode
+```
+
+This provides additional technical details including:
+- GPO XML parsing details and analysis steps
+- Detailed encryption type detection logic  
+- Trust object discovery and categorization process
+- Secure object identification and reasoning
+- Cross-verification details and decision logic
+
+## What to Expect from Version 5.1
+
+### For Users with Working GPOs
+If your GPOs are correctly configured but the script previously showed confusing "NEEDS IMPROVEMENT" messages:
+
+✅ **Now**: Clear "ASSESSMENT: OPTIMAL (Verified via computer objects)" message  
+✅ **Now**: Verification shows computer encryption values proving GPO effectiveness  
+✅ **Now**: Single, accurate final assessment  
+❌ **Before**: Contradictory "NEEDS IMPROVEMENT" → "CORRECTED ASSESSMENT" flow
+
+### For Users with Actual GPO Issues  
+If your GPOs genuinely need improvement:
+
+✅ **Now**: Clear "NEEDS IMPROVEMENT" with verification confirming the assessment  
+✅ **Now**: Detailed analysis still provided to help with remediation  
+✅ **Now**: Verification shows lack of AES encryption in computer objects  
+
+### For All Users
+✅ **Cleaner Output**: Significantly reduced verbosity while maintaining essential information  
+✅ **Faster Analysis**: Quick identification of security posture without wading through technical details  
+✅ **Debug Details Available**: Technical information still accessible via `-DebugMode`  
+✅ **Accurate Assessment**: GPO effectiveness based on actual results, not XML parsing limitations
 
 ```
 🔍 Checking Group Policy settings...

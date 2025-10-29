@@ -1282,14 +1282,34 @@ foreach ($domain in $forest.Domains) {
                 $answer = Read-Host "    >> Remediate Trust $($_.Name) in $domain> (Y/N)"
                 if ($answer -match '^[Yy]') {
                     try {
-                        # Use Set-ADObject instead of Set-ADTrust (which doesn't exist)
-                        Set-ADObject -Identity $_.DistinguishedName -Add @{"msDS-SupportedEncryptionTypes" = 24 } @domainParams
+                        # Use Set-ADObject with -Replace instead of -Add for trust objects
+                        # Trust objects may need the attribute replaced rather than added
+                        if ($domainParams.Count -gt 0) {
+                            Set-ADObject -Identity $_.DistinguishedName -Replace @{"msDS-SupportedEncryptionTypes" = 24 } @domainParams
+                        } else {
+                            Set-ADObject -Identity $_.DistinguishedName -Replace @{"msDS-SupportedEncryptionTypes" = 24 }
+                        }
                         Write-Host "    > Fixed: Trust $($_.Name) set to AES-only (value 24)" -ForegroundColor Green
                         Write-Host "    >>  Note: Trust fixes require explicit attribute modification, not GPO" -ForegroundColor Gray
                     }
                     catch {
                         Write-Host "    > Failed to fix trust $($_.Name): $($_.Exception.Message)" -ForegroundColor Red
-                        Write-Host "    >> Alternative: Set-ADObject -Identity '$($_.DistinguishedName)' -Add @{msDS-SupportedEncryptionTypes=24}" -ForegroundColor Yellow
+                        Write-Host "    >> Alternative: Set-ADObject -Identity '$($_.DistinguishedName)' -Replace @{msDS-SupportedEncryptionTypes=24}" -ForegroundColor Yellow
+                        
+                        # Try alternative approach with -Add in case -Replace fails
+                        try {
+                            Write-Host "    >> Trying alternative approach with -Add parameter..." -ForegroundColor Yellow
+                            if ($domainParams.Count -gt 0) {
+                                Set-ADObject -Identity $_.DistinguishedName -Add @{"msDS-SupportedEncryptionTypes" = 24 } @domainParams
+                            } else {
+                                Set-ADObject -Identity $_.DistinguishedName -Add @{"msDS-SupportedEncryptionTypes" = 24 }
+                            }
+                            Write-Host "    > Fixed: Trust $($_.Name) set to AES-only (value 24) using -Add" -ForegroundColor Green
+                        }
+                        catch {
+                            Write-Host "    > Both -Replace and -Add methods failed: $($_.Exception.Message)" -ForegroundColor Red
+                            Write-Host "    >> Manual remediation required. See trust remediation guidance below." -ForegroundColor Yellow
+                        }
                     }
                 }
             }

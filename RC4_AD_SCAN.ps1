@@ -113,7 +113,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 3.2
+  Version: 3.3
   Created: October 2025
   Updated: October 2025
   
@@ -187,19 +187,19 @@ Import-Module ActiveDirectory
 # Define helper functions before parameter validation
 function Show-QuickHelp {
     Write-Host ""
-    Write-Host ("?" * 80) -ForegroundColor Cyan
-    Write-Host "?? RC4 ACTIVE DIRECTORY AUDIT TOOL - QUICK REFERENCE" -ForegroundColor Cyan
-    Write-Host ("?" * 80) -ForegroundColor Cyan
+    Write-Host ("=" * 80) -ForegroundColor Cyan
+    Write-Host ">> RC4 ACTIVE DIRECTORY AUDIT TOOL - QUICK REFERENCE" -ForegroundColor Cyan
+    Write-Host ("=" * 80) -ForegroundColor Cyan
     
     Write-Host ""
-    Write-Host "?? BASIC USAGE:" -ForegroundColor Yellow
+    Write-Host ">> BASIC USAGE:" -ForegroundColor Yellow
     Write-Host "  .\RC4_AD_SCAN.ps1                     # Audit only (read-only scan)" -ForegroundColor White
     Write-Host "  .\RC4_AD_SCAN.ps1 -ApplyFixes         # Interactive remediation" -ForegroundColor White
     Write-Host "  .\RC4_AD_SCAN.ps1 -ExportResults      # Export results to CSV" -ForegroundColor White
     Write-Host "  .\RC4_AD_SCAN.ps1 -Help               # Show detailed help" -ForegroundColor White
     
     Write-Host ""
-    Write-Host "?? GPO SCOPE OPTIONS:" -ForegroundColor Yellow
+    Write-Host ">> GPO SCOPE OPTIONS:" -ForegroundColor Yellow
     Write-Host "  -GPOScope Domain                      # Check domain root only" -ForegroundColor White
     Write-Host "  -GPOScope DomainControllers           # Check DC OU only" -ForegroundColor White
     Write-Host "  -GPOScope Both                        # Check both (default)" -ForegroundColor White
@@ -207,7 +207,7 @@ function Show-QuickHelp {
     Write-Host "  -GPOScope `"OU=IT,DC=contoso,DC=com`"   # Check specific OU" -ForegroundColor White
     
     Write-Host ""
-    Write-Host "?? ADVANCED OPTIONS:" -ForegroundColor Yellow
+    Write-Host ">> ADVANCED OPTIONS:" -ForegroundColor Yellow
     Write-Host "  -SkipGPOCheck                         # Skip GPO verification" -ForegroundColor White
     Write-Host "  -GPOCheckOnly                         # GPO analysis only" -ForegroundColor White
     Write-Host "  -DebugMode                            # Enable debug output" -ForegroundColor White
@@ -215,14 +215,14 @@ function Show-QuickHelp {
     Write-Host "  -TargetForest target.com              # Cross-forest scanning" -ForegroundColor White
     
     Write-Host ""
-    Write-Host "?? EXAMPLE COMBINATIONS:" -ForegroundColor Yellow
+    Write-Host ">> EXAMPLE COMBINATIONS:" -ForegroundColor Yellow
     Write-Host "  .\RC4_AD_SCAN.ps1 -GPOScope AllOUs -DebugMode -ExportResults" -ForegroundColor Cyan
     Write-Host "  .\RC4_AD_SCAN.ps1 -ApplyFixes -GPOScope DomainControllers" -ForegroundColor Cyan
     Write-Host "  .\RC4_AD_SCAN.ps1 -TargetForest remote.com -Server dc01.remote.com" -ForegroundColor Cyan
     
     Write-Host ""
-    Write-Host "?? For detailed help: Get-Help .\RC4_AD_SCAN.ps1 -Detailed" -ForegroundColor Gray
-    Write-Host ("?" * 80) -ForegroundColor Cyan
+    Write-Host ">> For detailed help: Get-Help .\RC4_AD_SCAN.ps1 -Detailed" -ForegroundColor Gray
+    Write-Host ("=" * 80) -ForegroundColor Cyan
 }
 
 # Display help if requested
@@ -364,23 +364,23 @@ function Test-KerberosGPOSettings {
     
     Write-Host ""
     Write-Host ("=" * 80) -ForegroundColor DarkCyan
-    Write-Host "?? DOMAIN: $($Domain.ToUpper())" -ForegroundColor Cyan
+    Write-Host ">> DOMAIN: $($Domain.ToUpper())" -ForegroundColor Cyan
     Write-Host ("=" * 80) -ForegroundColor DarkCyan
-    Write-Host "?? Checking GPO settings for Kerberos encryption" -ForegroundColor White
-    Write-Host "?? Scope: $Scope" -ForegroundColor Gray
+    Write-Host ">> Checking GPO settings for Kerberos encryption" -ForegroundColor White
+    Write-Host ">> Scope: $Scope" -ForegroundColor Gray
     
     # Set up server parameter for AD commands
     $adParams = @{}
     if ($Server) {
         $adParams['Server'] = $Server
         if ($DebugMode) {
-            Write-Host "      ?? Using server: $Server" -ForegroundColor Gray
+            Write-Host "      >> Using server: $Server" -ForegroundColor Gray
         }
     }
     
     # Handle target forest context
     if ($TargetForest -and $DebugMode) {
-        Write-Host "      ?? Operating in target forest: $TargetForest" -ForegroundColor Gray
+        Write-Host "      >> Operating in target forest: $TargetForest" -ForegroundColor Gray
     }
     
     try {
@@ -389,8 +389,8 @@ function Test-KerberosGPOSettings {
         $domainControllersOU = "OU=Domain Controllers,$domainDN"
         
         if ($DebugMode) {
-            Write-Host "      ?? Domain DN: $domainDN" -ForegroundColor Gray
-            Write-Host "      ?? Domain Controllers OU: $domainControllersOU" -ForegroundColor Gray
+            Write-Host "      >> Domain DN: $domainDN" -ForegroundColor Gray
+            Write-Host "      >> Domain Controllers OU: $domainControllersOU" -ForegroundColor Gray
         }
         
         # Get all GPOs in the domain
@@ -402,7 +402,7 @@ function Test-KerberosGPOSettings {
         if ($Server) {
             # Note: Get-GPO doesn't accept -Server parameter, but uses current session context
             if ($DebugMode) {
-                Write-Host "      ??  Note: Get-GPO uses current session context" -ForegroundColor Gray
+                Write-Host "      >>  Note: Get-GPO uses current session context" -ForegroundColor Gray
             }
         }
         
@@ -412,16 +412,16 @@ function Test-KerberosGPOSettings {
         # Check each GPO for Kerberos settings
         foreach ($gpo in $gpos) {
             if ($DebugMode) {
-                Write-Host "      ?? Checking GPO: $($gpo.DisplayName)" -ForegroundColor Gray
+                Write-Host "      >> Checking GPO: $($gpo.DisplayName)" -ForegroundColor Gray
             }
             
             try {
                 $gpoReport = Get-GPOReport -Guid $gpo.Id -ReportType Xml -Domain $Domain -ErrorAction SilentlyContinue
                 
                 if ($DebugMode -and $gpoReport) {
-                    Write-Host "      ?? GPO report retrieved successfully" -ForegroundColor Gray
+                    Write-Host "      >> GPO report retrieved successfully" -ForegroundColor Gray
                     if ($gpoReport -match "Configure encryption types allowed for Kerberos") {
-                        Write-Host "      ? Found Kerberos encryption configuration" -ForegroundColor Gray
+                        Write-Host "      > Found Kerberos encryption configuration" -ForegroundColor Gray
                     }
                 }
                 
@@ -436,7 +436,7 @@ function Test-KerberosGPOSettings {
                         
                         if ($fullGpoReport) {
                             if ($DebugMode) {
-                                Write-Host "      ?? Full GPO report retrieved for link analysis" -ForegroundColor Gray
+                                Write-Host "      >> Full GPO report retrieved for link analysis" -ForegroundColor Gray
                             }
                             
                             # Parse XML to find SOM (Scope of Management) links
@@ -444,7 +444,7 @@ function Test-KerberosGPOSettings {
                             $linkNodes = $xmlDoc.SelectNodes("//LinksTo")
                             
                             if ($DebugMode) {
-                                Write-Host "      ?? Found $($linkNodes.Count) potential link nodes" -ForegroundColor Gray
+                                Write-Host "      >> Found $($linkNodes.Count) potential link nodes" -ForegroundColor Gray
                             }
                             
                             foreach ($linkNode in $linkNodes) {
@@ -453,7 +453,7 @@ function Test-KerberosGPOSettings {
                                 $noOverride = $linkNode.NoOverride -eq "true"
                                 
                                 if ($DebugMode) {
-                                    Write-Host "      ?? Link found: $somPath (Enabled: $enabled)" -ForegroundColor Gray
+                                    Write-Host "      >> Link found: $somPath (Enabled: $enabled)" -ForegroundColor Gray
                                 }
                                 
                                 # Convert SOM path to friendly name
@@ -489,7 +489,7 @@ function Test-KerberosGPOSettings {
                         # If no links found in XML, try alternative method
                         if ($allGPOLinks.Count -eq 0) {
                             if ($DebugMode) {
-                                Write-Host "      ?? XML parsing found no links, trying alternative GPO link detection..." -ForegroundColor Gray
+                                Write-Host "      >> XML parsing found no links, trying alternative GPO link detection..." -ForegroundColor Gray
                             }
                             
                             # Determine search containers based on scope
@@ -499,19 +499,19 @@ function Test-KerberosGPOSettings {
                                 "Domain" {
                                     $searchContainers = @($domainDN)
                                     if ($DebugMode) {
-                                        Write-Host "      ?? Scope: Domain - checking domain root only" -ForegroundColor Gray
+                                        Write-Host "      >> Scope: Domain - checking domain root only" -ForegroundColor Gray
                                     }
                                 }
                                 "DomainControllers" {
                                     $searchContainers = @($domainControllersOU)
                                     if ($DebugMode) {
-                                        Write-Host "      ?? Scope: DomainControllers - checking DC OU only" -ForegroundColor Gray
+                                        Write-Host "      >> Scope: DomainControllers - checking DC OU only" -ForegroundColor Gray
                                     }
                                 }
                                 "Both" {
                                     $searchContainers = @($domainDN, $domainControllersOU)
                                     if ($DebugMode) {
-                                        Write-Host "      ?? Scope: Both - checking domain root and DC OU" -ForegroundColor Gray
+                                        Write-Host "      >> Scope: Both - checking domain root and DC OU" -ForegroundColor Gray
                                     }
                                 }
                                 "AllOUs" {
@@ -523,12 +523,12 @@ function Test-KerberosGPOSettings {
                                             $searchContainers += $ou.DistinguishedName
                                         }
                                         if ($DebugMode) {
-                                            Write-Host "      ?? Scope: AllOUs - checking domain root, DC OU, and $($allOUs.Count) additional OUs" -ForegroundColor Gray
+                                            Write-Host "      >> Scope: AllOUs - checking domain root, DC OU, and $($allOUs.Count) additional OUs" -ForegroundColor Gray
                                         }
                                     }
                                     catch {
                                         if ($DebugMode) {
-                                            Write-Host "      ??  Could not enumerate all OUs: $($_.Exception.Message)" -ForegroundColor Gray
+                                            Write-Host "      >>  Could not enumerate all OUs: $($_.Exception.Message)" -ForegroundColor Gray
                                         }
                                     }
                                 }
@@ -540,12 +540,12 @@ function Test-KerberosGPOSettings {
                                             $null = Get-ADOrganizationalUnit -Identity $Scope -Server $Domain -ErrorAction Stop
                                             $searchContainers = @($Scope)
                                             if ($DebugMode) {
-                                                Write-Host "      ?? Scope: Custom OU - checking specified OU: $Scope" -ForegroundColor Gray
+                                                Write-Host "      >> Scope: Custom OU - checking specified OU: $Scope" -ForegroundColor Gray
                                             }
                                         }
                                         catch {
-                                            Write-Host "      ? ERROR: Specified OU not found: $Scope" -ForegroundColor Red
-                                            Write-Host "      ?? Using fallback to domain root and DC OU" -ForegroundColor Yellow
+                                            Write-Host "      > ERROR: Specified OU not found: $Scope" -ForegroundColor Red
+                                            Write-Host "      >> Using fallback to domain root and DC OU" -ForegroundColor Yellow
                                             $searchContainers = @($domainDN, $domainControllersOU)
                                         }
                                     }
@@ -553,14 +553,14 @@ function Test-KerberosGPOSettings {
                                         # Fallback to default behavior
                                         $searchContainers = @($domainDN, $domainControllersOU)
                                         if ($DebugMode) {
-                                            Write-Host "      ?? Fallback: Using domain root and DC OU" -ForegroundColor Gray
+                                            Write-Host "      >> Fallback: Using domain root and DC OU" -ForegroundColor Gray
                                         }
                                     }
                                 }
                             }
                             
                             if ($DebugMode) {
-                                Write-Host "      ?? Final search containers ($($searchContainers.Count) total):" -ForegroundColor Gray
+                                Write-Host "      >> Final search containers ($($searchContainers.Count) total):" -ForegroundColor Gray
                                 foreach ($container in $searchContainers) {
                                     Write-Host "         - $container" -ForegroundColor Gray
                                 }
@@ -569,19 +569,19 @@ function Test-KerberosGPOSettings {
                             foreach ($container in $searchContainers) {
                                 try {
                                     if ($DebugMode) {
-                                        Write-Host "      ?? Checking container: $container" -ForegroundColor Gray
+                                        Write-Host "      >> Checking container: $container" -ForegroundColor Gray
                                     }
                                     
                                     $inheritance = Get-GPInheritance -Target $container -Domain $Domain -ErrorAction SilentlyContinue
                                     if ($inheritance -and $inheritance.GpoLinks) {
                                         if ($DebugMode) {
-                                            Write-Host "      ?? Found $($inheritance.GpoLinks.Count) GPO links in this container" -ForegroundColor Gray
+                                            Write-Host "      >> Found $($inheritance.GpoLinks.Count) GPO links in this container" -ForegroundColor Gray
                                         }
                                         
                                         $linkedGPO = $inheritance.GpoLinks | Where-Object { $_.GpoId -eq $gpo.Id }
                                         if ($linkedGPO) {
                                             if ($DebugMode) {
-                                                Write-Host "      ? Found matching GPO link! GPO ID: $($gpo.Id)" -ForegroundColor Green
+                                                Write-Host "      > Found matching GPO link! GPO ID: $($gpo.Id)" -ForegroundColor Green
                                             }
                                             
                                             $containerName = if ($container -eq $domainDN) { 
@@ -610,19 +610,19 @@ function Test-KerberosGPOSettings {
                                         }
                                         else {
                                             if ($DebugMode) {
-                                                Write-Host "      ? No matching GPO found in this container (checked $($inheritance.GpoLinks.Count) links)" -ForegroundColor Gray
+                                                Write-Host "      > No matching GPO found in this container (checked $($inheritance.GpoLinks.Count) links)" -ForegroundColor Gray
                                             }
                                         }
                                     }
                                     else {
                                         if ($DebugMode) {
-                                            Write-Host "      ? No GPO inheritance found for this container" -ForegroundColor Gray
+                                            Write-Host "      > No GPO inheritance found for this container" -ForegroundColor Gray
                                         }
                                     }
                                 }
                                 catch {
                                     if ($DebugMode) {
-                                        Write-Host "      ??  Error checking container $container : $($_.Exception.Message)" -ForegroundColor Gray
+                                        Write-Host "      >>  Error checking container $container : $($_.Exception.Message)" -ForegroundColor Gray
                                     }
                                     continue
                                 }
@@ -632,7 +632,7 @@ function Test-KerberosGPOSettings {
                         # Final fallback: Try to get GPO links directly from Active Directory (only if still no links found)
                         if ($allGPOLinks.Count -eq 0) {
                             if ($DebugMode) {
-                                Write-Host "      ?? Final fallback: Searching AD for GPO links..." -ForegroundColor Gray
+                                Write-Host "      >> Final fallback: Searching AD for GPO links..." -ForegroundColor Gray
                             }
                             
                             try {
@@ -641,20 +641,20 @@ function Test-KerberosGPOSettings {
                                 $filter = "gPLink -like '*$gpoGuid*'"
                                 
                                 if ($DebugMode) {
-                                    Write-Host "      ?? Searching for gPLink containing: $gpoGuid" -ForegroundColor Gray
+                                    Write-Host "      >> Searching for gPLink containing: $gpoGuid" -ForegroundColor Gray
                                 }
                                 
                                 $linkedObjects = Get-ADObject -Filter $filter -Server $Domain -Properties gPLink, Name -ErrorAction SilentlyContinue
                                 
                                 if ($linkedObjects) {
                                     if ($DebugMode) {
-                                        Write-Host "      ?? Found $($linkedObjects.Count) objects with gPLink containing this GPO" -ForegroundColor Gray
+                                        Write-Host "      >> Found $($linkedObjects.Count) objects with gPLink containing this GPO" -ForegroundColor Gray
                                     }
                                     
                                     foreach ($obj in $linkedObjects) {
                                         if ($DebugMode) {
-                                            Write-Host "      ?? Found link in: $($obj.Name) ($($obj.DistinguishedName))" -ForegroundColor Gray
-                                            Write-Host "      ?? gPLink value: $($obj.gPLink)" -ForegroundColor Gray
+                                            Write-Host "      >> Found link in: $($obj.Name) ($($obj.DistinguishedName))" -ForegroundColor Gray
+                                            Write-Host "      >> gPLink value: $($obj.gPLink)" -ForegroundColor Gray
                                         }
                                         
                                         # Parse gPLink to determine if this GPO is enabled
@@ -694,13 +694,13 @@ function Test-KerberosGPOSettings {
                                 }
                                 else {
                                     if ($DebugMode) {
-                                        Write-Host "      ? No objects found with gPLink containing this GPO GUID" -ForegroundColor Gray
+                                        Write-Host "      > No objects found with gPLink containing this GPO GUID" -ForegroundColor Gray
                                     }
                                 }
                             }
                             catch {
                                 if ($DebugMode) {
-                                    Write-Host "      ??  Error in AD search fallback: $($_.Exception.Message)" -ForegroundColor Gray
+                                    Write-Host "      >>  Error in AD search fallback: $($_.Exception.Message)" -ForegroundColor Gray
                                 }
                             }
                         }
@@ -716,37 +716,37 @@ function Test-KerberosGPOSettings {
                                     $seenContainers += $link.Container
                                 }
                                 elseif ($DebugMode) {
-                                    Write-Host "      ??  Removing duplicate link for container: $($link.Container)" -ForegroundColor Yellow
+                                    Write-Host "      >>  Removing duplicate link for container: $($link.Container)" -ForegroundColor Yellow
                                 }
                             }
                             
                             $allGPOLinks = $uniqueLinks
                             
                             if ($DebugMode) {
-                                Write-Host "      ? Final unique links count: $($allGPOLinks.Count)" -ForegroundColor Green
+                                Write-Host "      > Final unique links count: $($allGPOLinks.Count)" -ForegroundColor Green
                             }
                         }
                     }
                     catch {
-                        Write-Host "      ??  Error detecting GPO links: $($_.Exception.Message)" -ForegroundColor Yellow
+                        Write-Host "      >>  Error detecting GPO links: $($_.Exception.Message)" -ForegroundColor Yellow
                     }
                     
                     # Analyze settings with more detailed checking
-                    Write-Host "      ?? Analyzing GPO settings..." -ForegroundColor Gray
+                    Write-Host "      >> Analyzing GPO settings..." -ForegroundColor Gray
                     
                     # Check for different possible setting patterns
-                    $hasAES128 = $gpoReport -match "AES128_HMAC_SHA1.*?(?:Enabled|True)" -or $gpoReport -match "AES128.*?1"
-                    $hasAES256 = $gpoReport -match "AES256_HMAC_SHA1.*?(?:Enabled|True)" -or $gpoReport -match "AES256.*?1"
-                    $hasRC4Disabled = $gpoReport -match "RC4_HMAC_MD5.*?(?:Disabled|False)" -or $gpoReport -notmatch "RC4.*?1"
-                    $hasDESDisabled = $gpoReport -match "DES_CBC.*?(?:Disabled|False)" -or $gpoReport -notmatch "DES.*?1"
+                    $hasAES128 = $gpoReport -match "AES128_HMAC_SHA1.*>(>:Enabled|True)" -or $gpoReport -match "AES128.*>1"
+                    $hasAES256 = $gpoReport -match "AES256_HMAC_SHA1.*>(>:Enabled|True)" -or $gpoReport -match "AES256.*>1"
+                    $hasRC4Disabled = $gpoReport -match "RC4_HMAC_MD5.*>(>:Disabled|False)" -or $gpoReport -notmatch "RC4.*>1"
+                    $hasDESDisabled = $gpoReport -match "DES_CBC.*>(>:Disabled|False)" -or $gpoReport -notmatch "DES.*>1"
                     
                     # Also check for numeric values that might indicate the settings
                     $encValue = $null
-                    if ($gpoReport -match "SupportedEncryptionTypes.*?(\d+)") {
+                    if ($gpoReport -match "SupportedEncryptionTypes.*>(\d+)") {
                         $encValue = [int]$matches[1]
                         if ($DebugMode) {
-                            Write-Host "      ?? Found numeric encryption value: $encValue" -ForegroundColor Gray
-                            Write-Host "      ?? Decoding value: $(Get-EncryptionTypes $encValue)" -ForegroundColor Gray
+                            Write-Host "      >> Found numeric encryption value: $encValue" -ForegroundColor Gray
+                            Write-Host "      >> Decoding value: $(Get-EncryptionTypes $encValue)" -ForegroundColor Gray
                         }
                         
                         # Decode the value using bitwise operations
@@ -756,7 +756,7 @@ function Test-KerberosGPOSettings {
                         $hasDESDisabled = $hasDESDisabled -or (($encValue -band 0x3) -eq 0)  # Bits 0-1 = DES (disabled when bits not set)
                     }
                     
-                    Write-Host "      ?? Settings analysis: AES128=$hasAES128, AES256=$hasAES256, RC4Disabled=$hasRC4Disabled, DESDisabled=$hasDESDisabled" -ForegroundColor Gray
+                    Write-Host "      >> Settings analysis: AES128=$hasAES128, AES256=$hasAES256, RC4Disabled=$hasRC4Disabled, DESDisabled=$hasDESDisabled" -ForegroundColor Gray
                     
                     $isOptimal = $hasAES128 -and $hasAES256 -and $hasRC4Disabled -and $hasDESDisabled
                     $isSecure = $hasAES128 -and $hasAES256 -and $hasRC4Disabled  # Secure even if DES status is unclear
@@ -784,31 +784,31 @@ function Test-KerberosGPOSettings {
         }
         
         if ($kerberosGPOs.Count -eq 0) {
-            Write-Host "`n? RESULT: No Kerberos encryption GPOs found in domain: $Domain" -ForegroundColor Red
+            Write-Host "`n> RESULT: No Kerberos encryption GPOs found in domain: $Domain" -ForegroundColor Red
             
-            $headerMessages = @("?? RECOMMENDATION: Create and link GPO with Kerberos encryption settings")
+            $headerMessages = @(">> RECOMMENDATION: Create and link GPO with Kerberos encryption settings")
             $contentMessages = @(
-                "? Setting: 'Network security: Configure encryption types allowed for",
+                "> Setting: 'Network security: Configure encryption types allowed for",
                 "          Kerberos'",
-                "? For Domain Controllers: Link to 'Domain Controllers' OU",
-                "? For All Objects: Link to Domain root",
-                "? Best Practice: Use both for comprehensive coverage"
+                "> For Domain Controllers: Link to 'Domain Controllers' OU",
+                "> For All Objects: Link to Domain root",
+                "> Best Practice: Use both for comprehensive coverage"
             )
             Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $contentMessages -Color "Yellow"
         }
         else {
-            Write-Host "`n? RESULT: Found $($kerberosGPOs.Count) Kerberos encryption GPO(s) in domain: $Domain" -ForegroundColor Green
-            Write-Host ("?" * 73) -ForegroundColor Green
+            Write-Host "`n> RESULT: Found $($kerberosGPOs.Count) Kerberos encryption GPO(s) in domain: $Domain" -ForegroundColor Green
+            Write-Host (">" * 73) -ForegroundColor Green
             
             # Report findings based on scope
             foreach ($gpo in $kerberosGPOs) {
-                Write-Host "`n?? GPO: $($gpo.Name)" -ForegroundColor Cyan
+                Write-Host "`n>> GPO: $($gpo.Name)" -ForegroundColor Cyan
                 
                 # Show detailed linking information
                 if ($gpo.AllLinks -and $gpo.AllLinks.Count -gt 0) {
-                    Write-Host "   ?? Linked to the following locations:" -ForegroundColor White
+                    Write-Host "   >> Linked to the following locations:" -ForegroundColor White
                     foreach ($link in $gpo.AllLinks | Sort-Object Order) {
-                        $statusIcon = if ($link.Enabled) { "?" } else { "?" }
+                        $statusIcon = if ($link.Enabled) { ">" } else { ">" }
                         $enforcedText = if ($link.Enforced) { " (Enforced)" } else { "" }
                         Write-Host "     $statusIcon $($link.DisplayName) [Order: $($link.Order)]$enforcedText" -ForegroundColor Gray
                     }
@@ -819,66 +819,66 @@ function Test-KerberosGPOSettings {
                     $otherOUs = $gpo.AllLinks | Where-Object { $_.DisplayName -notin @("Domain Root", "Domain Controllers OU") }
                     
                     if ($domainLinked -and $dcLinked) {
-                        Write-Host "    ?? Coverage: Complete (Domain + DCs + $($otherOUs.Count) additional OUs)" -ForegroundColor Green
+                        Write-Host "    >> Coverage: Complete (Domain + DCs + $($otherOUs.Count) additional OUs)" -ForegroundColor Green
                     }
                     elseif ($domainLinked) {
-                        Write-Host "    ? Coverage: Domain-wide (All objects + $($otherOUs.Count) additional OUs)" -ForegroundColor Cyan
+                        Write-Host "    > Coverage: Domain-wide (All objects + $($otherOUs.Count) additional OUs)" -ForegroundColor Cyan
                         if ($Scope -in @("DomainControllers", "Both", "AllOUs")) {
-                            Write-Host "    ??  Consider linking to Domain Controllers OU for explicit DC coverage" -ForegroundColor Yellow
+                            Write-Host "    >>  Consider linking to Domain Controllers OU for explicit DC coverage" -ForegroundColor Yellow
                         }
                     }
                     elseif ($dcLinked) {
-                        Write-Host "    ? Coverage: Domain Controllers + $($otherOUs.Count) additional OUs" -ForegroundColor Cyan
+                        Write-Host "    > Coverage: Domain Controllers + $($otherOUs.Count) additional OUs" -ForegroundColor Cyan
                         if ($Scope -in @("Domain", "Both", "AllOUs")) {
-                            Write-Host "    ??  Consider linking to Domain level for complete coverage" -ForegroundColor Yellow
+                            Write-Host "    >>  Consider linking to Domain level for complete coverage" -ForegroundColor Yellow
                         }
                     }
                     else {
-                        Write-Host "    ?? Coverage: $($gpo.AllLinks.Count) specific OUs only" -ForegroundColor Yellow
+                        Write-Host "    >> Coverage: $($gpo.AllLinks.Count) specific OUs only" -ForegroundColor Yellow
                         if ($Scope -notin @("AllOUs") -and $Scope -notmatch "^OU=.*") {
-                            Write-Host "    ?? Consider linking to Domain level for broader coverage" -ForegroundColor Yellow
+                            Write-Host "    >> Consider linking to Domain level for broader coverage" -ForegroundColor Yellow
                         }
                     }
                 }
                 else {
-                    Write-Host "    ? No active links found for this GPO" -ForegroundColor Red
-                    Write-Host "    ?? GPO exists but is not linked to any organizational units" -ForegroundColor Yellow
+                    Write-Host "    > No active links found for this GPO" -ForegroundColor Red
+                    Write-Host "    >> GPO exists but is not linked to any organizational units" -ForegroundColor Yellow
                 }
                 
                 # Report settings compliance
                 if ($gpo.IsOptimal) {
-                    Write-Host "    ? EXCELLENT: Optimal security settings" -ForegroundColor Green
-                    Write-Host "      ? AES128+256 enabled, RC4+DES explicitly disabled" -ForegroundColor Green
+                    Write-Host "    > EXCELLENT: Optimal security settings" -ForegroundColor Green
+                    Write-Host "      > AES128+256 enabled, RC4+DES explicitly disabled" -ForegroundColor Green
                     if ($gpo.EncryptionValue) {
-                        Write-Host "      ? Encryption value: $($gpo.EncryptionValue) = $(Get-EncryptionTypes $gpo.EncryptionValue)" -ForegroundColor Green
+                        Write-Host "      > Encryption value: $($gpo.EncryptionValue) = $(Get-EncryptionTypes $gpo.EncryptionValue)" -ForegroundColor Green
                     }
                 }
                 elseif ($gpo.IsSecure) {
-                    Write-Host "    ? GOOD: Secure settings (weak ciphers disabled)" -ForegroundColor Green
-                    Write-Host "      ? AES128+256 enabled, RC4 disabled" -ForegroundColor Green
+                    Write-Host "    > GOOD: Secure settings (weak ciphers disabled)" -ForegroundColor Green
+                    Write-Host "      > AES128+256 enabled, RC4 disabled" -ForegroundColor Green
                     if ($gpo.EncryptionValue) {
-                        Write-Host "      ? Encryption value: $($gpo.EncryptionValue) = $(Get-EncryptionTypes $gpo.EncryptionValue)" -ForegroundColor Green
+                        Write-Host "      > Encryption value: $($gpo.EncryptionValue) = $(Get-EncryptionTypes $gpo.EncryptionValue)" -ForegroundColor Green
                     }
                     if (-not $gpo.HasDESDisabled) {
-                        Write-Host "      ? DES status: Not explicitly configured (DES disabled by omission - GOOD)" -ForegroundColor Green
-                        Write-Host "        ?? Note: When DES bits (1,2) are not set in the value, DES is effectively disabled" -ForegroundColor Gray
+                        Write-Host "      > DES status: Not explicitly configured (DES disabled by omission - GOOD)" -ForegroundColor Green
+                        Write-Host "        >> Note: When DES bits (1,2) are not set in the value, DES is effectively disabled" -ForegroundColor Gray
                     }
                 }
                 else {
-                    Write-Host "    ??  NEEDS IMPROVEMENT: Sub-optimal settings detected:" -ForegroundColor Yellow
-                    if (-not $gpo.HasAES128) { Write-Host "      ? AES128 not enabled" -ForegroundColor Red }
-                    if (-not $gpo.HasAES256) { Write-Host "      ? AES256 not enabled" -ForegroundColor Red }
-                    if (-not $gpo.HasRC4Disabled) { Write-Host "      ? RC4 not disabled (SECURITY RISK)" -ForegroundColor Red }
+                    Write-Host "    >>  NEEDS IMPROVEMENT: Sub-optimal settings detected:" -ForegroundColor Yellow
+                    if (-not $gpo.HasAES128) { Write-Host "      > AES128 not enabled" -ForegroundColor Red }
+                    if (-not $gpo.HasAES256) { Write-Host "      > AES256 not enabled" -ForegroundColor Red }
+                    if (-not $gpo.HasRC4Disabled) { Write-Host "      > RC4 not disabled (SECURITY RISK)" -ForegroundColor Red }
                     if (-not $gpo.HasDESDisabled) { 
                         if ($gpo.EncryptionValue -and ($gpo.EncryptionValue -band 0x3) -eq 0) {
-                            Write-Host "      ? DES disabled by omission (bits 1,2 not set - GOOD)" -ForegroundColor Green
+                            Write-Host "      > DES disabled by omission (bits 1,2 not set - GOOD)" -ForegroundColor Green
                         }
                         else {
-                            Write-Host "      ??  DES status unclear - verify DES is not enabled" -ForegroundColor Yellow
+                            Write-Host "      >>  DES status unclear - verify DES is not enabled" -ForegroundColor Yellow
                         }
                     }
                     if ($gpo.EncryptionValue) {
-                        Write-Host "      ? Current encryption value: $($gpo.EncryptionValue) = $(Get-EncryptionTypes $gpo.EncryptionValue)" -ForegroundColor Cyan
+                        Write-Host "      > Current encryption value: $($gpo.EncryptionValue) = $(Get-EncryptionTypes $gpo.EncryptionValue)" -ForegroundColor Cyan
                     }
                 }
             }
@@ -891,13 +891,13 @@ function Test-KerberosGPOSettings {
         
     }
     catch {
-        Write-Host "`n? ERROR: Unable to check GPO settings in domain: $Domain" -ForegroundColor Red
+        Write-Host "`n> ERROR: Unable to check GPO settings in domain: $Domain" -ForegroundColor Red
         Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
     }
     
     Write-Host ""
     Write-Host ("=" * 80) -ForegroundColor DarkCyan
-    Write-Host "? COMPLETED GPO CHECK FOR DOMAIN: $($Domain.ToUpper())" -ForegroundColor Green
+    Write-Host "> COMPLETED GPO CHECK FOR DOMAIN: $($Domain.ToUpper())" -ForegroundColor Green
     Write-Host ("=" * 80) -ForegroundColor DarkCyan
 }
 
@@ -908,9 +908,9 @@ function Test-GPOApplication {
         [string]$Server
     )
     
-    Write-Host "`n  ???????????????????????????????????????????????????????????????????" -ForegroundColor Magenta
-    Write-Host "  ? ?? CHECKING GPO APPLICATION STATUS IN: $($Domain.ToUpper())" -ForegroundColor Magenta
-    Write-Host "  ???????????????????????????????????????????????????????????????????" -ForegroundColor Magenta
+    Write-Host "`n  " + ("=" * 75) -ForegroundColor Magenta
+    Write-Host "  || CHECKING GPO APPLICATION STATUS IN: $($Domain.ToUpper())" -ForegroundColor Magenta
+    Write-Host "  " + ("=" * 75) -ForegroundColor Magenta
     
     # Set up server parameters for consistent access
     $serverParams = @{}
@@ -970,51 +970,51 @@ function Test-GPOApplication {
         # User Kerberos encryption is determined by the computer they authenticate from
         
         # Report GPO application status
-        Write-Host "    ?? GPO Application Status (sample analysis):" -ForegroundColor White
-        Write-Host "    ??  Legend:" -ForegroundColor Gray
-        Write-Host "      ? GPO Applied (AES-only): Objects with msDS-SupportedEncryptionTypes = 24 (AES128+AES256)" -ForegroundColor Gray
-        Write-Host "      ? Manual Settings (custom): Objects with non-standard encryption values (not 24)" -ForegroundColor Gray
-        Write-Host "      ? Not Set (RC4 fallback): Objects without msDS-SupportedEncryptionTypes attribute" -ForegroundColor Gray
-        Write-Host "      ??  Note: Users don't use msDS-SupportedEncryptionTypes (computer-based setting only)" -ForegroundColor Gray
+        Write-Host "    >> GPO Application Status (sample analysis):" -ForegroundColor White
+        Write-Host "    >>  Legend:" -ForegroundColor Gray
+        Write-Host "      > GPO Applied (AES-only): Objects with msDS-SupportedEncryptionTypes = 24 (AES128+AES256)" -ForegroundColor Gray
+        Write-Host "      > Manual Settings (custom): Objects with non-standard encryption values (not 24)" -ForegroundColor Gray
+        Write-Host "      > Not Set (RC4 fallback): Objects without msDS-SupportedEncryptionTypes attribute" -ForegroundColor Gray
+        Write-Host "      >>  Note: Users don't use msDS-SupportedEncryptionTypes (computer-based setting only)" -ForegroundColor Gray
         Write-Host ""
         
         if ($domainControllers.Count -gt 0) {
-            Write-Host "    ???  Domain Controllers ($($domainControllers.Count) total):" -ForegroundColor Yellow
-            Write-Host "      ? GPO Applied (AES-only): $dcGpoAppliedCount" -ForegroundColor Green
-            Write-Host "      ? Manual Settings (custom values): $dcManualSetCount" -ForegroundColor Cyan
-            Write-Host "      ? Not Set (RC4 fallback): $dcNotSetCount" -ForegroundColor Red
+            Write-Host "    >>>  Domain Controllers ($($domainControllers.Count) total):" -ForegroundColor Yellow
+            Write-Host "      > GPO Applied (AES-only): $dcGpoAppliedCount" -ForegroundColor Green
+            Write-Host "      > Manual Settings (custom values): $dcManualSetCount" -ForegroundColor Cyan
+            Write-Host "      > Not Set (RC4 fallback): $dcNotSetCount" -ForegroundColor Red
             
             if ($dcGpoAppliedCount -eq $domainControllers.Count) {
-                Write-Host "      ? All DCs have optimal encryption settings!" -ForegroundColor Green
+                Write-Host "      > All DCs have optimal encryption settings!" -ForegroundColor Green
             }
             elseif ($dcNotSetCount -gt 0) {
-                Write-Host "      ??  Some DCs are using RC4 fallback" -ForegroundColor Yellow
+                Write-Host "      >>  Some DCs are using RC4 fallback" -ForegroundColor Yellow
             }
         }
         
         if ($sampleComputers.Count -gt 0) {
-            Write-Host "    ?? Regular Computers (sample of $($sampleComputers.Count)):" -ForegroundColor Yellow
-            Write-Host "      ? GPO Applied (AES-only): $gpoAppliedCount" -ForegroundColor Green
-            Write-Host "      ? Manual Settings (custom values): $manualSetCount" -ForegroundColor Cyan
-            Write-Host "      ? Not Set (RC4 fallback): $notSetCount" -ForegroundColor Red
+            Write-Host "    >> Regular Computers (sample of $($sampleComputers.Count)):" -ForegroundColor Yellow
+            Write-Host "      > GPO Applied (AES-only): $gpoAppliedCount" -ForegroundColor Green
+            Write-Host "      > Manual Settings (custom values): $manualSetCount" -ForegroundColor Cyan
+            Write-Host "      > Not Set (RC4 fallback): $notSetCount" -ForegroundColor Red
         }
         
         # Provide recommendations based on findings
         if ($dcNotSetCount -gt 0 -or $notSetCount -gt 0) {
-            Write-Host "    ?? RECOMMENDATIONS:" -ForegroundColor Yellow
+            Write-Host "    >> RECOMMENDATIONS:" -ForegroundColor Yellow
             if ($dcNotSetCount -gt 0) {
-                Write-Host "      ? Ensure GPO is linked to Domain Controllers OU and refreshed" -ForegroundColor Yellow
+                Write-Host "      > Ensure GPO is linked to Domain Controllers OU and refreshed" -ForegroundColor Yellow
             }
             if ($notSetCount -gt 0) {
-                Write-Host "      ? Ensure GPO is linked to Domain level and refreshed" -ForegroundColor Yellow
-                Write-Host "      ? Run 'gpupdate /force' on affected systems" -ForegroundColor Yellow
+                Write-Host "      > Ensure GPO is linked to Domain level and refreshed" -ForegroundColor Yellow
+                Write-Host "      > Run 'gpupdate /force' on affected systems" -ForegroundColor Yellow
             }
-            Write-Host "      ? Objects with 'Not Set' status will be flagged in detailed scan below" -ForegroundColor Yellow
+            Write-Host "      > Objects with 'Not Set' status will be flagged in detailed scan below" -ForegroundColor Yellow
         }
         
     }
     catch {
-        Write-Host "    ??  Could not analyze GPO application status: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "    >>  Could not analyze GPO application status: $($_.Exception.Message)" -ForegroundColor Yellow
     }
 }
 
@@ -1025,19 +1025,19 @@ $secureObjects = @()  # Track objects that already have secure settings
 $adParams = @{}
 if ($Server) {
     $adParams['Server'] = $Server
-    Write-Host "?? Connecting to specified server: $Server" -ForegroundColor Cyan
+    Write-Host ">> Connecting to specified server: $Server" -ForegroundColor Cyan
 }
 
 # Handle target forest specification
 $forestParams = @{}
 if ($TargetForest) {
     $forestParams['Identity'] = $TargetForest
-    Write-Host "?? Targeting forest: $TargetForest" -ForegroundColor Cyan
+    Write-Host ">> Targeting forest: $TargetForest" -ForegroundColor Cyan
     
     # If TargetForest is specified but no specific server, try to find a DC in the target forest
     if (-not $Server) {
         try {
-            Write-Host "?? Attempting to discover domain controller in target forest..." -ForegroundColor Gray
+            Write-Host ">> Attempting to discover domain controller in target forest..." -ForegroundColor Gray
             $targetForestInfo = Get-ADForest -Identity $TargetForest
             $rootDomain = $targetForestInfo.RootDomain
             
@@ -1045,11 +1045,11 @@ if ($TargetForest) {
             $targetDC = Get-ADDomainController -DomainName $rootDomain -Discover -ErrorAction SilentlyContinue
             if ($targetDC) {
                 $adParams['Server'] = $targetDC.HostName[0]
-                Write-Host "? Found target domain controller: $($targetDC.HostName[0])" -ForegroundColor Green
+                Write-Host "> Found target domain controller: $($targetDC.HostName[0])" -ForegroundColor Green
             }
         }
         catch {
-            Write-Host "??  Could not auto-discover DC in target forest. Consider using -Server parameter." -ForegroundColor Yellow
+            Write-Host ">>  Could not auto-discover DC in target forest. Consider using -Server parameter." -ForegroundColor Yellow
         }
     }
 }
@@ -1057,25 +1057,25 @@ if ($TargetForest) {
 try {
     if ($TargetForest) {
         $forest = Get-ADForest @forestParams @adParams
-        Write-Host "? Successfully connected to target forest: $($forest.Name)" -ForegroundColor Green
-        Write-Host "?? Forest contains domains: $($forest.Domains -join ', ')" -ForegroundColor Cyan
+        Write-Host "> Successfully connected to target forest: $($forest.Name)" -ForegroundColor Green
+        Write-Host ">> Forest contains domains: $($forest.Domains -join ', ')" -ForegroundColor Cyan
     }
     else {
         $forest = Get-ADForest @adParams
     }
 }
 catch {
-    Write-Host "? ERROR: Could not connect to Active Directory forest" -ForegroundColor Red
+    Write-Host "> ERROR: Could not connect to Active Directory forest" -ForegroundColor Red
     Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
     if ($TargetForest) {
-        Write-Host "?? FOREST TRUST TROUBLESHOOTING:" -ForegroundColor Yellow
-        Write-Host "? Verify forest trust exists between your forest and target forest" -ForegroundColor Yellow
-        Write-Host "? Ensure your account has permissions in the target forest" -ForegroundColor Yellow
-        Write-Host "? Try specifying a domain controller: -Server dc01.targetforest.com" -ForegroundColor Yellow
-        Write-Host "? Check network connectivity to target forest domain controllers" -ForegroundColor Yellow
+        Write-Host ">> FOREST TRUST TROUBLESHOOTING:" -ForegroundColor Yellow
+        Write-Host "> Verify forest trust exists between your forest and target forest" -ForegroundColor Yellow
+        Write-Host "> Ensure your account has permissions in the target forest" -ForegroundColor Yellow
+        Write-Host "> Try specifying a domain controller: -Server dc01.targetforest.com" -ForegroundColor Yellow
+        Write-Host "> Check network connectivity to target forest domain controllers" -ForegroundColor Yellow
     }
     elseif (-not $Server) {
-        Write-Host "?? TIP: Try specifying a domain controller with -Server parameter" -ForegroundColor Yellow
+        Write-Host ">> TIP: Try specifying a domain controller with -Server parameter" -ForegroundColor Yellow
         Write-Host "Example: .\RC4_AD_SCAN.ps1 -Server dc01.contoso.com" -ForegroundColor Yellow
     }
     exit 1
@@ -1083,60 +1083,60 @@ catch {
 
 # Check GPO settings for each domain
 if (-not $SkipGPOCheck) {
-    Write-Host "?? Checking Group Policy settings..." -ForegroundColor Magenta
+    Write-Host ">> Checking Group Policy settings..." -ForegroundColor Magenta
     foreach ($domain in $forest.Domains) {
         Test-KerberosGPOSettings -Domain $domain -Scope $GPOScope -DebugMode:$DebugMode -Server $Server -TargetForest $TargetForest
     }
     
     # Show recommendations once after all domains are checked
     Write-Host ""
-    Write-Host ("?" * 80) -ForegroundColor Cyan
-    Write-Host "?? GPO CONFIGURATION RECOMMENDATIONS" -ForegroundColor Cyan
-    Write-Host ("?" * 80) -ForegroundColor Cyan
+    Write-Host (">" * 80) -ForegroundColor Cyan
+    Write-Host ">> GPO CONFIGURATION RECOMMENDATIONS" -ForegroundColor Cyan
+    Write-Host (">" * 80) -ForegroundColor Cyan
     
-    $headerMessages = @("?? GPO ENCRYPTION SETTINGS RECOMMENDATIONS")
+    $headerMessages = @(">> GPO ENCRYPTION SETTINGS RECOMMENDATIONS")
     $contentMessages = @(
         "OPTIMAL CONFIGURATION (Recommended):",
-        "? AES128-CTS-HMAC-SHA1-96: ? Enabled",
-        "? AES256-CTS-HMAC-SHA1-96: ? Enabled", 
-        "? RC4-HMAC: ? Disabled (uncheck in GPO)",
-        "? DES-CBC-CRC: ? Disabled (uncheck in GPO)",
-        "? DES-CBC-MD5: ? Disabled (uncheck in GPO)",
+        "> AES128-CTS-HMAC-SHA1-96: > Enabled",
+        "> AES256-CTS-HMAC-SHA1-96: > Enabled", 
+        "> RC4-HMAC: > Disabled (uncheck in GPO)",
+        "> DES-CBC-CRC: > Disabled (uncheck in GPO)",
+        "> DES-CBC-MD5: > Disabled (uncheck in GPO)",
         "",
         "ENCRYPTION VALUE EXAMPLES:",
-        "? Value 24 (0x18): AES128+AES256 only - EXCELLENT",
-        "? Value 28 (0x1C): AES+RC4 mixed - NEEDS IMPROVEMENT",
-        "? Value 31 (0x1F): All types enabled - SECURITY RISK",
+        "> Value 24 (0x18): AES128+AES256 only - EXCELLENT",
+        "> Value 28 (0x1C): AES+RC4 mixed - NEEDS IMPROVEMENT",
+        "> Value 31 (0x1F): All types enabled - SECURITY RISK",
         "",
         "LINKING BEST PRACTICES:",
-        "? Domain Level: Organization-wide policy",
-        "? Domain Controllers OU: DC-specific requirements",
-        "? Both Levels: Comprehensive coverage"
+        "> Domain Level: Organization-wide policy",
+        "> Domain Controllers OU: DC-specific requirements",
+        "> Both Levels: Comprehensive coverage"
     )
     Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $contentMessages -Color "Cyan"
     
     Write-Host ""
-    $headerMessages = @("??  CRITICAL: GPO LIMITATIONS FOR TRUST OBJECTS")
+    $headerMessages = @(">>  CRITICAL: GPO LIMITATIONS FOR TRUST OBJECTS")
     $contentMessages = @(
         "IMPORTANT: GPO settings DO NOT apply to trust objects!",
         "",
-        "? What GPO Controls:",
-        "? Domain Controllers (computer accounts)",
-        "? Member computers and servers", 
-        "? What encryption types DCs accept/request",
+        "> What GPO Controls:",
+        "> Domain Controllers (computer accounts)",
+        "> Member computers and servers", 
+        "> What encryption types DCs accept/request",
         "",
-        "? What GPO Does NOT Control:",
-        "? Trust objects (forest/domain trusts)",
-        "? Trust encryption type offerings",
-        "? Inter-domain authentication preferences",
+        "> What GPO Does NOT Control:",
+        "> Trust objects (forest/domain trusts)",
+        "> Trust encryption type offerings",
+        "> Inter-domain authentication preferences",
         "",
-        "?? Trust Remediation Requires:",
-        "? Manual attribute modification: msDS-SupportedEncryptionTypes",
-        "? Use this script with -ApplyFixes for trust objects",
-        "? Or PowerShell: Set-ADObject -Identity '<TrustDN>'",
+        ">> Trust Remediation Requires:",
+        "> Manual attribute modification: msDS-SupportedEncryptionTypes",
+        "> Use this script with -ApplyFixes for trust objects",
+        "> Or PowerShell: Set-ADObject -Identity '<TrustDN>'",
         "  -Add @{msDS-SupportedEncryptionTypes=24}",
         "",
-        "?? Complete Security Strategy:",
+        ">> Complete Security Strategy:",
         "1. Deploy GPO for computers and DCs",
         "2. Manually fix trust objects (this script helps)",
         "3. Monitor Event IDs 4768/4769 for verification"
@@ -1147,17 +1147,17 @@ if (-not $SkipGPOCheck) {
 # Exit early if only GPO check was requested
 if ($GPOCheckOnly) {
     Write-Host ""
-    Write-Host ("?" * 80) -ForegroundColor Magenta
-    Write-Host "?? GPO ANALYSIS COMPLETE" -ForegroundColor Magenta
-    Write-Host ("?" * 80) -ForegroundColor Magenta
-    Write-Host "?? GPO-only mode: Object scanning was skipped as requested." -ForegroundColor Cyan
-    Write-Host "?? To scan objects as well, run the script without -GPOCheckOnly parameter." -ForegroundColor Gray
+    Write-Host (">" * 80) -ForegroundColor Magenta
+    Write-Host ">> GPO ANALYSIS COMPLETE" -ForegroundColor Magenta
+    Write-Host (">" * 80) -ForegroundColor Magenta
+    Write-Host ">> GPO-only mode: Object scanning was skipped as requested." -ForegroundColor Cyan
+    Write-Host ">> To scan objects as well, run the script without -GPOCheckOnly parameter." -ForegroundColor Gray
     exit 0
 }
 
 Write-Host ""
-Write-Host "?? SCANNING FOR OBJECTS WITH WEAK ENCRYPTION..." -ForegroundColor Magenta
-Write-Host ("?" * 80) -ForegroundColor Magenta
+Write-Host ">> SCANNING FOR OBJECTS WITH WEAK ENCRYPTION..." -ForegroundColor Magenta
+Write-Host (">" * 80) -ForegroundColor Magenta
 
 $computerTotal = 0
 $computerRC4Count = 0
@@ -1166,9 +1166,9 @@ $trustRC4Count = 0
 
 foreach ($domain in $forest.Domains) {
     Write-Host ""
-    Write-Host ("?" * 80) -ForegroundColor DarkYellow
-    Write-Host "?? SCANNING DOMAIN: $($domain.ToUpper())" -ForegroundColor Yellow
-    Write-Host ("?" * 80) -ForegroundColor DarkYellow
+    Write-Host (">" * 80) -ForegroundColor DarkYellow
+    Write-Host ">> SCANNING DOMAIN: $($domain.ToUpper())" -ForegroundColor Yellow
+    Write-Host (">" * 80) -ForegroundColor DarkYellow
 
     # Set up AD command parameters for target forest context
     $domainParams = @{}
@@ -1181,13 +1181,13 @@ foreach ($domain in $forest.Domains) {
     }
     
     if ($TargetForest -and $DebugMode) {
-        Write-Host "  ?? Scanning in target forest context: $TargetForest" -ForegroundColor Gray
+        Write-Host "  >> Scanning in target forest context: $TargetForest" -ForegroundColor Gray
     }
 
     # Note: Users are not scanned as msDS-SupportedEncryptionTypes is a computer-based setting only
     # User Kerberos encryption is controlled by the computer they authenticate from and domain GPO settings
 
-    Write-Host "  ?? Scanning Computer Objects..." -ForegroundColor Cyan
+    Write-Host "  >> Scanning Computer Objects..." -ForegroundColor Cyan
     $domainComputerCount = 0
     $domainComputerRC4Count = 0
     
@@ -1212,10 +1212,10 @@ foreach ($domain in $forest.Domains) {
             $results += $obj
 
             if ($ApplyFixes) {
-                $answer = Read-Host "    ?? Remediate Computer $($_.SamAccountName) in $domain? (Y/N)"
+                $answer = Read-Host "    >> Remediate Computer $($_.SamAccountName) in $domain> (Y/N)"
                 if ($answer -match '^[Yy]') {
                     Set-ADComputer -Identity $_ -Replace @{"msDS-SupportedEncryptionTypes" = 24 }
-                    Write-Host "    ? Fixed" -ForegroundColor Green
+                    Write-Host "    > Fixed" -ForegroundColor Green
                 }
             }
         }
@@ -1231,14 +1231,14 @@ foreach ($domain in $forest.Domains) {
             $secureObjects += $secureObj
             
             if ($DebugMode) {
-                Write-Host "    ? Computer '$($_.SamAccountName)' has secure encryption: $(Get-EncryptionTypes $enc)" -ForegroundColor Green
+                Write-Host "    > Computer '$($_.SamAccountName)' has secure encryption: $(Get-EncryptionTypes $enc)" -ForegroundColor Green
             }
         }
     }
     
-    Write-Host "  ?? Computer scan complete: $domainComputerCount total, $domainComputerRC4Count with RC4/weak encryption" -ForegroundColor Gray
+    Write-Host "  >> Computer scan complete: $domainComputerCount total, $domainComputerRC4Count with RC4/weak encryption" -ForegroundColor Gray
 
-    Write-Host "  ?? Scanning Trust Objects..." -ForegroundColor Cyan
+    Write-Host "  >> Scanning Trust Objects..." -ForegroundColor Cyan
     $domainTrustCount = 0
     $domainTrustRC4Count = 0
     
@@ -1249,7 +1249,7 @@ foreach ($domain in $forest.Domains) {
         $trustTotal++
         
         if ($DebugMode) {
-            Write-Host "    ?? Found trust: $($_.Name) | Type: $($_.TrustType) | Direction: $($_.Direction) | DN: $($_.DistinguishedName)" -ForegroundColor Gray
+            Write-Host "    >> Found trust: $($_.Name) | Type: $($_.TrustType) | Direction: $($_.Direction) | DN: $($_.DistinguishedName)" -ForegroundColor Gray
         }
         
         $enc = $_."msDS-SupportedEncryptionTypes"
@@ -1257,7 +1257,7 @@ foreach ($domain in $forest.Domains) {
             $domainTrustRC4Count++
             $trustRC4Count++
             
-            Write-Host "    ??  Trust '$($_.Name)' has weak encryption: $(Get-EncryptionTypes $enc)" -ForegroundColor Yellow
+            Write-Host "    >>  Trust '$($_.Name)' has weak encryption: $(Get-EncryptionTypes $enc)" -ForegroundColor Yellow
             Write-Host "       Type: $($_.TrustType) | Direction: $($_.Direction)" -ForegroundColor Gray
             
             $obj = [PSCustomObject]@{
@@ -1272,16 +1272,16 @@ foreach ($domain in $forest.Domains) {
             $results += $obj
 
             if ($ApplyFixes) {
-                $answer = Read-Host "    ?? Remediate Trust $($_.Name) in $domain? (Y/N)"
+                $answer = Read-Host "    >> Remediate Trust $($_.Name) in $domain> (Y/N)"
                 if ($answer -match '^[Yy]') {
                     try {
                         Set-ADTrust -Identity $_.Name -Replace @{"msDS-SupportedEncryptionTypes" = 24 } @domainParams
-                        Write-Host "    ? Fixed: Trust $($_.Name) set to AES-only (value 24)" -ForegroundColor Green
-                        Write-Host "    ??  Note: Trust fixes require explicit attribute modification, not GPO" -ForegroundColor Gray
+                        Write-Host "    > Fixed: Trust $($_.Name) set to AES-only (value 24)" -ForegroundColor Green
+                        Write-Host "    >>  Note: Trust fixes require explicit attribute modification, not GPO" -ForegroundColor Gray
                     }
                     catch {
-                        Write-Host "    ? Failed to fix trust $($_.Name): $($_.Exception.Message)" -ForegroundColor Red
-                        Write-Host "    ?? Alternative: Set-ADObject -Identity '$($_.DistinguishedName)' -Add @{msDS-SupportedEncryptionTypes=24}" -ForegroundColor Yellow
+                        Write-Host "    > Failed to fix trust $($_.Name): $($_.Exception.Message)" -ForegroundColor Red
+                        Write-Host "    >> Alternative: Set-ADObject -Identity '$($_.DistinguishedName)' -Add @{msDS-SupportedEncryptionTypes=24}" -ForegroundColor Yellow
                     }
                 }
             }
@@ -1300,32 +1300,32 @@ foreach ($domain in $forest.Domains) {
             $secureObjects += $secureObj
             
             if ($DebugMode) {
-                Write-Host "    ? Trust '$($_.Name)' has secure encryption: $(Get-EncryptionTypes $enc)" -ForegroundColor Green
+                Write-Host "    > Trust '$($_.Name)' has secure encryption: $(Get-EncryptionTypes $enc)" -ForegroundColor Green
             }
         }
     }
     
-    Write-Host "  ?? Trust scan complete: $domainTrustCount total, $domainTrustRC4Count with RC4/weak encryption" -ForegroundColor Gray
+    Write-Host "  >> Trust scan complete: $domainTrustCount total, $domainTrustRC4Count with RC4/weak encryption" -ForegroundColor Gray
     
-    Write-Host "`n  ? Domain scan completed: $($domain.ToUpper())" -ForegroundColor Green
-    Write-Host "  ?? Computers: $domainComputerCount scanned ($domainComputerRC4Count flagged)" -ForegroundColor White
-    Write-Host "  ?? Trusts: $domainTrustCount scanned ($domainTrustRC4Count flagged)" -ForegroundColor White
+    Write-Host "`n  > Domain scan completed: $($domain.ToUpper())" -ForegroundColor Green
+    Write-Host "  >> Computers: $domainComputerCount scanned ($domainComputerRC4Count flagged)" -ForegroundColor White
+    Write-Host "  >> Trusts: $domainTrustCount scanned ($domainTrustRC4Count flagged)" -ForegroundColor White
 }
 
 # Output summary
 Write-Host ""
-Write-Host ("?" * 80) -ForegroundColor Magenta
-Write-Host "?? FINAL AUDIT SUMMARY" -ForegroundColor Magenta
-Write-Host ("?" * 80) -ForegroundColor Magenta
+Write-Host (">" * 80) -ForegroundColor Magenta
+Write-Host ">> FINAL AUDIT SUMMARY" -ForegroundColor Magenta
+Write-Host (">" * 80) -ForegroundColor Magenta
 
-Write-Host "?? Forest: $($forest.Name)" -ForegroundColor Cyan
-Write-Host "?? Total domains scanned: $($forest.Domains.Count)" -ForegroundColor Cyan
-Write-Host "?? Total computers scanned: $computerTotal" -ForegroundColor White
-Write-Host "?? Total trusts scanned: $trustTotal" -ForegroundColor White
-Write-Host "??  User objects: Not scanned (msDS-SupportedEncryptionTypes is computer-based only)" -ForegroundColor Gray
+Write-Host ">> Forest: $($forest.Name)" -ForegroundColor Cyan
+Write-Host ">> Total domains scanned: $($forest.Domains.Count)" -ForegroundColor Cyan
+Write-Host ">> Total computers scanned: $computerTotal" -ForegroundColor White
+Write-Host ">> Total trusts scanned: $trustTotal" -ForegroundColor White
+Write-Host ">>  User objects: Not scanned (msDS-SupportedEncryptionTypes is computer-based only)" -ForegroundColor Gray
 
 if ($results.Count -eq 0) {
-    Write-Host "`n? AUDIT RESULT: SUCCESS!" -ForegroundColor Green
+    Write-Host "`n> AUDIT RESULT: SUCCESS!" -ForegroundColor Green
     
     $messages = @(
         "No objects with RC4 encryption or weak settings found!",
@@ -1334,12 +1334,12 @@ if ($results.Count -eq 0) {
     Write-BoxedMessage -Messages $messages -Color "Green"
 }
 else {
-    Write-Host "`n??  AUDIT RESULT: ISSUES FOUND!" -ForegroundColor Yellow
+    Write-Host "`n>>  AUDIT RESULT: ISSUES FOUND!" -ForegroundColor Yellow
     
     $headerMessages = @("Found $($results.Count) object(s) with weak encryption settings:")
     $contentMessages = @(
-        "? Computers with RC4: $computerRC4Count out of $computerTotal total",
-        "? Trusts with RC4: $trustRC4Count out of $trustTotal total"
+        "> Computers with RC4: $computerRC4Count out of $computerTotal total",
+        "> Trusts with RC4: $trustRC4Count out of $trustTotal total"
     )
     Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $contentMessages -Color "Yellow"
     
@@ -1351,22 +1351,22 @@ else {
     # Show trust type breakdown if trusts were found
     $trustObjects = $results | Where-Object { $_.ObjectType -eq "Trust" }
     if ($trustObjects.Count -gt 0) {
-        Write-Host "`n?? TRUST TYPE BREAKDOWN:" -ForegroundColor Cyan
+        Write-Host "`n>> TRUST TYPE BREAKDOWN:" -ForegroundColor Cyan
         $trustTypes = $trustObjects | Group-Object TrustType | Sort-Object Name
         foreach ($trustType in $trustTypes) {
-            Write-Host "  ? $($trustType.Name): $($trustType.Count) trust(s)" -ForegroundColor White
+            Write-Host "  > $($trustType.Name): $($trustType.Count) trust(s)" -ForegroundColor White
             foreach ($trust in $trustType.Group) {
                 Write-Host "    - $($trust.Name) (Direction: $($trust.Direction))" -ForegroundColor Gray
             }
         }
         Write-Host ""
-        Write-Host "?? TRUST TYPE EXPLANATIONS:" -ForegroundColor Yellow
-        Write-Host "  ? TreeRoot: Root domain of forest tree" -ForegroundColor Gray
-        Write-Host "  ? ParentChild: Child domain to parent domain" -ForegroundColor Gray
-        Write-Host "  ? External: Trust to external domain/forest" -ForegroundColor Gray
-        Write-Host "  ? Forest: Forest-level trust relationship" -ForegroundColor Gray
-        Write-Host "  ? Shortcut: Shortcut trust for optimization" -ForegroundColor Gray
-        Write-Host "  ? Unknown: Unrecognized trust type" -ForegroundColor Gray
+        Write-Host ">> TRUST TYPE EXPLANATIONS:" -ForegroundColor Yellow
+        Write-Host "  > TreeRoot: Root domain of forest tree" -ForegroundColor Gray
+        Write-Host "  > ParentChild: Child domain to parent domain" -ForegroundColor Gray
+        Write-Host "  > External: Trust to external domain/forest" -ForegroundColor Gray
+        Write-Host "  > Forest: Forest-level trust relationship" -ForegroundColor Gray
+        Write-Host "  > Shortcut: Shortcut trust for optimization" -ForegroundColor Gray
+        Write-Host "  > Unknown: Unrecognized trust type" -ForegroundColor Gray
     }
     
     # Check for objects with undefined encryption types (fallback scenario)
@@ -1374,7 +1374,7 @@ else {
     $trustObjects = $results | Where-Object { $_.ObjectType -eq "Trust" }
     
     if ($undefinedObjects.Count -gt 0) {
-        Write-Host "`n?? CRITICAL WARNING - Windows Server 2025 Compatibility:" -ForegroundColor Red
+        Write-Host "`n>> CRITICAL WARNING - Windows Server 2025 Compatibility:" -ForegroundColor Red
         Write-Host "Found $($undefinedObjects.Count) object(s) with undefined encryption types (msDS-SupportedEncryptionTypes not set)." -ForegroundColor Red
         Write-Host "Windows Server 2025 disables the RC4 fallback mechanism by default." -ForegroundColor Red
         Write-Host "These objects will experience authentication failures on Windows Server 2025 domain controllers!" -ForegroundColor Red
@@ -1385,30 +1385,30 @@ else {
     }
     
     if ($trustObjects.Count -gt 0) {
-        Write-Host "`n??  TRUST OBJECT REMEDIATION NOTICE:" -ForegroundColor Red
+        Write-Host "`n>>  TRUST OBJECT REMEDIATION NOTICE:" -ForegroundColor Red
         Write-Host "Found $($trustObjects.Count) trust object(s) with weak encryption settings." -ForegroundColor Red
         
-        $headerMessages = @("?? TRUST OBJECTS REQUIRE MANUAL REMEDIATION")
+        $headerMessages = @(">> TRUST OBJECTS REQUIRE MANUAL REMEDIATION")
         $contentMessages = @(
-            "? GPO Settings DO NOT Apply to Trust Objects",
+            "> GPO Settings DO NOT Apply to Trust Objects",
             "",
             "Trust objects store their own msDS-SupportedEncryptionTypes",
             "attribute and are not affected by computer GPO policies.",
             "",
-            "? Required Actions for Trust Objects:",
-            "? GUI Method: AD Domains and Trusts ? Trust Properties ?",
+            "> Required Actions for Trust Objects:",
+            "> GUI Method: AD Domains and Trusts > Trust Properties >",
             "  Check 'The other domain supports Kerberos AES Encryption'",
-            "? Script Method: Use this script with -ApplyFixes parameter",
-            "? Manual PowerShell:",
+            "> Script Method: Use this script with -ApplyFixes parameter",
+            "> Manual PowerShell:",
             "  Set-ADObject -Identity '<TrustDN>'",
             "    -Add @{msDS-SupportedEncryptionTypes=24}",
             "",
-            "?? Verification Commands:",
-            "? Get-ADObject -Filter 'ObjectClass -eq `"trustedDomain`"'",
+            ">> Verification Commands:",
+            "> Get-ADObject -Filter 'ObjectClass -eq `"trustedDomain`"'",
             "    -Properties msDS-SupportedEncryptionTypes",
-            "? Monitor Event IDs 4768/4769 for trust authentication",
+            "> Monitor Event IDs 4768/4769 for trust authentication",
             "",
-            "??  Without fixing trusts, RC4 will persist in inter-domain",
+            ">>  Without fixing trusts, RC4 will persist in inter-domain",
             "   authentication even with optimal GPO settings!"
         )
         Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $contentMessages -Color "Red"
@@ -1418,42 +1418,42 @@ else {
 # Show secure objects summary
 if ($secureObjects.Count -gt 0) {
     Write-Host ""
-    Write-Host ("?" * 80) -ForegroundColor Green
-    Write-Host "? OBJECTS WITH SECURE ENCRYPTION SETTINGS" -ForegroundColor Green
-    Write-Host ("?" * 80) -ForegroundColor Green
+    Write-Host (">" * 80) -ForegroundColor Green
+    Write-Host "> OBJECTS WITH SECURE ENCRYPTION SETTINGS" -ForegroundColor Green
+    Write-Host (">" * 80) -ForegroundColor Green
     
     $secureComputers = $secureObjects | Where-Object { $_.ObjectType -eq "Computer" }
     $secureTrusts = $secureObjects | Where-Object { $_.ObjectType -eq "Trust" }
     
-    Write-Host "?? Summary: Found $($secureObjects.Count) object(s) with secure AES encryption" -ForegroundColor Green
-    Write-Host "  ? Computers with secure encryption: $($secureComputers.Count)" -ForegroundColor White
-    Write-Host "  ? Trusts with secure encryption: $($secureTrusts.Count)" -ForegroundColor White
+    Write-Host ">> Summary: Found $($secureObjects.Count) object(s) with secure AES encryption" -ForegroundColor Green
+    Write-Host "  > Computers with secure encryption: $($secureComputers.Count)" -ForegroundColor White
+    Write-Host "  > Trusts with secure encryption: $($secureTrusts.Count)" -ForegroundColor White
     
     if ($secureObjects.Count -le 50) {
         # Show detailed list if manageable number
-        Write-Host "`n?? DETAILED SECURE OBJECTS:" -ForegroundColor White
+        Write-Host "`n>> DETAILED SECURE OBJECTS:" -ForegroundColor White
         $secureObjects |
         Sort-Object Domain, ObjectType, Name |
         Format-Table Domain, ObjectType, Name, EncTypes, @{Name = "TrustType"; Expression = { if ($_.TrustType) { $_.TrustType }else { "N/A" } } }, @{Name = "Direction"; Expression = { if ($_.Direction) { $_.Direction }else { "N/A" } } } -AutoSize
     }
     else {
         # Show summary by domain if too many objects
-        Write-Host "`n?? SECURE OBJECTS BY DOMAIN:" -ForegroundColor White
+        Write-Host "`n>> SECURE OBJECTS BY DOMAIN:" -ForegroundColor White
         $secureByDomain = $secureObjects | Group-Object Domain | Sort-Object Name
         foreach ($domainGroup in $secureByDomain) {
             $domainComputers = $domainGroup.Group | Where-Object { $_.ObjectType -eq "Computer" }
             $domainTrusts = $domainGroup.Group | Where-Object { $_.ObjectType -eq "Trust" }
-            Write-Host "  ?? $($domainGroup.Name): $($domainGroup.Count) total ($($domainComputers.Count) computers, $($domainTrusts.Count) trusts)" -ForegroundColor Cyan
+            Write-Host "  >> $($domainGroup.Name): $($domainGroup.Count) total ($($domainComputers.Count) computers, $($domainTrusts.Count) trusts)" -ForegroundColor Cyan
         }
         Write-Host ""
-        Write-Host "?? Use -DebugMode parameter to see detailed secure object listings" -ForegroundColor Gray
+        Write-Host ">> Use -DebugMode parameter to see detailed secure object listings" -ForegroundColor Gray
     }
     
     # Show encryption type breakdown for secure objects
-    Write-Host "`n?? SECURE ENCRYPTION TYPES BREAKDOWN:" -ForegroundColor Cyan
+    Write-Host "`n>> SECURE ENCRYPTION TYPES BREAKDOWN:" -ForegroundColor Cyan
     $encryptionBreakdown = $secureObjects | Group-Object EncTypes | Sort-Object Name
     foreach ($encGroup in $encryptionBreakdown) {
-        Write-Host "  ? $($encGroup.Name): $($encGroup.Count) object(s)" -ForegroundColor White
+        Write-Host "  > $($encGroup.Name): $($encGroup.Count) object(s)" -ForegroundColor White
     }
 }
 
@@ -1462,10 +1462,17 @@ if ($ExportResults) {
     $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
     $exportPath = ".\RC4_Audit_Results_$timestamp.csv"
     $results | Export-Csv $exportPath -NoTypeInformation -Encoding UTF8
-    Write-Host "`n?? Results exported to: $exportPath" -ForegroundColor Cyan
+    Write-Host "`n>> Results exported to: $exportPath" -ForegroundColor Cyan
 }
 
 # Optional export
 # $results | Export-Csv ".\\RC4_Audit_Results.csv" -NoTypeInformation -Encoding UTF8
+
+
+
+
+
+
+
 
 

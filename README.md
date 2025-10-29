@@ -1173,6 +1173,11 @@ Debug output includes:
 
 ## Changelog
 
+### Version 3.3 (October 2025)
+- **[IMPROVED]** Replaced Unicode characters with ASCII equivalents for better terminal compatibility
+- **[FIXED]** Help parameter sets now work correctly without prompting for additional input
+- **[ENHANCED]** Output now displays consistently across all PowerShell environments and consoles
+
 ### Version 3.2 (October 2025)
 - **🔧 BREAKING CHANGE**: Implemented PowerShell parameter sets for robust parameter validation
 - **🔧 BREAKING CHANGE**: Renamed `-Debug` parameter to `-DebugMode` to resolve conflict with PowerShell's built-in common parameter

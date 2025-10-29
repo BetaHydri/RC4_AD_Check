@@ -1281,37 +1281,95 @@ foreach ($domain in $forest.Domains) {
             if ($ApplyFixes) {
                 $answer = Read-Host "    >> Remediate Trust $($_.Name) in $domain> (Y/N)"
                 if ($answer -match '^[Yy]') {
-                    try {
-                        # Use Set-ADObject with -Replace instead of -Add for trust objects
-                        # Trust objects may need the attribute replaced rather than added
-                        if ($domainParams.Count -gt 0) {
-                            Set-ADObject -Identity $_.DistinguishedName -Replace @{"msDS-SupportedEncryptionTypes" = 24 } @domainParams
-                        }
-                        else {
-                            Set-ADObject -Identity $_.DistinguishedName -Replace @{"msDS-SupportedEncryptionTypes" = 24 }
-                        }
-                        Write-Host "    > Fixed: Trust $($_.Name) set to AES-only (value 24)" -ForegroundColor Green
-                        Write-Host "    >>  Note: Trust fixes require explicit attribute modification, not GPO" -ForegroundColor Gray
+                    # Trust object identity resolution - try multiple approaches
+                    $trustIdentity = $null
+                    
+                    # Method 1: Use DistinguishedName if available
+                    if ($_.DistinguishedName -and $_.DistinguishedName.Trim() -ne "") {
+                        $trustIdentity = $_.DistinguishedName
+                        Write-Host "    >> Using trust DN: $trustIdentity" -ForegroundColor Gray
                     }
-                    catch {
-                        Write-Host "    > Failed to fix trust $($_.Name): $($_.Exception.Message)" -ForegroundColor Red
-                        Write-Host "    >> Alternative: Set-ADObject -Identity '$($_.DistinguishedName)' -Replace @{msDS-SupportedEncryptionTypes=24}" -ForegroundColor Yellow
-                        
-                        # Try alternative approach with -Add in case -Replace fails
+                    # Method 2: Try to find the trust object in AD using the trust name
+                    elseif ($_.Name) {
                         try {
-                            Write-Host "    >> Trying alternative approach with -Add parameter..." -ForegroundColor Yellow
+                            Write-Host "    >> Trust DN empty, searching for trust object..." -ForegroundColor Yellow
                             if ($domainParams.Count -gt 0) {
-                                Set-ADObject -Identity $_.DistinguishedName -Add @{"msDS-SupportedEncryptionTypes" = 24 } @domainParams
+                                $trustObject = Get-ADObject -Filter "ObjectClass -eq 'trustedDomain' -and Name -eq '$($_.Name)'" -Properties msDS-SupportedEncryptionTypes @domainParams | Select-Object -First 1
                             }
                             else {
-                                Set-ADObject -Identity $_.DistinguishedName -Add @{"msDS-SupportedEncryptionTypes" = 24 }
+                                $trustObject = Get-ADObject -Filter "ObjectClass -eq 'trustedDomain' -and Name -eq '$($_.Name)'" -Properties msDS-SupportedEncryptionTypes | Select-Object -First 1
                             }
-                            Write-Host "    > Fixed: Trust $($_.Name) set to AES-only (value 24) using -Add" -ForegroundColor Green
+                            
+                            if ($trustObject) {
+                                $trustIdentity = $trustObject.DistinguishedName
+                                Write-Host "    >> Found trust object DN: $trustIdentity" -ForegroundColor Green
+                            }
                         }
                         catch {
-                            Write-Host "    > Both -Replace and -Add methods failed: $($_.Exception.Message)" -ForegroundColor Red
-                            Write-Host "    >> Manual remediation required. See trust remediation guidance below." -ForegroundColor Yellow
+                            Write-Host "    >> Failed to find trust object: $($_.Exception.Message)" -ForegroundColor Yellow
                         }
+                    }
+                    
+                    # Method 3: Construct DN manually as last resort
+                    if (-not $trustIdentity -and $_.Name) {
+                        try {
+                            # Get domain DN for constructing trust DN
+                            if ($domainParams.Count -gt 0) {
+                                $domainDN = (Get-ADDomain @domainParams).DistinguishedName
+                            }
+                            else {
+                                $domainDN = (Get-ADDomain).DistinguishedName
+                            }
+                            $trustIdentity = "CN=$($_.Name),CN=System,$domainDN"
+                            Write-Host "    >> Trying constructed DN: $trustIdentity" -ForegroundColor Yellow
+                        }
+                        catch {
+                            Write-Host "    >> Failed to construct trust DN: $($_.Exception.Message)" -ForegroundColor Yellow
+                        }
+                    }
+                    
+                    # Proceed with remediation if we have a valid identity
+                    if ($trustIdentity) {
+                        try {
+                            # Use Set-ADObject with -Replace instead of -Add for trust objects
+                            # Trust objects may need the attribute replaced rather than added
+                            if ($domainParams.Count -gt 0) {
+                                Set-ADObject -Identity $trustIdentity -Replace @{"msDS-SupportedEncryptionTypes" = 24 } @domainParams
+                            }
+                            else {
+                                Set-ADObject -Identity $trustIdentity -Replace @{"msDS-SupportedEncryptionTypes" = 24 }
+                            }
+                            Write-Host "    > Fixed: Trust $($_.Name) set to AES-only (value 24)" -ForegroundColor Green
+                            Write-Host "    >>  Note: Trust fixes require explicit attribute modification, not GPO" -ForegroundColor Gray
+                        }
+                        catch {
+                            Write-Host "    > Failed to fix trust $($_.Name): $($_.Exception.Message)" -ForegroundColor Red
+                            Write-Host "    >> Alternative: Set-ADObject -Identity '$trustIdentity' -Replace @{msDS-SupportedEncryptionTypes=24}" -ForegroundColor Yellow
+                            
+                            # Try alternative approach with -Add in case -Replace fails
+                            try {
+                                Write-Host "    >> Trying alternative approach with -Add parameter..." -ForegroundColor Yellow
+                                if ($domainParams.Count -gt 0) {
+                                    Set-ADObject -Identity $trustIdentity -Add @{"msDS-SupportedEncryptionTypes" = 24 } @domainParams
+                                }
+                                else {
+                                    Set-ADObject -Identity $trustIdentity -Add @{"msDS-SupportedEncryptionTypes" = 24 }
+                                }
+                                Write-Host "    > Fixed: Trust $($_.Name) set to AES-only (value 24) using -Add" -ForegroundColor Green
+                            }
+                            catch {
+                                Write-Host "    > Both -Replace and -Add methods failed: $($_.Exception.Message)" -ForegroundColor Red
+                                Write-Host "    >> Manual remediation required. See trust remediation guidance below." -ForegroundColor Yellow
+                            }
+                        }
+                    }
+                    else {
+                        Write-Host "    > ERROR: Could not determine trust object identity" -ForegroundColor Red
+                        Write-Host "    >> Trust name: $($_.Name)" -ForegroundColor Yellow
+                        Write-Host "    >> DistinguishedName property: '$($_.DistinguishedName)'" -ForegroundColor Yellow
+                        Write-Host "    >> Manual remediation required:" -ForegroundColor Yellow
+                        Write-Host "       1. Find trust DN: Get-ADObject -Filter \"ObjectClass -eq 'trustedDomain' -and Name -eq '$($_.Name)'\"" -ForegroundColor Yellow
+                        Write-Host "       2. Apply fix: Set-ADObject -Identity '<TrustDN>' -Replace @{msDS-SupportedEncryptionTypes=24}" -ForegroundColor Yellow
                     }
                 }
             }

@@ -115,7 +115,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 3.7
+  Version: 3.8
   Created: October 2025
   Updated: October 2025
   
@@ -1101,46 +1101,46 @@ if (-not $SkipGPOCheck) {
     Write-Host ">> GPO CONFIGURATION RECOMMENDATIONS" -ForegroundColor Cyan
     Write-Host (">" * 80) -ForegroundColor Cyan
     
-    $headerMessages = @(">> GPO ENCRYPTION SETTINGS RECOMMENDATIONS")
+    $headerMessages = @("💡 GPO ENCRYPTION SETTINGS RECOMMENDATIONS")
     $contentMessages = @(
         "OPTIMAL CONFIGURATION (Recommended):",
-        "> AES128-CTS-HMAC-SHA1-96: > Enabled",
-        "> AES256-CTS-HMAC-SHA1-96: > Enabled", 
-        "> RC4-HMAC: > Disabled (uncheck in GPO)",
-        "> DES-CBC-CRC: > Disabled (uncheck in GPO)",
-        "> DES-CBC-MD5: > Disabled (uncheck in GPO)",
+        "• AES128-CTS-HMAC-SHA1-96: ✅ Enabled",
+        "• AES256-CTS-HMAC-SHA1-96: ✅ Enabled", 
+        "• RC4-HMAC: ❌ Disabled (uncheck in GPO)",
+        "• DES-CBC-CRC: ❌ Disabled (uncheck in GPO)",
+        "• DES-CBC-MD5: ❌ Disabled (uncheck in GPO)",
         "",
         "ENCRYPTION VALUE EXAMPLES:",
-        "> Value 24 (0x18): AES128+AES256 only - EXCELLENT",
-        "> Value 28 (0x1C): AES+RC4 mixed - NEEDS IMPROVEMENT",
-        "> Value 31 (0x1F): All types enabled - SECURITY RISK",
+        "• Value 24 (0x18): AES128+AES256 only - EXCELLENT",
+        "• Value 28 (0x1C): AES+RC4 mixed - NEEDS IMPROVEMENT",
+        "• Value 31 (0x1F): All types enabled - SECURITY RISK",
         "",
         "LINKING BEST PRACTICES:",
-        "> Domain Level: Organization-wide policy",
-        "> Domain Controllers OU: DC-specific requirements",
-        "> Both Levels: Comprehensive coverage"
+        "• Domain Level: Organization-wide policy",
+        "• Domain Controllers OU: DC-specific requirements",
+        "• Both Levels: Comprehensive coverage"
     )
     Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $contentMessages -Color "Cyan"
     
     Write-Host ""
-    $headerMessages = @(">>  CRITICAL: GPO LIMITATIONS FOR TRUST OBJECTS")
+    $headerMessages = @("⚠️  CRITICAL: GPO LIMITATIONS FOR TRUST OBJECTS")
     $contentMessages = @(
         "IMPORTANT: GPO settings DO NOT apply to trust objects!",
         "",
-        "> What GPO Controls:",
-        "> Domain Controllers (computer accounts)",
-        "> Member computers and servers", 
-        "> What encryption types DCs accept/request",
+        "✅ What GPO Controls:",
+        "• Domain Controllers (computer accounts)",
+        "• Member computers and servers", 
+        "• What encryption types DCs accept/request",
         "",
-        "> What GPO Does NOT Control:",
-        "> Trust objects (forest/domain trusts)",
-        "> Trust encryption type offerings",
-        "> Inter-domain authentication preferences",
+        "❌ What GPO Does NOT Control:",
+        "• Trust objects (forest/domain trusts)",
+        "• Trust encryption type offerings",
+        "• Inter-domain authentication preferences",
         "",
-        ">> Trust Remediation Requires:",
-        "> Manual attribute modification: msDS-SupportedEncryptionTypes",
-        "> Use this script with -ApplyFixes for trust objects",
-        "> Or PowerShell: Set-ADObject -Identity '<TrustDN>'",
+        "🔧 Trust Remediation Requires:",
+        "• Manual attribute modification: msDS-SupportedEncryptionTypes",
+        "• Use this script with -ApplyFixes for trust objects",
+        "• Or PowerShell: Set-ADObject -Identity '<TrustDN>'",
         "  -Add @{msDS-SupportedEncryptionTypes=24}",
         "",
         ">> Complete Security Strategy:",

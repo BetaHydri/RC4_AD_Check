@@ -1361,9 +1361,24 @@ foreach ($domain in $forest.Domains) {
                                 switch ($errorCode) {
                                     "0xc0000034" {
                                         Write-Host "    >> Error 0xc0000034: STATUS_OBJECT_NAME_NOT_FOUND" -ForegroundColor Yellow
-                                        Write-Host "       - Must run from correct domain controller" -ForegroundColor Yellow
-                                        Write-Host "       - Trust name must be exact FQDN" -ForegroundColor Yellow
-                                        Write-Host "       - Check trust direction (can only set on trusting domain)" -ForegroundColor Yellow
+                                        Write-Host "       CRITICAL: ksetup domain context requirement not met!" -ForegroundColor Yellow
+                                        Write-Host "       - You can ONLY set encryption types for the OTHER domain in the trust" -ForegroundColor Yellow
+                                        Write-Host "       - Currently on domain: $domain" -ForegroundColor Yellow
+                                        Write-Host "       - Trying to configure: $trustName" -ForegroundColor Yellow
+                                        Write-Host "       - Trust direction: $trustDirection" -ForegroundColor Yellow
+                                        Write-Host "" -ForegroundColor Yellow
+                                        Write-Host "       >> SOLUTION: Run ksetup from the OTHER domain's DC:" -ForegroundColor Cyan
+                                        if ($trustDirection -eq "Outbound") {
+                                            Write-Host "         From DC in '$trustName': ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Cyan
+                                        }
+                                        elseif ($trustDirection -eq "Inbound") {
+                                            Write-Host "         From DC in '$domain': ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Cyan
+                                        }
+                                        elseif ($trustDirection -eq "BiDirectional") {
+                                            Write-Host "         Step 1 - From DC in '$trustName': ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Cyan
+                                            Write-Host "         Step 2 - From DC in '$domain': ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Cyan
+                                        }
+                                        Write-Host "       >> ALTERNATIVE: Use GUI method (domain.msc) which handles context automatically" -ForegroundColor Green
                                     }
                                     "0xc0000022" {
                                         Write-Host "    >> Error 0xc0000022: STATUS_ACCESS_DENIED" -ForegroundColor Yellow
@@ -1401,13 +1416,28 @@ foreach ($domain in $forest.Domains) {
                         }
                         
                         Write-Host "`n    >> Method 2 - ksetup AES-only (equivalent to GUI checkbox):" -ForegroundColor White
-                        Write-Host "       From domain controller in '$domain':" -ForegroundColor Gray
-                        Write-Host "       ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
-                        Write-Host "       >> This is exactly what the GUI checkbox does programmatically" -ForegroundColor Green
-                        if ($trustDirection -eq "BiDirectional") {
+                        Write-Host "       >> CRITICAL: ksetup DOMAIN CONTEXT REQUIREMENTS" -ForegroundColor Red
+                        Write-Host "       >> You can ONLY configure encryption types for the OTHER domain in trust" -ForegroundColor Red
+                        Write-Host "       >> Current domain: $domain | Target trust: $trustName | Direction: $trustDirection" -ForegroundColor Yellow
+                        Write-Host "" -ForegroundColor White
+                        if ($trustDirection -eq "Outbound") {
+                            Write-Host "       >> For OUTBOUND trust - Run from target domain DC:" -ForegroundColor Cyan
                             Write-Host "       From domain controller in '$trustName':" -ForegroundColor Gray
                             Write-Host "       ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
                         }
+                        elseif ($trustDirection -eq "Inbound") {
+                            Write-Host "       >> For INBOUND trust - Run from current domain DC:" -ForegroundColor Cyan
+                            Write-Host "       From domain controller in '$domain':" -ForegroundColor Gray
+                            Write-Host "       ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
+                        }
+                        elseif ($trustDirection -eq "BiDirectional") {
+                            Write-Host "       >> For BIDIRECTIONAL trust - Run from BOTH domain DCs:" -ForegroundColor Cyan
+                            Write-Host "       Step 1 - From domain controller in '$trustName':" -ForegroundColor Gray
+                            Write-Host "       ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
+                            Write-Host "       Step 2 - From domain controller in '$domain':" -ForegroundColor Gray
+                            Write-Host "       ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
+                        }
+                        Write-Host "       >> This is exactly what the GUI checkbox does programmatically" -ForegroundColor Green
                         
                         Write-Host "`n    >> Method 3 - ksetup with RC4+AES (for compatibility issues only):" -ForegroundColor White
                         Write-Host "       Use only if AES-only mode causes authentication problems:" -ForegroundColor Yellow
@@ -1421,8 +1451,11 @@ foreach ($domain in $forest.Domains) {
                         Write-Host "`n    >> IMPORTANT NOTES ABOUT TRUST AES SETTINGS:" -ForegroundColor Yellow
                         Write-Host "       - Trust encryption settings are DIFFERENT from computer/user settings" -ForegroundColor Gray
                         Write-Host "       - Each side of the trust must be configured separately" -ForegroundColor Gray
-                        Write-Host "       - ksetup command must be run from the correct domain controller" -ForegroundColor Gray
-                        Write-Host "       - GUI method (domain.msc) is often most reliable" -ForegroundColor Gray
+                        Write-Host "       - CRITICAL: ksetup must be run from the correct domain controller:" -ForegroundColor Red
+                        Write-Host "         * You can ONLY configure encryption for the OTHER domain in the trust" -ForegroundColor Red
+                        Write-Host "         * Example: From child.contoso.com DC, configure contoso.com trust" -ForegroundColor Red
+                        Write-Host "         * Example: From contoso.com DC, configure child.contoso.com trust" -ForegroundColor Red
+                        Write-Host "       - GUI method (domain.msc) handles domain context automatically" -ForegroundColor Green
                         Write-Host "       - Settings control inter-domain authentication encryption" -ForegroundColor Gray
                         Write-Host "       - GPO settings do NOT apply to trust objects" -ForegroundColor Gray
                         

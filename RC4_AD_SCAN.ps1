@@ -1516,41 +1516,41 @@ foreach ($domain in $forest.Domains) {
                     }
                 }
             }
-                    else {
-                        Write-Host "    > ERROR: Could not determine trust object identity" -ForegroundColor Red
-                        Write-Host "    >> Trust name: $($_.Name)" -ForegroundColor Yellow
-                        Write-Host "    >> DistinguishedName property: '$($_.DistinguishedName)'" -ForegroundColor Yellow
-                        Write-Host "    >> Manual remediation required:" -ForegroundColor Yellow
-                        Write-Host "       1. Find trust DN: Get-ADObject -Filter \"ObjectClass -eq 'trustedDomain' -and Name -eq '$($_.Name)'\"" -ForegroundColor Yellow
-                        Write-Host "       2. Apply fix: Set-ADObject -Identity '<TrustDN>' -Replace @{msDS-SupportedEncryptionTypes=24}" -ForegroundColor Yellow
-                    }
-                }
-            }
-        }
-        else {
-            # Track trusts with secure encryption settings
-            $secureObj = [PSCustomObject]@{
-                Domain     = $domain
-                ObjectType = "Trust"
-                Name       = $_.Name
-                DN         = $_.DistinguishedName
-                EncTypes   = Get-EncryptionTypes $enc
-                TrustType  = $_.TrustType
-                Direction  = $_.Direction
-            }
-            $secureObjects += $secureObj
-            
-            if ($DebugMode) {
-                Write-Host "    > Trust '$($_.Name)' has secure encryption: $(Get-EncryptionTypes $enc)" -ForegroundColor Green
+            else {
+                Write-Host "    > ERROR: Could not determine trust object identity" -ForegroundColor Red
+                Write-Host "    >> Trust name: $($_.Name)" -ForegroundColor Yellow
+                Write-Host "    >> DistinguishedName property: '$($_.DistinguishedName)'" -ForegroundColor Yellow
+                Write-Host "    >> Manual remediation required:" -ForegroundColor Yellow
+                Write-Host "       1. Find trust DN: Get-ADObject -Filter \"ObjectClass -eq 'trustedDomain' -and Name -eq '$($_.Name)'\"" -ForegroundColor Yellow
+                Write-Host "       2. Apply fix: Set-ADObject -Identity '<TrustDN>' -Replace @{msDS-SupportedEncryptionTypes=24}" -ForegroundColor Yellow
             }
         }
     }
+}
+else {
+    # Track trusts with secure encryption settings
+    $secureObj = [PSCustomObject]@{
+        Domain     = $domain
+        ObjectType = "Trust"
+        Name       = $_.Name
+        DN         = $_.DistinguishedName
+        EncTypes   = Get-EncryptionTypes $enc
+        TrustType  = $_.TrustType
+        Direction  = $_.Direction
+    }
+    $secureObjects += $secureObj
+            
+    if ($DebugMode) {
+        Write-Host "    > Trust '$($_.Name)' has secure encryption: $(Get-EncryptionTypes $enc)" -ForegroundColor Green
+    }
+}
+}
     
-    Write-Host "  >> Trust scan complete: $domainTrustCount total, $domainTrustRC4Count with RC4/weak encryption" -ForegroundColor Gray
+Write-Host "  >> Trust scan complete: $domainTrustCount total, $domainTrustRC4Count with RC4/weak encryption" -ForegroundColor Gray
     
-    Write-Host "`n  > Domain scan completed: $($domain.ToUpper())" -ForegroundColor Green
-    Write-Host "  >> Computers: $domainComputerCount scanned ($domainComputerRC4Count flagged)" -ForegroundColor White
-    Write-Host "  >> Trusts: $domainTrustCount scanned ($domainTrustRC4Count flagged)" -ForegroundColor White
+Write-Host "`n  > Domain scan completed: $($domain.ToUpper())" -ForegroundColor Green
+Write-Host "  >> Computers: $domainComputerCount scanned ($domainComputerRC4Count flagged)" -ForegroundColor White
+Write-Host "  >> Trusts: $domainTrustCount scanned ($domainTrustRC4Count flagged)" -ForegroundColor White
 }
 
 # Output summary

@@ -891,13 +891,11 @@ function Test-KerberosGPOSettings {
                     
                     # RC4 Disabled Detection - More thorough
                     $hasRC4Disabled = $gpoReport -match "(?i)RC4.*(?:HMAC.*)?(?:MD5)?.*>.*(?:Disabled|False|0|Unchecked)" -or 
-                    $gpoReport -match "(?i)\bRC4\b.*(?:disable|deny|block|uncheck)" -or
-                    $gpoReport -notmatch "(?i)RC4.*>.*(?:Enabled|True|1|Checked)" # RC4 not explicitly enabled
+                    $gpoReport -match "(?i)\bRC4\b.*(?:disable|deny|block|uncheck)"
                     
                     # DES Disabled Detection - More thorough
                     $hasDESDisabled = $gpoReport -match "(?i)DES.*(?:CBC.*)?(?:CRC|MD5)?.*>.*(?:Disabled|False|0|Unchecked)" -or 
-                    $gpoReport -match "(?i)\bDES\b.*(?:disable|deny|block|uncheck)" -or
-                    $gpoReport -notmatch "(?i)DES.*>.*(?:Enabled|True|1|Checked)" # DES not explicitly enabled
+                    $gpoReport -match "(?i)\bDES\b.*(?:disable|deny|block|uncheck)"
                     
                     # Also check for numeric values that might indicate the settings
                     $encValue = $null
@@ -911,11 +909,22 @@ function Test-KerberosGPOSettings {
                         # Decode the value using bitwise operations - be more precise about disabled vs enabled
                         $hasAES128 = $hasAES128 -or (($encValue -band 0x8) -ne 0)   # Bit 3 = AES128
                         $hasAES256 = $hasAES256 -or (($encValue -band 0x10) -ne 0)  # Bit 4 = AES256
-                        # For RC4/DES disabled, we need to check if the bits are explicitly NOT set when we have a defined value
+                        # For RC4/DES disabled, check if the bits are explicitly NOT set when we have a defined value
                         if ($null -ne $encValue) {
                             $hasRC4Disabled = (($encValue -band 0x4) -eq 0)  # RC4 disabled when bit not set in defined value
                             $hasDESDisabled = (($encValue -band 0x3) -eq 0)  # DES disabled when bits not set in defined value
                         }
+                    }
+                    
+                    # Special handling for AES-only configuration (value 24 = 0x18)
+                    if ($encValue -eq 24) {
+                        if ($DebugMode) {
+                            Write-Host "      >> Detected optimal AES-only configuration (value 24)" -ForegroundColor Green
+                        }
+                        $hasAES128 = $true
+                        $hasAES256 = $true
+                        $hasRC4Disabled = $true
+                        $hasDESDisabled = $true
                     }
                     
                     # Additional flexible pattern matching for various GPO XML formats
@@ -989,8 +998,28 @@ function Test-KerberosGPOSettings {
                     # Final verification: if objects in this domain have AES settings but we think GPO doesn't provide them,
                     # there might be a parsing issue - let's be more lenient in our assessment
                     
-                    $isOptimal = $hasAES128 -and $hasAES256 -and $hasRC4Disabled -and $hasDESDisabled
-                    $isSecure = $hasAES128 -and $hasAES256 -and $hasRC4Disabled  # Secure even if DES status is unclear
+                    # Determine optimal vs secure status
+                    $isOptimal = $false
+                    $isSecure = $false
+                    
+                    if ($encValue -eq 24) {
+                        # Value 24 = AES128+AES256 only, definitely optimal
+                        $isOptimal = $true
+                        $isSecure = $true
+                    }
+                    elseif ($hasAES128 -and $hasAES256 -and $hasRC4Disabled -and $hasDESDisabled) {
+                        # Explicit AES enabled and RC4/DES explicitly disabled = optimal
+                        $isOptimal = $true
+                        $isSecure = $true
+                    }
+                    elseif ($hasAES128 -and $hasAES256 -and $hasRC4Disabled) {
+                        # AES enabled and RC4 disabled, DES status unclear = secure
+                        $isSecure = $true
+                    }
+                    elseif ($hasAES128 -and $hasAES256) {
+                        # At minimum AES is enabled = secure (even if we can't verify RC4/DES disabled)
+                        $isSecure = $true
+                    }
                     
                     $kerberosGPO = [PSCustomObject]@{
                         Name            = $gpo.DisplayName

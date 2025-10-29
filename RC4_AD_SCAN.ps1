@@ -1069,12 +1069,39 @@ function Test-KerberosGPOSettings {
                         
                         if ($computersWithAES.Count -gt 0) {
                             Write-Host "      >> VERIFICATION: Found $($computersWithAES.Count)/$($sampleComputers.Count) sampled computers with AES encryption" -ForegroundColor Green
-                            Write-Host "      >> This suggests the GPO IS working correctly, but our parsing may have missed the configuration" -ForegroundColor Yellow
-                            Write-Host "      >> Consider this a POTENTIAL FALSE NEGATIVE in GPO analysis" -ForegroundColor Yellow
                             
                             # Show what value the computers actually have
                             $commonValue = $computersWithAES[0]."msDS-SupportedEncryptionTypes"
                             Write-Host "      >> Sample computer encryption value: $commonValue = $(Get-EncryptionTypes $commonValue)" -ForegroundColor Cyan
+                            
+                            # If verification shows AES encryption is working, update the assessment
+                            if ($commonValue -eq 24) {
+                                Write-Host "      >> CORRECTED ASSESSMENT: GPO is actually OPTIMAL (AES-only configuration detected)" -ForegroundColor Green
+                                Write-Host "      >> The GPO XML parsing had a false negative - the GPO is working correctly" -ForegroundColor Green
+                                # Update the GPO object properties based on verification
+                                $gpo.HasAES128 = $true
+                                $gpo.HasAES256 = $true
+                                $gpo.HasRC4Disabled = $true
+                                $gpo.HasDESDisabled = $true
+                                $gpo.IsOptimal = $true
+                                $gpo.IsSecure = $true
+                                $gpo.EncryptionValue = $commonValue
+                            }
+                            elseif (($commonValue -band 0x18) -gt 0 -and ($commonValue -band 0x4) -eq 0) {
+                                Write-Host "      >> CORRECTED ASSESSMENT: GPO is actually SECURE (AES enabled, RC4 disabled)" -ForegroundColor Green
+                                Write-Host "      >> The GPO XML parsing had a false negative - the GPO is working correctly" -ForegroundColor Green
+                                # Update the GPO object properties based on verification
+                                $gpo.HasAES128 = ($commonValue -band 0x8) -gt 0
+                                $gpo.HasAES256 = ($commonValue -band 0x10) -gt 0
+                                $gpo.HasRC4Disabled = $true
+                                $gpo.HasDESDisabled = ($commonValue -band 0x3) -eq 0
+                                $gpo.IsSecure = $true
+                                $gpo.EncryptionValue = $commonValue
+                            }
+                            else {
+                                Write-Host "      >> GPO appears to be working, but computer encryption value suggests mixed settings" -ForegroundColor Yellow
+                                Write-Host "      >> Consider this a POTENTIAL FALSE NEGATIVE in GPO analysis" -ForegroundColor Yellow
+                            }
                         }
                         else {
                             Write-Host "      >> VERIFICATION: No computers found with AES encryption - GPO analysis appears accurate" -ForegroundColor Red
@@ -1103,8 +1130,24 @@ function Test-KerberosGPOSettings {
     Write-Host "> COMPLETED GPO CHECK FOR DOMAIN: $($Domain.ToUpper())" -ForegroundColor Green
     Write-Host ("=" * 80) -ForegroundColor DarkCyan
     
+    # Show final corrected assessment summary
+    if ($kerberosGPOs.Count -gt 0) {
+        $optimalGPOs = $kerberosGPOs | Where-Object { $_.IsOptimal }
+        $secureGPOs = $kerberosGPOs | Where-Object { $_.IsSecure -and -not $_.IsOptimal }
+        
+        if ($optimalGPOs.Count -gt 0) {
+            Write-Host "> FINAL ASSESSMENT: $($optimalGPOs.Count) OPTIMAL GPO(s) detected in $Domain" -ForegroundColor Green
+        }
+        elseif ($secureGPOs.Count -gt 0) {
+            Write-Host "> FINAL ASSESSMENT: $($secureGPOs.Count) SECURE GPO(s) detected in $Domain" -ForegroundColor Green
+        }
+        else {
+            Write-Host "> FINAL ASSESSMENT: GPO(s) need improvement in $Domain" -ForegroundColor Yellow
+        }
+    }
+    
     # Return GPO analysis results for post-November 2022 summary
-    return $gpos
+    return $kerberosGPOs
 }
 
 function Test-GPOApplication {

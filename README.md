@@ -927,12 +927,95 @@ If you still see RC4-HMAC encryption types after remediation, it indicates that 
 3. **Phase 3**: Monitor authentication logs to ensure compatibility
 4. **Phase 4**: Consider disabling NTLM entirely in highly secure environments
 
-## Sample Output
+## Usage Examples
 
-### Sample Output with Cross-Forest Scanning
+### Basic Scanning
 
+**Audit your environment (read-only):**
+```powershell
+.\RC4_AD_SCAN.ps1
 ```
-🌲 Targeting forest: target.com
+
+**Include GPO analysis (recommended):**
+```powershell
+.\RC4_AD_SCAN.ps1 -GPOScope Both
+```
+
+**Export results to CSV:**
+```powershell
+.\RC4_AD_SCAN.ps1 -ExportResults
+```
+
+### Remediation
+
+**Interactive remediation (review each object):**
+```powershell
+.\RC4_AD_SCAN.ps1 -ApplyFixes
+```
+
+**Automated remediation (no prompts):**
+```powershell
+.\RC4_AD_SCAN.ps1 -ApplyFixes -Force
+```
+
+### Specialized Scans
+
+**GPO analysis only:**
+```powershell
+.\RC4_AD_SCAN.ps1 -GPOCheckOnly
+```
+
+**Skip GPO check (faster, object-only scan):**
+```powershell
+.\RC4_AD_SCAN.ps1 -SkipGPOCheck
+```
+
+**Cross-forest scanning:**
+```powershell
+.\RC4_AD_SCAN.ps1 -TargetForest external.com
+```
+
+### Common Scenarios
+
+**Complete audit with export:**
+```powershell
+.\RC4_AD_SCAN.ps1 -GPOScope Both -ExportResults -DebugMode
+```
+
+**Production remediation (recommended workflow):**
+```powershell
+# Step 1: Audit and export
+.\RC4_AD_SCAN.ps1 -ExportResults
+
+# Step 2: Review results, then apply fixes with confirmation
+.\RC4_AD_SCAN.ps1 -ApplyFixes
+
+# Step 3: Verify changes
+.\RC4_AD_SCAN.ps1 -ExportResults
+```
+
+### Expected Output Summary
+
+The script provides comprehensive output including:
+
+- **🔍 GPO Analysis**: Kerberos encryption policy configuration and coverage
+- **🖥️ Domain Controller Status**: AES configuration verification for context-aware analysis  
+- **💻 Computer Objects**: Scan results with post-November 2022 logic (inherit DC policy when safe)
+- **🔗 Trust Objects**: Analysis with secure-by-default behavior for undefined encryption
+- **✅ Success Indicators**: Clear boxed messages when no issues found
+- **⚠️ Issue Details**: Specific remediation guidance for any problems identified
+- **📊 Secure Objects**: List of objects with confirmed AES encryption
+- **📄 Export Options**: CSV files with complete audit results
+
+### Key Features of Modern Analysis
+
+- **Context-Aware**: Only flags genuine RC4 risks, not false positives
+- **Post-November 2022 Logic**: Trusts default to AES when undefined
+- **DC Policy Inheritance**: Computers inherit secure DC settings when available
+- **Enhanced Categorization**: Objects properly sorted into secure vs. requiring attention
+- **Comprehensive Reporting**: Clear distinction between explicit AES settings and secure defaults
+
+## Exporting Results
 🔍 Attempting to discover domain controller in target forest...
 ✅ Found target domain controller: dc01.target.com
 ✅ Successfully connected to target forest: target.com

@@ -1945,6 +1945,9 @@ catch {
     exit 1
 }
 
+# Initialize domain GPO results tracking (used whether GPO checking is enabled or not)
+$domainGPOResults = @{}
+
 # Check GPO settings for each domain
 if (-not $SkipGPOCheck) {
     Write-Host ">> Checking Group Policy settings..." -ForegroundColor Magenta
@@ -1961,6 +1964,9 @@ if (-not $SkipGPOCheck) {
     foreach ($domain in $forest.Domains) {
         $gpoResults = Test-KerberosGPOSettings -Domain $domain -Scope $GPOScope -DebugMode:$DebugMode -Server $Server -TargetForest $TargetForest
         $forestGPOAnalysis.TotalDomainsAnalyzed++
+        
+        # Store domain-specific GPO results for later use
+        $domainGPOResults[$domain] = $gpoResults
         
         # Categorize domain based on GPO configuration quality
         if ($gpoResults -and $gpoResults.Count -gt 0) {
@@ -2232,18 +2238,38 @@ foreach ($domain in $forest.Domains) {
     # Analyze Domain Controller encryption configuration for context-aware analysis
     Write-Host "  >> Analyzing Domain Controller encryption status..." -ForegroundColor Cyan
     $dcStatus = Get-DomainControllerEncryptionStatus -Domain $domain -Server $domainParams['Server'] -DebugMode:$DebugMode
+    
+    # Check if this domain has GPO configuration (if GPO check was not skipped)
+    $domainHasSecureGPO = $false
+    if (-not $SkipGPOCheck -and $domainGPOResults.ContainsKey($domain)) {
+        $gpoResults = $domainGPOResults[$domain]
+        if ($gpoResults -and $gpoResults.Count -gt 0) {
+            $bestGPO = $gpoResults | Sort-Object { $_.IsOptimal }, { $_.IsSecure } -Descending | Select-Object -First 1
+            $domainHasSecureGPO = $bestGPO.IsOptimal -or $bestGPO.IsSecure
+        }
+    }
+    
     $domainContext = @{
         DCsHaveAESSettings = $dcStatus.DCsHaveAESSettings
         DCAnalysis         = $dcStatus
+        HasSecureGPO       = $domainHasSecureGPO
     }
     
+    # Enhanced DC analysis output that considers both DC settings AND GPO configuration
     if ($dcStatus.DCsHaveAESSettings) {
         Write-Host "  >> DC Analysis: Domain Controllers have adequate AES settings" -ForegroundColor Green
         Write-Host "     Post-Nov 2022: Computer objects with undefined encryption inherit secure DC policy" -ForegroundColor Gray
     }
+    elseif ($domainHasSecureGPO) {
+        Write-Host "  >> DC Analysis: Domain Controllers use GPO-based AES configuration" -ForegroundColor Green
+        Write-Host "     Post-Nov 2022: Computer objects inherit secure GPO policy (no RC4 fallback)" -ForegroundColor Gray
+    }
     else {
         Write-Host "  >> DC Analysis: Domain Controllers may lack proper AES configuration" -ForegroundColor Yellow
         Write-Host "     WARNING: Undefined computer encryption types may fall back to RC4" -ForegroundColor Yellow
+        if (-not $SkipGPOCheck) {
+            Write-Host "     RECOMMENDATION: Configure GPO 'Network security: Configure encryption types allowed for Kerberos'" -ForegroundColor Yellow
+        }
     }
 
     # Note: Users are not scanned as msDS-SupportedEncryptionTypes is a computer-based setting only
@@ -2264,8 +2290,10 @@ foreach ($domain in $forest.Domains) {
         # Modern analysis: Only flag computers as problematic if they pose actual risk
         $isComputerWeak = $false
         if (-not $enc) {
-            # Post-November 2022: Computer with undefined encryption only problematic if DCs also lack AES
-            $isComputerWeak = -not $domainContext.DCsHaveAESSettings
+            # Post-November 2022: Computer with undefined encryption only problematic if:
+            # 1. DCs lack AES settings AND 
+            # 2. No secure GPO configuration is in place
+            $isComputerWeak = (-not $domainContext.DCsHaveAESSettings) -and (-not $domainContext.HasSecureGPO)
         }
         else {
             # Computer has defined encryption, check if it includes RC4 without AES

@@ -19,6 +19,25 @@ Microsoft's November 2022 Kerberos updates fundamentally changed how encryption 
 - **Computer Objects**: Safely inherit Domain Controller encryption policies when DCs are properly configured
 - **Context-Aware Analysis**: Only flags objects with actual RC4 fallback risk, not false positives from undefined attributes
 
+#### Official Microsoft Documentation
+
+This tool implements guidance from these authoritative Microsoft sources:
+
+**November 2022 Changes and Modern Kerberos Logic:**
+- [What happened to Kerberos Authentication after installing the November 2022/OOB updates?](https://techcommunity.microsoft.com/blog/askds/what-happened-to-kerberos-authentication-after-installing-the-november-2022oob-u/3696351)
+  - Explains the fundamental changes to RC4 fallback behavior
+  - Details when objects actually pose RC4 fallback risk vs. when they're secure
+  - Clarifies that RC4 fallback only occurs under specific conditions
+
+**Trust Objects and AES Defaults:**
+- [Decrypting the Selection of Supported Kerberos Encryption Types](https://techcommunity.microsoft.com/blog/coreinfrastructureandsecurityblog/decrypting-the-selection-of-supported-kerberos-encryption-types/1628797)
+  - **Update section states**: "The November 2022 update changed the logic for referral ticket encryption. As a result it is no longer necessary to manually enable AES for trusts."
+  - Confirms that trust objects now default to AES encryption when undefined
+
+**Additional Technical References:**
+- [KB5021131 - How to manage the Kerberos protocol changes related to CVE-2022-37966](https://support.microsoft.com/en-us/topic/kb5021131-how-to-manage-the-kerberos-protocol-changes-related-to-cve-2022-37966-fd837ac3-cdec-4e76-a6ec-86e67501407d)
+- [Kerberos Encryption Types Documentation](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/6cfc7b50-11ed-4b4d-846d-6f08f0812919)
+
 ### What This Tool Identifies
 
 Using modern logic, this tool identifies:
@@ -43,6 +62,8 @@ Based on November 2022 updates:
 - **Focus shifts to genuine risks** rather than configuration style preferences
 
 **This means your environment is likely MORE secure than older tools indicated!**
+
+> **📚 For Technical Details**: See the [References section](#references) for links to official Microsoft documentation explaining the November 2022 changes and modern Kerberos logic.
 
 **Important Note**: User objects are not scanned because `msDS-SupportedEncryptionTypes` is a computer-based setting only. User Kerberos encryption is controlled by:
 - The computer they authenticate from
@@ -355,7 +376,9 @@ The script now tracks and reports on objects that already have secure encryption
 
 ### ⚠️ Why GPO Doesn't Fix Trust Objects
 
-**IMPORTANT**: The Group Policy "Network security: Configure encryption types allowed for Kerberos" **DOES NOT** apply to trust objects. Here's why:
+**IMPORTANT**: The Group Policy "Network security: Configure encryption types allowed for Kerberos" **DOES NOT** apply to trust objects. However, **post-November 2022**, trust objects with undefined encryption types now **default to AES** (secure by default).
+
+> **📖 Official Microsoft Guidance**: [Trust objects no longer require manual AES configuration after November 2022 updates](https://techcommunity.microsoft.com/blog/coreinfrastructureandsecurityblog/decrypting-the-selection-of-supported-kerberos-encryption-types/1628797) - See the update note in Microsoft's official documentation.
 
 #### What GPO Controls
 - ✅ **Domain Controllers** (computer accounts)
@@ -1408,6 +1431,49 @@ Debug output includes:
 - Detailed trust analysis and remediation guidance
 - Windows Server 2025 compatibility warnings
 - Professional output formatting with boxed messages
+
+## References
+
+This tool is based on official Microsoft documentation and implements current best practices:
+
+### Primary Microsoft Sources
+
+**November 2022 Kerberos Changes:**
+- [What happened to Kerberos Authentication after installing the November 2022/OOB updates?](https://techcommunity.microsoft.com/blog/askds/what-happened-to-kerberos-authentication-after-installing-the-november-2022oob-u/3696351)
+  - **Key Insight**: RC4 fallback only occurs when BOTH requesting system AND KDC have undefined encryption types
+  - Explains when objects pose actual risk vs. false alarms from undefined attributes
+
+**Trust Object Modernization:**
+- [Decrypting the Selection of Supported Kerberos Encryption Types](https://techcommunity.microsoft.com/blog/coreinfrastructureandsecurityblog/decrypting-the-selection-of-supported-kerberos-encryption-types/1628797)
+  - **Critical Update**: "The November 2022 update changed the logic for referral ticket encryption. As a result it is no longer necessary to manually enable AES for trusts."
+  - Confirms trust objects default to AES when `msDS-SupportedEncryptionTypes` is undefined
+
+### Official Microsoft Knowledge Base
+
+**Technical Implementation:**
+- [KB5021131 - How to manage the Kerberos protocol changes related to CVE-2022-37966](https://support.microsoft.com/en-us/topic/kb5021131-how-to-manage-the-kerberos-protocol-changes-related-to-cve-2022-37966-fd837ac3-cdec-4e76-a6ec-86e67501407d)
+  - Official guidance for managing November 2022 Kerberos changes
+  - Registry settings and configuration options
+
+**Kerberos Encryption Standards:**
+- [Kerberos Encryption Types (MS-KILE)](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/6cfc7b50-11ed-4b4d-846d-6f08f0812919)
+  - Technical specification for encryption type bit flags
+  - Official Microsoft documentation for `msDS-SupportedEncryptionTypes` values
+
+### Trust Configuration References
+
+**Official Trust Remediation Methods:**
+- [Kerberos unsupported etype error when authenticating across trusts](https://learn.microsoft.com/en-us/troubleshoot/windows-server/windows-security/unsupported-etype-error-accessing-trusted-domain)
+  - Microsoft's official Method 3 for AES-only trust configuration
+  - ksetup command usage and domain context requirements
+
+### Additional Reading
+
+**Kerberos Security Best Practices:**
+- [Network security: Configure encryption types allowed for Kerberos](https://docs.microsoft.com/en-us/windows/security/threat-protection/security-policy-settings/network-security-configure-encryption-types-allowed-for-kerberos)
+- [Preventing Kerberos change password that uses RC4 secret keys](https://docs.microsoft.com/en-us/windows-server/security/kerberos/preventing-kerberos-change-password-that-uses-rc4-secret-keys)
+
+**Important Note**: This tool implements the **latest Microsoft guidance** as of October 2025. Pre-November 2022 tools may show different results due to outdated logic that doesn't account for modern Kerberos security improvements.
 
 ## Contributing
 

@@ -1283,6 +1283,9 @@ foreach ($domain in $forest.Domains) {
                 if ($answer -match '^[Yy]') {
                     # Trust object identity resolution - try multiple approaches
                     $trustIdentity = $null
+                    $trustName = $_.Name
+                    $trustType = $_.TrustType
+                    $trustDirection = $_.Direction
                     
                     # Method 1: Use DistinguishedName if available
                     if ($_.DistinguishedName -and $_.DistinguishedName.Trim() -ne "") {
@@ -1328,100 +1331,191 @@ foreach ($domain in $forest.Domains) {
                         }
                     }
                     
-                    # Proceed with remediation if we have a valid identity
-                    if ($trustIdentity) {
-                        $remediated = $false
-                        
-                        # Method 1: Try -Replace first (standard approach)
+                    # Trust-specific remediation approaches
+                    $remediated = $false
+                    
+                    Write-Host "    >> IMPORTANT: Trust encryption settings require special handling" -ForegroundColor Cyan
+                    Write-Host "    >> Trust Type: $trustType | Direction: $trustDirection" -ForegroundColor Gray
+                    
+                    # Method 1: Try Set-ADTrust cmdlet (newer PowerShell versions)
+                    if ($trustName -and -not $remediated) {
                         try {
-                            Write-Host "    >> Attempting trust remediation with -Replace method..." -ForegroundColor Gray
+                            Write-Host "    >> Attempting Set-ADTrust method (if available)..." -ForegroundColor Gray
+                            
+                            # Check if Set-ADTrust cmdlet exists
+                            $setADTrustExists = Get-Command Set-ADTrust -ErrorAction SilentlyContinue
+                            if ($setADTrustExists) {
+                                if ($domainParams.Count -gt 0) {
+                                    Set-ADTrust -Identity $trustName -Replace @{"msDS-SupportedEncryptionTypes" = 24 } @domainParams
+                                }
+                                else {
+                                    Set-ADTrust -Identity $trustName -Replace @{"msDS-SupportedEncryptionTypes" = 24 }
+                                }
+                                Write-Host "    > SUCCESS: Trust $trustName updated using Set-ADTrust" -ForegroundColor Green
+                                $remediated = $true
+                            }
+                            else {
+                                Write-Host "    >> Set-ADTrust cmdlet not available in this PowerShell version" -ForegroundColor Yellow
+                            }
+                        }
+                        catch {
+                            Write-Host "    > Set-ADTrust method failed: $($_.Exception.Message)" -ForegroundColor Red
+                        }
+                    }
+                    
+                    # Method 2: Try netdom trust command (Windows built-in tool)
+                    if (-not $remediated -and $trustName) {
+                        try {
+                            Write-Host "    >> Attempting netdom trust method..." -ForegroundColor Gray
+                            
+                            # For bidirectional trusts, we need to enable AES on both sides
+                            if ($trustDirection -eq "BiDirectional") {
+                                Write-Host "    >> Configuring bidirectional trust AES support..." -ForegroundColor Gray
+                                
+                                # Enable AES encryption support on this side of the trust
+                                $netdomCmd = "netdom trust $domain /domain:$trustName /EnableAES:yes /UserD:$env:USERDOMAIN\$env:USERNAME /PasswordD:*"
+                                Write-Host "    >> Command would be: $netdomCmd" -ForegroundColor Gray
+                                Write-Host "    >> Note: netdom requires interactive password - using alternative approach" -ForegroundColor Yellow
+                            }
+                            else {
+                                Write-Host "    >> Trust is $trustDirection - netdom approach may be limited" -ForegroundColor Yellow
+                            }
+                        }
+                        catch {
+                            Write-Host "    > netdom approach failed: $($_.Exception.Message)" -ForegroundColor Red
+                        }
+                    }
+                    
+                    # Method 3: Try modifying trust object properties through different attributes
+                    if (-not $remediated -and $trustIdentity) {
+                        try {
+                            Write-Host "    >> Attempting trust attribute modification via trustAttributes..." -ForegroundColor Gray
+                            
+                            # Get current trust attributes
+                            if ($domainParams.Count -gt 0) {
+                                $trustObj = Get-ADObject -Identity $trustIdentity -Properties trustAttributes, msDS-SupportedEncryptionTypes @domainParams
+                            }
+                            else {
+                                $trustObj = Get-ADObject -Identity $trustIdentity -Properties trustAttributes, msDS-SupportedEncryptionTypes
+                            }
+                            
+                            Write-Host "    >> Current trustAttributes: $($trustObj.trustAttributes)" -ForegroundColor Gray
+                            Write-Host "    >> Current msDS-SupportedEncryptionTypes: $($trustObj.'msDS-SupportedEncryptionTypes')" -ForegroundColor Gray
+                            
+                            # For some trust types, we need to modify trustAttributes instead
+                            # TRUST_ATTRIBUTE_USES_AES_KEYS = 0x00001000 (4096 decimal)
+                            if ($trustObj.trustAttributes) {
+                                $newTrustAttributes = $trustObj.trustAttributes -bor 4096  # Add AES flag
+                            }
+                            else {
+                                $newTrustAttributes = 4096  # Set AES flag
+                            }
+                            
+                            Write-Host "    >> Trying to set trustAttributes to $newTrustAttributes (includes AES flag)..." -ForegroundColor Gray
+                            
+                            if ($domainParams.Count -gt 0) {
+                                Set-ADObject -Identity $trustIdentity -Replace @{"trustAttributes" = $newTrustAttributes } @domainParams
+                            }
+                            else {
+                                Set-ADObject -Identity $trustIdentity -Replace @{"trustAttributes" = $newTrustAttributes }
+                            }
+                            
+                            Write-Host "    > SUCCESS: Trust attributes updated to include AES support" -ForegroundColor Green
+                            $remediated = $true
+                            
+                        }
+                        catch {
+                            Write-Host "    > Trust attributes method failed: $($_.Exception.Message)" -ForegroundColor Red
+                        }
+                    }
+                    
+                    # Method 4: Traditional Set-ADObject approaches (as fallback)
+                    if (-not $remediated -and $trustIdentity) {
+                        Write-Host "    >> Attempting traditional Set-ADObject methods..." -ForegroundColor Gray
+                        
+                        # Try -Replace first
+                        try {
+                            Write-Host "    >> Trying -Replace method..." -ForegroundColor Gray
                             if ($domainParams.Count -gt 0) {
                                 Set-ADObject -Identity $trustIdentity -Replace @{"msDS-SupportedEncryptionTypes" = 24 } @domainParams
                             }
                             else {
                                 Set-ADObject -Identity $trustIdentity -Replace @{"msDS-SupportedEncryptionTypes" = 24 }
                             }
-                            Write-Host "    > Fixed: Trust $($_.Name) set to AES-only (value 24)" -ForegroundColor Green
-                            Write-Host "    >>  Note: Trust fixes require explicit attribute modification, not GPO" -ForegroundColor Gray
+                            Write-Host "    > SUCCESS: Trust updated using Set-ADObject -Replace" -ForegroundColor Green
                             $remediated = $true
                         }
                         catch {
                             Write-Host "    > -Replace method failed: $($_.Exception.Message)" -ForegroundColor Red
-                        }
-                        
-                        # Method 2: Try -Add if -Replace failed
-                        if (-not $remediated) {
+                            
+                            # Try -Add as fallback
                             try {
-                                Write-Host "    >> Trying alternative approach with -Add parameter..." -ForegroundColor Yellow
+                                Write-Host "    >> Trying -Add method..." -ForegroundColor Yellow
                                 if ($domainParams.Count -gt 0) {
                                     Set-ADObject -Identity $trustIdentity -Add @{"msDS-SupportedEncryptionTypes" = 24 } @domainParams
                                 }
                                 else {
                                     Set-ADObject -Identity $trustIdentity -Add @{"msDS-SupportedEncryptionTypes" = 24 }
                                 }
-                                Write-Host "    > Fixed: Trust $($_.Name) set to AES-only (value 24) using -Add" -ForegroundColor Green
+                                Write-Host "    > SUCCESS: Trust updated using Set-ADObject -Add" -ForegroundColor Green
                                 $remediated = $true
                             }
                             catch {
                                 Write-Host "    > -Add method also failed: $($_.Exception.Message)" -ForegroundColor Red
                             }
                         }
-                        
-                        # Method 3: Try using different server context if available
-                        if (-not $remediated -and $Server) {
-                            try {
-                                Write-Host "    >> Trying with explicit server context: $Server..." -ForegroundColor Yellow
-                                Set-ADObject -Identity $trustIdentity -Replace @{"msDS-SupportedEncryptionTypes" = 24 } -Server $Server
-                                Write-Host "    > Fixed: Trust $($_.Name) set to AES-only (value 24) using explicit server" -ForegroundColor Green
-                                $remediated = $true
-                            }
-                            catch {
-                                Write-Host "    > Explicit server method failed: $($_.Exception.Message)" -ForegroundColor Red
-                            }
-                        }
-                        
-                        # Method 4: Try using domain context without additional parameters
-                        if (-not $remediated) {
-                            try {
-                                Write-Host "    >> Trying with minimal parameters (no domain context)..." -ForegroundColor Yellow
-                                Set-ADObject -Identity $trustIdentity -Replace @{"msDS-SupportedEncryptionTypes" = 24 }
-                                Write-Host "    > Fixed: Trust $($_.Name) set to AES-only (value 24) using minimal context" -ForegroundColor Green
-                                $remediated = $true
-                            }
-                            catch {
-                                Write-Host "    > Minimal context method failed: $($_.Exception.Message)" -ForegroundColor Red
-                            }
-                        }
-                        
-                        # If all automated methods failed, provide comprehensive manual guidance
-                        if (-not $remediated) {
-                            Write-Host "`n    >>  ALL AUTOMATED METHODS FAILED - MANUAL REMEDIATION REQUIRED" -ForegroundColor Red
-                            Write-Host "    >> Trust: $($_.Name)" -ForegroundColor Yellow
-                            Write-Host "    >> Identity: $trustIdentity" -ForegroundColor Yellow
-                            Write-Host "`n    >> MANUAL REMEDIATION OPTIONS:" -ForegroundColor Cyan
-                            Write-Host "    >> Option 1 - PowerShell (run as Enterprise Admin):" -ForegroundColor White
-                            Write-Host "       Set-ADObject -Identity '$trustIdentity' -Replace @{msDS-SupportedEncryptionTypes=24}" -ForegroundColor Gray
-                            Write-Host "    >> Option 2 - Active Directory Domains and Trusts GUI:" -ForegroundColor White
-                            Write-Host "       1. Open 'Active Directory Domains and Trusts'" -ForegroundColor Gray
-                            Write-Host "       2. Right-click domain > Properties > Trusts tab" -ForegroundColor Gray
-                            Write-Host "       3. Select trust > Properties > Check 'The other domain supports Kerberos AES Encryption'" -ForegroundColor Gray
-                            Write-Host "    >> Option 3 - LDIF file (using ldifde.exe):" -ForegroundColor White
-                            Write-Host "       Create trust_fix.ldif with content:" -ForegroundColor Gray
-                            Write-Host "       dn: $trustIdentity" -ForegroundColor Gray
-                            Write-Host "       changetype: modify" -ForegroundColor Gray
-                            Write-Host "       replace: msDS-SupportedEncryptionTypes" -ForegroundColor Gray
-                            Write-Host "       msDS-SupportedEncryptionTypes: 24" -ForegroundColor Gray
-                            Write-Host "       Then run: ldifde -i -f trust_fix.ldif" -ForegroundColor Gray
-                            Write-Host "`n    >> COMMON CAUSES OF 'ILLEGAL MODIFY OPERATION':" -ForegroundColor Yellow
-                            Write-Host "       - Insufficient permissions (need Enterprise Admin for trusts)" -ForegroundColor Gray
-                            Write-Host "       - Trust object is in read-only state" -ForegroundColor Gray
-                            Write-Host "       - Cross-domain permissions not properly delegated" -ForegroundColor Gray
-                            Write-Host "       - Domain controller replication lag" -ForegroundColor Gray
-                            Write-Host "       - Trust relationship needs to be re-established" -ForegroundColor Gray
-                            Write-Host "`n    >> VERIFICATION AFTER MANUAL FIX:" -ForegroundColor Cyan
-                            Write-Host "       Get-ADObject -Identity '$trustIdentity' -Properties msDS-SupportedEncryptionTypes" -ForegroundColor Gray
-                        }
                     }
+                    
+                    # If all automated methods failed, provide comprehensive manual guidance
+                    if (-not $remediated) {
+                        Write-Host "`n    >>  ALL AUTOMATED METHODS FAILED - TRUST-SPECIFIC MANUAL REMEDIATION" -ForegroundColor Red
+                        Write-Host "    >> Trust: $trustName (Type: $trustType, Direction: $trustDirection)" -ForegroundColor Yellow
+                        Write-Host "    >> Identity: $trustIdentity" -ForegroundColor Yellow
+                        Write-Host "`n    >> TRUST-SPECIFIC REMEDIATION METHODS:" -ForegroundColor Cyan
+                        
+                        Write-Host "    >> Method 1 - Active Directory Domains and Trusts (RECOMMENDED):" -ForegroundColor White
+                        Write-Host "       1. Open 'Active Directory Domains and Trusts'" -ForegroundColor Gray
+                        Write-Host "       2. Right-click '$domain' > Properties > Trusts tab" -ForegroundColor Gray
+                        Write-Host "       3. Select trust '$trustName' > Properties" -ForegroundColor Gray
+                        Write-Host "       4. Check 'The other domain supports Kerberos AES Encryption'" -ForegroundColor Gray
+                        Write-Host "       5. Click OK and repeat on the OTHER domain if bidirectional" -ForegroundColor Gray
+                        
+                        Write-Host "`n    >> Method 2 - netdom command (interactive):" -ForegroundColor White
+                        Write-Host "       netdom trust $domain /domain:$trustName /EnableAES:yes" -ForegroundColor Gray
+                        Write-Host "       (You'll be prompted for credentials)" -ForegroundColor Gray
+                        
+                        Write-Host "`n    >> Method 3 - PowerShell trustAttributes approach:" -ForegroundColor White
+                        Write-Host "       `$trust = Get-ADObject -Identity '$trustIdentity' -Properties trustAttributes" -ForegroundColor Gray
+                        Write-Host "       `$newAttrib = `$trust.trustAttributes -bor 4096  # Add AES flag" -ForegroundColor Gray
+                        Write-Host "       Set-ADObject -Identity '$trustIdentity' -Replace @{trustAttributes=`$newAttrib}" -ForegroundColor Gray
+                        
+                        Write-Host "`n    >> Method 4 - LDIF file approach:" -ForegroundColor White
+                        Write-Host "       Create trust_aes_fix.ldif:" -ForegroundColor Gray
+                        Write-Host "       dn: $trustIdentity" -ForegroundColor Gray
+                        Write-Host "       changetype: modify" -ForegroundColor Gray
+                        Write-Host "       replace: trustAttributes" -ForegroundColor Gray
+                        Write-Host "       trustAttributes: 4096" -ForegroundColor Gray
+                        Write-Host "       -" -ForegroundColor Gray
+                        Write-Host "       add: msDS-SupportedEncryptionTypes" -ForegroundColor Gray
+                        Write-Host "       msDS-SupportedEncryptionTypes: 24" -ForegroundColor Gray
+                        Write-Host "       Then: ldifde -i -f trust_aes_fix.ldif" -ForegroundColor Gray
+                        
+                        Write-Host "`n    >> WHY TRUSTS ARE DIFFERENT:" -ForegroundColor Yellow
+                        Write-Host "       - Trust objects use trustAttributes for encryption capabilities" -ForegroundColor Gray
+                        Write-Host "       - TRUST_ATTRIBUTE_USES_AES_KEYS flag (0x1000) controls AES support" -ForegroundColor Gray
+                        Write-Host "       - Both sides of bidirectional trusts need configuration" -ForegroundColor Gray
+                        Write-Host "       - msDS-SupportedEncryptionTypes may be read-only on trust objects" -ForegroundColor Gray
+                        Write-Host "       - GUI method is often most reliable for trusts" -ForegroundColor Gray
+                        
+                        Write-Host "`n    >> VERIFICATION COMMANDS:" -ForegroundColor Cyan
+                        Write-Host "       Get-ADObject -Identity '$trustIdentity' -Properties trustAttributes,msDS-SupportedEncryptionTypes" -ForegroundColor Gray
+                        Write-Host "       Get-ADTrust -Filter \"Name -eq '$trustName'\" -Properties msDS-SupportedEncryptionTypes" -ForegroundColor Gray
+                    }
+                    else {
+                        Write-Host "    >>  Note: Trust remediation complete. Verify on both domains for bidirectional trusts." -ForegroundColor Green
+                    }
+                }
+            }
                     else {
                         Write-Host "    > ERROR: Could not determine trust object identity" -ForegroundColor Red
                         Write-Host "    >> Trust name: $($_.Name)" -ForegroundColor Yellow

@@ -1046,6 +1046,12 @@ function Test-KerberosGPOSettings {
                         $isSecure = $true
                     }
                     
+                    # CRITICAL: Final override - if we detected AES and disabled RC4, MUST be secure
+                    if (-not $isSecure -and $hasAES128 -and $hasAES256 -and $hasRC4Disabled) {
+                        Write-Host "      >> INFO: GPO '$($gpo.DisplayName)' force-marked as secure (AES enabled, RC4 disabled)" -ForegroundColor Cyan
+                        $isSecure = $true
+                    }
+                    
                     $kerberosGPO = [PSCustomObject]@{
                         Name            = $gpo.DisplayName
                         Id              = $gpo.Id

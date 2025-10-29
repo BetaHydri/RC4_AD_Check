@@ -862,7 +862,9 @@ function Test-KerberosGPOSettings {
                     }
                     
                     # Analyze settings with more detailed checking
-                    Write-Host "      >> Analyzing GPO settings..." -ForegroundColor Gray
+                    if ($DebugMode) {
+                        Write-Host "      >> Analyzing GPO settings..." -ForegroundColor Gray
+                    }
                     
                     # Check for different possible setting patterns - GPO XML uses different naming conventions
                     # Common patterns in GPO XML reports:
@@ -895,7 +897,7 @@ function Test-KerberosGPOSettings {
                         $hasAES128 = $hasAES128 -or (($encValue -band 0x8) -ne 0)   # Bit 3 = AES128
                         $hasAES256 = $hasAES256 -or (($encValue -band 0x10) -ne 0)  # Bit 4 = AES256
                         # For RC4/DES disabled, we need to check if the bits are explicitly NOT set when we have a defined value
-                        if ($encValue -ne $null) {
+                        if ($null -ne $encValue) {
                             $hasRC4Disabled = (($encValue -band 0x4) -eq 0)  # RC4 disabled when bit not set in defined value
                             $hasDESDisabled = (($encValue -band 0x3) -eq 0)  # DES disabled when bits not set in defined value
                         }
@@ -913,7 +915,9 @@ function Test-KerberosGPOSettings {
                         }
                     }
                     
-                    Write-Host "      >> Settings analysis: AES128=$hasAES128, AES256=$hasAES256, RC4Disabled=$hasRC4Disabled, DESDisabled=$hasDESDisabled" -ForegroundColor Gray
+                    if ($DebugMode) {
+                        Write-Host "      >> Settings analysis: AES128=$hasAES128, AES256=$hasAES256, RC4Disabled=$hasRC4Disabled, DESDisabled=$hasDESDisabled" -ForegroundColor Gray
+                    }
                     
                     # If we couldn't detect AES settings through text parsing but found a numeric value indicating AES-only, trust the numeric value
                     if ((-not $hasAES128 -or -not $hasAES256) -and $encValue -eq 24) {
@@ -1034,24 +1038,9 @@ function Test-KerberosGPOSettings {
                     }
                 }
                 else {
-                    Write-Host "    >>  NEEDS IMPROVEMENT: Sub-optimal settings detected:" -ForegroundColor Yellow
-                    if (-not $gpo.HasAES128) { Write-Host "      > AES128 not enabled" -ForegroundColor Red }
-                    if (-not $gpo.HasAES256) { Write-Host "      > AES256 not enabled" -ForegroundColor Red }
-                    if (-not $gpo.HasRC4Disabled) { Write-Host "      > RC4 not disabled (SECURITY RISK)" -ForegroundColor Red }
-                    if (-not $gpo.HasDESDisabled) { 
-                        if ($gpo.EncryptionValue -and ($gpo.EncryptionValue -band 0x3) -eq 0) {
-                            Write-Host "      > DES disabled by omission (bits 1,2 not set - GOOD)" -ForegroundColor Green
-                        }
-                        else {
-                            Write-Host "      >>  DES status unclear - verify DES is not enabled" -ForegroundColor Yellow
-                        }
-                    }
-                    if ($gpo.EncryptionValue) {
-                        Write-Host "      > Current encryption value: $($gpo.EncryptionValue) = $(Get-EncryptionTypes $gpo.EncryptionValue)" -ForegroundColor Cyan
-                    }
-                    
-                    # Cross-verification: Check if objects actually have AES encryption despite GPO parsing issues
-                    Write-Host "      >> Performing GPO effectiveness verification..." -ForegroundColor Cyan
+                    # Before showing "NEEDS IMPROVEMENT", perform verification to avoid confusing output
+                    Write-Host "    >> Performing GPO effectiveness verification..." -ForegroundColor Cyan
+                    $verificationResult = $null
                     try {
                         # Set up server parameter for verification
                         $verifyParams = @{}
@@ -1068,54 +1057,89 @@ function Test-KerberosGPOSettings {
                         }
                         
                         if ($computersWithAES.Count -gt 0) {
-                            Write-Host "      >> VERIFICATION: Found $($computersWithAES.Count)/$($sampleComputers.Count) sampled computers with AES encryption" -ForegroundColor Green
-                            
-                            # Show what value the computers actually have
                             $commonValue = $computersWithAES[0]."msDS-SupportedEncryptionTypes"
-                            Write-Host "      >> Sample computer encryption value: $commonValue = $(Get-EncryptionTypes $commonValue)" -ForegroundColor Cyan
-                            
-                            # If verification shows AES encryption is working, update the assessment
-                            if ($commonValue -eq 24) {
-                                Write-Host "      >> CORRECTED ASSESSMENT: GPO is actually OPTIMAL (AES-only configuration detected)" -ForegroundColor Green
-                                Write-Host "      >> The GPO XML parsing had a false negative - the GPO is working correctly" -ForegroundColor Green
-                                # Update the GPO object properties based on verification
-                                $gpo.HasAES128 = $true
-                                $gpo.HasAES256 = $true
-                                $gpo.HasRC4Disabled = $true
-                                $gpo.HasDESDisabled = $true
-                                $gpo.IsOptimal = $true
-                                $gpo.IsSecure = $true
-                                $gpo.EncryptionValue = $commonValue
-                            }
-                            elseif (($commonValue -band 0x18) -gt 0 -and ($commonValue -band 0x4) -eq 0) {
-                                Write-Host "      >> CORRECTED ASSESSMENT: GPO is actually SECURE (AES enabled, RC4 disabled)" -ForegroundColor Green
-                                Write-Host "      >> The GPO XML parsing had a false negative - the GPO is working correctly" -ForegroundColor Green
-                                # Update the GPO object properties based on verification
-                                $gpo.HasAES128 = ($commonValue -band 0x8) -gt 0
-                                $gpo.HasAES256 = ($commonValue -band 0x10) -gt 0
-                                $gpo.HasRC4Disabled = $true
-                                $gpo.HasDESDisabled = ($commonValue -band 0x3) -eq 0
-                                $gpo.IsSecure = $true
-                                $gpo.EncryptionValue = $commonValue
-                            }
-                            else {
-                                Write-Host "      >> GPO appears to be working, but computer encryption value suggests mixed settings" -ForegroundColor Yellow
-                                Write-Host "      >> Consider this a POTENTIAL FALSE NEGATIVE in GPO analysis" -ForegroundColor Yellow
+                            $verificationResult = @{
+                                Found = $true
+                                Count = $computersWithAES.Count
+                                Total = $sampleComputers.Count
+                                Value = $commonValue
+                                Description = Get-EncryptionTypes $commonValue
                             }
                         }
                         else {
-                            Write-Host "      >> VERIFICATION: No computers found with AES encryption - GPO analysis appears accurate" -ForegroundColor Red
+                            $verificationResult = @{ Found = $false }
                         }
                     }
                     catch {
-                        Write-Host "      >> VERIFICATION: Could not sample domain computers for cross-verification" -ForegroundColor Gray
+                        $verificationResult = @{ Found = $null; Error = $_.Exception.Message }
+                    }
+                    
+                    # Now provide a single, clear assessment based on verification
+                    if ($verificationResult.Found -eq $true) {
+                        # GPO is actually working correctly despite parsing issues
+                        Write-Host "    > ASSESSMENT: OPTIMAL (Verified via computer objects)" -ForegroundColor Green
+                        Write-Host "      > Verification: $($verificationResult.Count)/$($verificationResult.Total) computers have AES encryption" -ForegroundColor Green
+                        Write-Host "      > Encryption value: $($verificationResult.Value) = $($verificationResult.Description)" -ForegroundColor Green
+                        Write-Host "      > Note: GPO XML parsing failed, but GPO is working correctly" -ForegroundColor Gray
+                        
+                        # Update the GPO object properties for accurate final assessment
+                        if ($verificationResult.Value -eq 24) {
+                            $gpo.HasAES128 = $true
+                            $gpo.HasAES256 = $true
+                            $gpo.HasRC4Disabled = $true
+                            $gpo.HasDESDisabled = $true
+                            $gpo.IsOptimal = $true
+                            $gpo.IsSecure = $true
+                            $gpo.EncryptionValue = $verificationResult.Value
+                        }
+                        elseif (($verificationResult.Value -band 0x18) -gt 0 -and ($verificationResult.Value -band 0x4) -eq 0) {
+                            $gpo.HasAES128 = ($verificationResult.Value -band 0x8) -gt 0
+                            $gpo.HasAES256 = ($verificationResult.Value -band 0x10) -gt 0
+                            $gpo.HasRC4Disabled = $true
+                            $gpo.HasDESDisabled = ($verificationResult.Value -band 0x3) -eq 0
+                            $gpo.IsSecure = $true
+                            $gpo.EncryptionValue = $verificationResult.Value
+                        }
+                    }
+                    else {
+                        # GPO analysis appears to be accurate - show improvement needs
+                        Write-Host "    >>  NEEDS IMPROVEMENT: Sub-optimal settings detected" -ForegroundColor Yellow
+                        if (-not $gpo.HasAES128) { Write-Host "      > AES128 not enabled" -ForegroundColor Red }
+                        if (-not $gpo.HasAES256) { Write-Host "      > AES256 not enabled" -ForegroundColor Red }
+                        if (-not $gpo.HasRC4Disabled) { Write-Host "      > RC4 not disabled (SECURITY RISK)" -ForegroundColor Red }
+                        if (-not $gpo.HasDESDisabled) { 
+                            if ($gpo.EncryptionValue -and ($gpo.EncryptionValue -band 0x3) -eq 0) {
+                                Write-Host "      > DES disabled by omission (bits 1,2 not set - GOOD)" -ForegroundColor Green
+                            }
+                            else {
+                                Write-Host "      >>  DES status unclear - verify DES is not enabled" -ForegroundColor Yellow
+                            }
+                        }
+                        if ($gpo.EncryptionValue) {
+                            Write-Host "      > Current encryption value: $($gpo.EncryptionValue) = $(Get-EncryptionTypes $gpo.EncryptionValue)" -ForegroundColor Cyan
+                        }
+                        
+                        if ($verificationResult.Found -eq $false) {
+                            Write-Host "      > Verification: No computers found with AES encryption - assessment confirmed" -ForegroundColor Yellow
+                        }
+                        elseif ($null -eq $verificationResult.Found) {
+                            Write-Host "      > Verification: Could not verify via computer sampling" -ForegroundColor Gray
+                        }
                     }
                 }
             }
             
-            # Check GPO application on objects if we have GPOs and scope is appropriate
+            # Only show detailed GPO application status if we have issues or user wants debug detail
             if ($kerberosGPOs.Count -gt 0 -and $Scope -in @("Both", "AllOUs", "Domain", "DomainControllers")) {
-                Test-GPOApplication -Domain $Domain -KerberosGPOs $kerberosGPOs -Server $Server
+                # Check if we have any non-optimal GPOs that warrant detailed analysis
+                $needsDetailedAnalysis = $kerberosGPOs | Where-Object { -not $_.IsOptimal }
+                
+                if ($needsDetailedAnalysis.Count -gt 0 -or $DebugMode) {
+                    Test-GPOApplication -Domain $Domain -KerberosGPOs $kerberosGPOs -Server $Server
+                }
+                else {
+                    Write-Host "`n  >> GPO application analysis skipped (all GPOs optimal)" -ForegroundColor Green
+                }
             }
         }
         

@@ -1299,208 +1299,208 @@ foreach ($domain in $forest.Domains) {
                         Write-Host "    >> Trust: $trustName (Type: $trustType, Direction: $trustDirection)" -ForegroundColor White
                         Write-Host "    >> Domain: $domain" -ForegroundColor White
                     
-                    # Method 1: Use ksetup command (most reliable programmatic method)
-                    $remediated = $false
-                    try {
-                        Write-Host "`n    >> Attempting ksetup method (MICROSOFT METHOD 3 - AES ONLY)..." -ForegroundColor Green
+                        # Method 1: Use ksetup command (most reliable programmatic method)
+                        $remediated = $false
+                        try {
+                            Write-Host "`n    >> Attempting ksetup method (MICROSOFT METHOD 3 - AES ONLY)..." -ForegroundColor Green
                         
-                        # Microsoft Method 3: AES-only configuration (matches GUI checkbox behavior)
-                        # This is equivalent to checking "The other domain supports Kerberos AES Encryption"
-                        $ksetupCmd = "ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96"
-                        Write-Host "    >> Command: $ksetupCmd" -ForegroundColor Gray
-                        Write-Host "    >> Note: AES-only mode (same as GUI checkbox in Domains and Trusts)" -ForegroundColor Gray
+                            # Microsoft Method 3: AES-only configuration (matches GUI checkbox behavior)
+                            # This is equivalent to checking "The other domain supports Kerberos AES Encryption"
+                            $ksetupCmd = "ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96"
+                            Write-Host "    >> Command: $ksetupCmd" -ForegroundColor Gray
+                            Write-Host "    >> Note: AES-only mode (same as GUI checkbox in Domains and Trusts)" -ForegroundColor Gray
                         
-                        # Execute ksetup command with AES-only (Microsoft Method 3)
-                        $ksetupResult = & ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96 2>&1
+                            # Execute ksetup command with AES-only (Microsoft Method 3)
+                            $ksetupResult = & ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96 2>&1
                         
-                        # Check for success - ksetup often returns 0 even on failure, so parse output
-                        $ksetupSuccess = $true
-                        $errorCode = $null
+                            # Check for success - ksetup often returns 0 even on failure, so parse output
+                            $ksetupSuccess = $true
+                            $errorCode = $null
                         
-                        # Convert result to string for analysis
-                        $ksetupOutput = $ksetupResult -join " "
+                            # Convert result to string for analysis
+                            $ksetupOutput = $ksetupResult -join " "
                         
-                        # Check for common error patterns in ksetup output
-                        if ($ksetupOutput -match "failed with (0x[0-9a-fA-F]+)" -or 
-                            $ksetupOutput -match "Failed.*: (0x[0-9a-fA-F]+)" -or
-                            $ksetupOutput -match "error" -or
-                            $ksetupOutput -match "Error") {
-                            $ksetupSuccess = $false
-                            if ($matches -and $matches[1]) {
-                                $errorCode = $matches[1]
+                            # Check for common error patterns in ksetup output
+                            if ($ksetupOutput -match "failed with (0x[0-9a-fA-F]+)" -or 
+                                $ksetupOutput -match "Failed.*: (0x[0-9a-fA-F]+)" -or
+                                $ksetupOutput -match "error" -or
+                                $ksetupOutput -match "Error") {
+                                $ksetupSuccess = $false
+                                if ($matches -and $matches[1]) {
+                                    $errorCode = $matches[1]
+                                }
                             }
-                        }
                         
-                        # Additional check: if output contains the word "failed" it's likely an error
-                        if ($ksetupOutput -match "failed" -and $ksetupOutput -notmatch "Setting enctypes") {
-                            $ksetupSuccess = $false
-                        }
-                        
-                        if ($ksetupSuccess -and $LASTEXITCODE -eq 0) {
-                            Write-Host "    > SUCCESS: Trust configured with AES-only encryption (Microsoft Method 3)" -ForegroundColor Green
-                            Write-Host "    >> $ksetupResult" -ForegroundColor Green
-                            Write-Host "    >> This matches the 'AES Encryption' checkbox in AD Domains and Trusts" -ForegroundColor Green
-                            $remediated = $true
-                            
-                            # Verify the setting
-                            Write-Host "    >> Verifying setting..." -ForegroundColor Gray
-                            $verifyResult = & ksetup /getenctypeattr $trustName 2>&1
-                            $verifyOutput = $verifyResult -join " "
-                            
-                            # Check if verification also failed
-                            if ($verifyOutput -match "failed with (0x[0-9a-fA-F]+)" -or 
-                                $verifyOutput -match "Failed.*: (0x[0-9a-fA-F]+)") {
-                                Write-Host "    >> Verification failed: $verifyResult" -ForegroundColor Red
-                                Write-Host "    >> Note: Trust setting may not have been applied successfully" -ForegroundColor Yellow
-                                $remediated = $false
+                            # Additional check: if output contains the word "failed" it's likely an error
+                            if ($ksetupOutput -match "failed" -and $ksetupOutput -notmatch "Setting enctypes") {
+                                $ksetupSuccess = $false
                             }
-                            elseif ($LASTEXITCODE -eq 0) {
-                                Write-Host "    >> Verification result: $verifyResult" -ForegroundColor Green
+                        
+                            if ($ksetupSuccess -and $LASTEXITCODE -eq 0) {
+                                Write-Host "    > SUCCESS: Trust configured with AES-only encryption (Microsoft Method 3)" -ForegroundColor Green
+                                Write-Host "    >> $ksetupResult" -ForegroundColor Green
+                                Write-Host "    >> This matches the 'AES Encryption' checkbox in AD Domains and Trusts" -ForegroundColor Green
+                                $remediated = $true
+                            
+                                # Verify the setting
+                                Write-Host "    >> Verifying setting..." -ForegroundColor Gray
+                                $verifyResult = & ksetup /getenctypeattr $trustName 2>&1
+                                $verifyOutput = $verifyResult -join " "
+                            
+                                # Check if verification also failed
+                                if ($verifyOutput -match "failed with (0x[0-9a-fA-F]+)" -or 
+                                    $verifyOutput -match "Failed.*: (0x[0-9a-fA-F]+)") {
+                                    Write-Host "    >> Verification failed: $verifyResult" -ForegroundColor Red
+                                    Write-Host "    >> Note: Trust setting may not have been applied successfully" -ForegroundColor Yellow
+                                    $remediated = $false
+                                }
+                                elseif ($LASTEXITCODE -eq 0) {
+                                    Write-Host "    >> Verification result: $verifyResult" -ForegroundColor Green
+                                }
+                                else {
+                                    Write-Host "    >> Verification exit code: $LASTEXITCODE" -ForegroundColor Yellow
+                                }
                             }
                             else {
-                                Write-Host "    >> Verification exit code: $LASTEXITCODE" -ForegroundColor Yellow
-                            }
-                        }
-                        else {
-                            Write-Host "    > ksetup method failed" -ForegroundColor Red
-                            Write-Host "    >> Output: $ksetupResult" -ForegroundColor Red
-                            if ($errorCode) {
-                                Write-Host "    >> Error code: $errorCode" -ForegroundColor Red
+                                Write-Host "    > ksetup method failed" -ForegroundColor Red
+                                Write-Host "    >> Output: $ksetupResult" -ForegroundColor Red
+                                if ($errorCode) {
+                                    Write-Host "    >> Error code: $errorCode" -ForegroundColor Red
                                 
-                                # Provide specific guidance for common error codes
-                                switch ($errorCode) {
-                                    "0xc0000034" {
-                                        Write-Host "    >> Error 0xc0000034: STATUS_OBJECT_NAME_NOT_FOUND" -ForegroundColor Yellow
-                                        Write-Host "       CRITICAL: ksetup domain context requirement not met!" -ForegroundColor Yellow
-                                        Write-Host "       - You can ONLY set encryption types for the OTHER domain in the trust" -ForegroundColor Yellow
-                                        Write-Host "       - Currently on domain: $domain" -ForegroundColor Yellow
-                                        Write-Host "       - Trying to configure: $trustName" -ForegroundColor Yellow
-                                        Write-Host "       - Trust direction: $trustDirection" -ForegroundColor Yellow
-                                        Write-Host "" -ForegroundColor Yellow
-                                        Write-Host "       >> SOLUTION: Run ksetup from the OTHER domain's DC:" -ForegroundColor Cyan
-                                        if ($trustDirection -eq "Outbound") {
-                                            Write-Host "         From DC in '$trustName': ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Cyan
-                                        }
-                                        elseif ($trustDirection -eq "Inbound") {
-                                            Write-Host "         From DC in '$domain': ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Cyan
-                                        }
-                                        elseif ($trustDirection -eq "BiDirectional") {
-                                            if ($trustName -ne $domain) {
-                                                Write-Host "         Step 1 - From DC in '$trustName': ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Cyan
-                                                Write-Host "         Step 2 - From DC in '$domain': ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Cyan
+                                    # Provide specific guidance for common error codes
+                                    switch ($errorCode) {
+                                        "0xc0000034" {
+                                            Write-Host "    >> Error 0xc0000034: STATUS_OBJECT_NAME_NOT_FOUND" -ForegroundColor Yellow
+                                            Write-Host "       CRITICAL: ksetup domain context requirement not met!" -ForegroundColor Yellow
+                                            Write-Host "       - You can ONLY set encryption types for the OTHER domain in the trust" -ForegroundColor Yellow
+                                            Write-Host "       - Currently on domain: $domain" -ForegroundColor Yellow
+                                            Write-Host "       - Trying to configure: $trustName" -ForegroundColor Yellow
+                                            Write-Host "       - Trust direction: $trustDirection" -ForegroundColor Yellow
+                                            Write-Host "" -ForegroundColor Yellow
+                                            Write-Host "       >> SOLUTION: Run ksetup from the OTHER domain's DC:" -ForegroundColor Cyan
+                                            if ($trustDirection -eq "Outbound") {
+                                                Write-Host "         From DC in '$trustName': ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Cyan
                                             }
-                                            else {
-                                                Write-Host "         ERROR: Self-referential trust detected ($domain -> $domain)" -ForegroundColor Red
-                                                Write-Host "         This trust configuration should not exist. Use GUI to verify." -ForegroundColor Yellow
+                                            elseif ($trustDirection -eq "Inbound") {
+                                                Write-Host "         From DC in '$domain': ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Cyan
                                             }
+                                            elseif ($trustDirection -eq "BiDirectional") {
+                                                if ($trustName -ne $domain) {
+                                                    Write-Host "         Step 1 - From DC in '$trustName': ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Cyan
+                                                    Write-Host "         Step 2 - From DC in '$domain': ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Cyan
+                                                }
+                                                else {
+                                                    Write-Host "         ERROR: Self-referential trust detected ($domain -> $domain)" -ForegroundColor Red
+                                                    Write-Host "         This trust configuration should not exist. Use GUI to verify." -ForegroundColor Yellow
+                                                }
+                                            }
+                                            Write-Host "       >> ALTERNATIVE: Use GUI method (domain.msc) which handles context automatically" -ForegroundColor Green
                                         }
-                                        Write-Host "       >> ALTERNATIVE: Use GUI method (domain.msc) which handles context automatically" -ForegroundColor Green
-                                    }
-                                    "0xc0000022" {
-                                        Write-Host "    >> Error 0xc0000022: STATUS_ACCESS_DENIED" -ForegroundColor Yellow
-                                        Write-Host "       - Need Domain/Enterprise Admin privileges" -ForegroundColor Yellow
-                                        Write-Host "       - Run as administrator" -ForegroundColor Yellow
-                                    }
-                                    default {
-                                        Write-Host "    >> Unknown error code. Check Microsoft documentation." -ForegroundColor Yellow
+                                        "0xc0000022" {
+                                            Write-Host "    >> Error 0xc0000022: STATUS_ACCESS_DENIED" -ForegroundColor Yellow
+                                            Write-Host "       - Need Domain/Enterprise Admin privileges" -ForegroundColor Yellow
+                                            Write-Host "       - Run as administrator" -ForegroundColor Yellow
+                                        }
+                                        default {
+                                            Write-Host "    >> Unknown error code. Check Microsoft documentation." -ForegroundColor Yellow
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
-                    catch {
-                        Write-Host "    > ksetup method failed: $($_.Exception.Message)" -ForegroundColor Red
-                    }
+                        catch {
+                            Write-Host "    > ksetup method failed: $($_.Exception.Message)" -ForegroundColor Red
+                        }
                     
-                    # If ksetup failed, provide manual guidance
-                    if (-not $remediated) {
-                        Write-Host "`n    >>  KSETUP METHOD FAILED - MANUAL REMEDIATION REQUIRED" -ForegroundColor Red
-                        Write-Host "    >> Trust: $trustName" -ForegroundColor Yellow
+                        # If ksetup failed, provide manual guidance
+                        if (-not $remediated) {
+                            Write-Host "`n    >>  KSETUP METHOD FAILED - MANUAL REMEDIATION REQUIRED" -ForegroundColor Red
+                            Write-Host "    >> Trust: $trustName" -ForegroundColor Yellow
                         
-                        Write-Host "`n    >> MICROSOFT OFFICIAL REMEDIATION METHODS:" -ForegroundColor Cyan
-                        Write-Host "    >> Reference: https://learn.microsoft.com/en-us/troubleshoot/windows-server/windows-security/unsupported-etype-error-accessing-trusted-domain" -ForegroundColor Gray
+                            Write-Host "`n    >> MICROSOFT OFFICIAL REMEDIATION METHODS:" -ForegroundColor Cyan
+                            Write-Host "    >> Reference: https://learn.microsoft.com/en-us/troubleshoot/windows-server/windows-security/unsupported-etype-error-accessing-trusted-domain" -ForegroundColor Gray
                         
-                        Write-Host "`n    >> Method 1 - GUI (RECOMMENDED - matches checkbox behavior):" -ForegroundColor White
-                        Write-Host "       1. Open 'Active Directory Domains and Trusts' (domain.msc)" -ForegroundColor Gray
-                        Write-Host "       2. Right-click '$domain' > Properties > Trusts tab" -ForegroundColor Gray
-                        Write-Host "       3. Select trust '$trustName' > Properties" -ForegroundColor Gray
-                        Write-Host "       4. Check 'The other domain supports Kerberos AES Encryption'" -ForegroundColor Gray
-                        Write-Host "       5. Click OK" -ForegroundColor Gray
-                        Write-Host "       >> This checkbox sets AES-only mode (same as Method 2 below)" -ForegroundColor Green
-                        if ($trustDirection -eq "BiDirectional") {
-                            Write-Host "       6. IMPORTANT: Repeat on the OTHER domain ($trustName) for bidirectional trust" -ForegroundColor Yellow
-                        }
+                            Write-Host "`n    >> Method 1 - GUI (RECOMMENDED - matches checkbox behavior):" -ForegroundColor White
+                            Write-Host "       1. Open 'Active Directory Domains and Trusts' (domain.msc)" -ForegroundColor Gray
+                            Write-Host "       2. Right-click '$domain' > Properties > Trusts tab" -ForegroundColor Gray
+                            Write-Host "       3. Select trust '$trustName' > Properties" -ForegroundColor Gray
+                            Write-Host "       4. Check 'The other domain supports Kerberos AES Encryption'" -ForegroundColor Gray
+                            Write-Host "       5. Click OK" -ForegroundColor Gray
+                            Write-Host "       >> This checkbox sets AES-only mode (same as Method 2 below)" -ForegroundColor Green
+                            if ($trustDirection -eq "BiDirectional") {
+                                Write-Host "       6. IMPORTANT: Repeat on the OTHER domain ($trustName) for bidirectional trust" -ForegroundColor Yellow
+                            }
                         
-                        Write-Host "`n    >> Method 2 - ksetup AES-only (equivalent to GUI checkbox):" -ForegroundColor White
-                        Write-Host "       >> CRITICAL: ksetup DOMAIN CONTEXT REQUIREMENTS" -ForegroundColor Red
-                        Write-Host "       >> You can ONLY configure encryption types for the OTHER domain in trust" -ForegroundColor Red
-                        Write-Host "       >> Current domain: $domain | Target trust: $trustName | Direction: $trustDirection" -ForegroundColor Yellow
-                        Write-Host "" -ForegroundColor White
-                        if ($trustDirection -eq "Outbound") {
-                            Write-Host "       >> For OUTBOUND trust - Run from target domain DC:" -ForegroundColor Cyan
-                            Write-Host "       From domain controller in '$trustName':" -ForegroundColor Gray
-                            Write-Host "       ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
-                        }
-                        elseif ($trustDirection -eq "Inbound") {
-                            Write-Host "       >> For INBOUND trust - Run from current domain DC:" -ForegroundColor Cyan
-                            Write-Host "       From domain controller in '$domain':" -ForegroundColor Gray
-                            Write-Host "       ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
-                        }
-                        elseif ($trustDirection -eq "BiDirectional") {
-                            if ($trustName -ne $domain) {
-                                Write-Host "       >> For BIDIRECTIONAL trust - Run from BOTH domain DCs:" -ForegroundColor Cyan
-                                Write-Host "       Step 1 - From domain controller in '$trustName':" -ForegroundColor Gray
+                            Write-Host "`n    >> Method 2 - ksetup AES-only (equivalent to GUI checkbox):" -ForegroundColor White
+                            Write-Host "       >> CRITICAL: ksetup DOMAIN CONTEXT REQUIREMENTS" -ForegroundColor Red
+                            Write-Host "       >> You can ONLY configure encryption types for the OTHER domain in trust" -ForegroundColor Red
+                            Write-Host "       >> Current domain: $domain | Target trust: $trustName | Direction: $trustDirection" -ForegroundColor Yellow
+                            Write-Host "" -ForegroundColor White
+                            if ($trustDirection -eq "Outbound") {
+                                Write-Host "       >> For OUTBOUND trust - Run from target domain DC:" -ForegroundColor Cyan
+                                Write-Host "       From domain controller in '$trustName':" -ForegroundColor Gray
                                 Write-Host "       ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
-                                Write-Host "       Step 2 - From domain controller in '$domain':" -ForegroundColor Gray
+                            }
+                            elseif ($trustDirection -eq "Inbound") {
+                                Write-Host "       >> For INBOUND trust - Run from current domain DC:" -ForegroundColor Cyan
+                                Write-Host "       From domain controller in '$domain':" -ForegroundColor Gray
                                 Write-Host "       ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
                             }
-                            else {
-                                Write-Host "       >> SELF-REFERENTIAL TRUST DETECTED:" -ForegroundColor Yellow
-                                Write-Host "       Domain '$domain' has a trust to itself - this is likely misconfigured" -ForegroundColor Yellow
-                                Write-Host "       Use GUI (domain.msc) to verify and potentially remove this trust object" -ForegroundColor Cyan
+                            elseif ($trustDirection -eq "BiDirectional") {
+                                if ($trustName -ne $domain) {
+                                    Write-Host "       >> For BIDIRECTIONAL trust - Run from BOTH domain DCs:" -ForegroundColor Cyan
+                                    Write-Host "       Step 1 - From domain controller in '$trustName':" -ForegroundColor Gray
+                                    Write-Host "       ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
+                                    Write-Host "       Step 2 - From domain controller in '$domain':" -ForegroundColor Gray
+                                    Write-Host "       ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
+                                }
+                                else {
+                                    Write-Host "       >> SELF-REFERENTIAL TRUST DETECTED:" -ForegroundColor Yellow
+                                    Write-Host "       Domain '$domain' has a trust to itself - this is likely misconfigured" -ForegroundColor Yellow
+                                    Write-Host "       Use GUI (domain.msc) to verify and potentially remove this trust object" -ForegroundColor Cyan
+                                }
                             }
+                            Write-Host "       >> This is exactly what the GUI checkbox does programmatically" -ForegroundColor Green
+                        
+                            Write-Host "`n    >> Method 3 - ksetup with RC4+AES (for compatibility issues only):" -ForegroundColor White
+                            Write-Host "       Use only if AES-only mode causes authentication problems:" -ForegroundColor Yellow
+                            Write-Host "       ksetup /setenctypeattr $trustName RC4-HMAC-MD5 AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
+                            Write-Host "       >> This maintains RC4 fallback for legacy systems" -ForegroundColor Yellow
+                        
+                            Write-Host "`n    >> Method 3 - Verification commands:" -ForegroundColor White
+                            Write-Host "       ksetup /getenctypeattr $trustName" -ForegroundColor Gray
+                            Write-Host "       Get-ADTrust -Filter \"Name -eq '$trustName'\" -Properties msDS-SupportedEncryptionTypes" -ForegroundColor Gray
+                        
+                            Write-Host "`n    >> IMPORTANT NOTES ABOUT TRUST AES SETTINGS:" -ForegroundColor Yellow
+                            Write-Host "       - Trust encryption settings are DIFFERENT from computer/user settings" -ForegroundColor Gray
+                            Write-Host "       - Each side of the trust must be configured separately" -ForegroundColor Gray
+                            Write-Host "       - CRITICAL: ksetup must be run from the correct domain controller:" -ForegroundColor Red
+                            Write-Host "         * You can ONLY configure encryption for the OTHER domain in the trust" -ForegroundColor Red
+                            Write-Host "         * Example: From child.contoso.com DC, configure contoso.com trust" -ForegroundColor Red
+                            Write-Host "         * Example: From contoso.com DC, configure child.contoso.com trust" -ForegroundColor Red
+                            Write-Host "       - GUI method (domain.msc) handles domain context automatically" -ForegroundColor Green
+                            Write-Host "       - Settings control inter-domain authentication encryption" -ForegroundColor Gray
+                            Write-Host "       - GPO settings do NOT apply to trust objects" -ForegroundColor Gray
+                        
+                            Write-Host "`n    >> COMMON ksetup ERROR CODES:" -ForegroundColor Yellow
+                            Write-Host "       - 0xc0000034: Must run from correct domain/context" -ForegroundColor Gray
+                            Write-Host "       - Access denied: Need Domain/Enterprise Admin rights" -ForegroundColor Gray
+                            Write-Host "       - Target not found: Trust name or direction issue" -ForegroundColor Gray
+                        
+                            Write-Host "`n    >> REFERENCE:" -ForegroundColor Cyan
+                            Write-Host "       https://serverfault.com/questions/1099053/" -ForegroundColor Gray
+                            Write-Host "       Microsoft Docs: ksetup /setenctypeattr command" -ForegroundColor Gray
                         }
-                        Write-Host "       >> This is exactly what the GUI checkbox does programmatically" -ForegroundColor Green
-                        
-                        Write-Host "`n    >> Method 3 - ksetup with RC4+AES (for compatibility issues only):" -ForegroundColor White
-                        Write-Host "       Use only if AES-only mode causes authentication problems:" -ForegroundColor Yellow
-                        Write-Host "       ksetup /setenctypeattr $trustName RC4-HMAC-MD5 AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
-                        Write-Host "       >> This maintains RC4 fallback for legacy systems" -ForegroundColor Yellow
-                        
-                        Write-Host "`n    >> Method 3 - Verification commands:" -ForegroundColor White
-                        Write-Host "       ksetup /getenctypeattr $trustName" -ForegroundColor Gray
-                        Write-Host "       Get-ADTrust -Filter \"Name -eq '$trustName'\" -Properties msDS-SupportedEncryptionTypes" -ForegroundColor Gray
-                        
-                        Write-Host "`n    >> IMPORTANT NOTES ABOUT TRUST AES SETTINGS:" -ForegroundColor Yellow
-                        Write-Host "       - Trust encryption settings are DIFFERENT from computer/user settings" -ForegroundColor Gray
-                        Write-Host "       - Each side of the trust must be configured separately" -ForegroundColor Gray
-                        Write-Host "       - CRITICAL: ksetup must be run from the correct domain controller:" -ForegroundColor Red
-                        Write-Host "         * You can ONLY configure encryption for the OTHER domain in the trust" -ForegroundColor Red
-                        Write-Host "         * Example: From child.contoso.com DC, configure contoso.com trust" -ForegroundColor Red
-                        Write-Host "         * Example: From contoso.com DC, configure child.contoso.com trust" -ForegroundColor Red
-                        Write-Host "       - GUI method (domain.msc) handles domain context automatically" -ForegroundColor Green
-                        Write-Host "       - Settings control inter-domain authentication encryption" -ForegroundColor Gray
-                        Write-Host "       - GPO settings do NOT apply to trust objects" -ForegroundColor Gray
-                        
-                        Write-Host "`n    >> COMMON ksetup ERROR CODES:" -ForegroundColor Yellow
-                        Write-Host "       - 0xc0000034: Must run from correct domain/context" -ForegroundColor Gray
-                        Write-Host "       - Access denied: Need Domain/Enterprise Admin rights" -ForegroundColor Gray
-                        Write-Host "       - Target not found: Trust name or direction issue" -ForegroundColor Gray
-                        
-                        Write-Host "`n    >> REFERENCE:" -ForegroundColor Cyan
-                        Write-Host "       https://serverfault.com/questions/1099053/" -ForegroundColor Gray
-                        Write-Host "       Microsoft Docs: ksetup /setenctypeattr command" -ForegroundColor Gray
-                    }
-                    else {
-                        Write-Host "`n    >>  SUCCESS: Trust AES encryption configured!" -ForegroundColor Green
-                        if ($trustDirection -eq "BiDirectional") {
-                            Write-Host "    >> REMINDER: For bidirectional trusts, also configure the other side:" -ForegroundColor Yellow
-                            Write-Host "       Run from domain controller in '$trustName':" -ForegroundColor Yellow
-                            Write-Host "       ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Yellow
+                        else {
+                            Write-Host "`n    >>  SUCCESS: Trust AES encryption configured!" -ForegroundColor Green
+                            if ($trustDirection -eq "BiDirectional") {
+                                Write-Host "    >> REMINDER: For bidirectional trusts, also configure the other side:" -ForegroundColor Yellow
+                                Write-Host "       Run from domain controller in '$trustName':" -ForegroundColor Yellow
+                                Write-Host "       ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Yellow
+                            }
                         }
                     }
                 }
-            }
             } # Close the else block for non-self-referential trusts
             else {
                 Write-Host "    > ERROR: Could not determine trust object identity" -ForegroundColor Red

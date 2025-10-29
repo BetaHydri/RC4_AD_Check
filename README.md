@@ -1196,6 +1196,12 @@ Debug output includes:
 
 ## Changelog
 
+### Version 3.7 (October 2025)
+- **🔧 [CRITICAL FIX]** Fixed PowerShell ContinueException error in trust remediation
+- **🛠️ [FIXED]** Resolved improper use of 'continue' statement outside loop context  
+- **✅ [STABILITY]** Trust scanning now completes without throwing system exceptions
+- **🎯 [IMPROVED]** Proper flow control for self-referential trust skipping
+
 ### Version 3.6 (October 2025)
 - **🔧 [CRITICAL FIX]** Fixed confusing self-referential trust handling
 - **🛡️ [ADDED]** Detection and skip logic for self-referential trusts (domain trusting itself)

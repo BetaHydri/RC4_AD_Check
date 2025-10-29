@@ -1282,7 +1282,8 @@ foreach ($domain in $forest.Domains) {
                 $answer = Read-Host "    >> Remediate Trust $($_.Name) in $domain> (Y/N)"
                 if ($answer -match '^[Yy]') {
                     try {
-                        Set-ADTrust -Identity $_.Name -Replace @{"msDS-SupportedEncryptionTypes" = 24 } @domainParams
+                        # Use Set-ADObject instead of Set-ADTrust (which doesn't exist)
+                        Set-ADObject -Identity $_.DistinguishedName -Add @{"msDS-SupportedEncryptionTypes" = 24 } @domainParams
                         Write-Host "    > Fixed: Trust $($_.Name) set to AES-only (value 24)" -ForegroundColor Green
                         Write-Host "    >>  Note: Trust fixes require explicit attribute modification, not GPO" -ForegroundColor Gray
                     }

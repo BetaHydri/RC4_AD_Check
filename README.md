@@ -7,8 +7,6 @@
 
 A comprehensive PowerShell script to audit and remediate DES/RC4 kerberos encryption usage in Active Directory forests. This tool helps identify security vulnerabilities related to weak kerberos DES/RC4 encryption settings on AD objects like computer and trusts and provides options to upgrade to stronger AES encryption. It can also scan for GPOs that might already configuring AES related `msDS-SupportedEncryptionTypes` settings.
 
-**NEW in v6.0**: **Kerberos Hardening Assessment** - Comprehensive security posture analysis with tiered recommendations, complete GPO coverage analysis, service account auditing, and post-2022 compliance evaluation.
-
 ## Overview
 
 RC4 is a deprecated encryption algorithm that is considered cryptographically weak. This tool uses **modern post-November 2022 Microsoft logic** to accurately analyze your Active Directory environment and identify genuine security risks.
@@ -74,17 +72,7 @@ Based on November 2022 updates:
 
 ## Features
 
-### 🛡️ Kerberos Hardening Assessment (NEW v6.0)
-- **Comprehensive Security Posture Analysis**: Complete evaluation of your domain's Kerberos security configuration
-- **Tiered Security Recommendations**: Four-level assessment (Current/Minimum/Recommended/Maximum security)
-- **Complete GPO Coverage Analysis**: Validates both Domain Controller AND member computer GPO configurations
-- **Service Account Security Audit**: Analyzes msDS-SupportedEncryptionTypes on all service accounts (accounts with SPNs)
-- **Kerberos Negotiation Scenarios**: Shows exactly what happens with your current configuration vs. enhanced security
-- **Post-2022 Compliance Evaluation**: Full assessment against modern Microsoft Kerberos security standards
-- **Actionable Security Roadmap**: Specific recommendations for achieving different security postures
-- **JSON Export**: Detailed structured assessment results for enterprise reporting and tracking
-
-### 🔍 Core RC4/DES Detection & Remediation
+###  Core RC4/DES Detection & Remediation
 - **Forest-wide scanning**: Automatically discovers and scans all domains in the forest
 - **Comprehensive object coverage**: Audits Computers and Domain Trusts (User objects not applicable for msDS-SupportedEncryptionTypes)
 - **Advanced GPO verification**: Intelligent GPO effectiveness verification with automatic false-negative correction
@@ -97,7 +85,6 @@ Based on November 2022 updates:
 - **Optional remediation**: Interactive mode to fix issues by setting AES-only encryption
 - **Export capability**: Results can be exported to CSV for further analysis
 
-### 🎯 Advanced Analysis & Usability
 ### 🎯 Advanced Analysis & Usability
 - **Flexible server connectivity**: Support for connecting to specific domain controllers
 - **Cross-forest scanning**: Scan different forests via forest trust relationships

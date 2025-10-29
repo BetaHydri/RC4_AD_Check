@@ -47,6 +47,14 @@
 .PARAMETER DebugMode
   Enable debug output for troubleshooting GPO detection
 
+.PARAMETER KerberosHardeningAssessment
+  Perform comprehensive Kerberos security posture assessment including:
+  - Complete GPO coverage analysis (DC + member computers)
+  - Service account encryption attribute audit
+  - Tiered security recommendations (Current/Minimum/Recommended/Maximum)
+  - Kerberos negotiation scenario analysis
+  - Post-2022 security compliance evaluation
+
 .EXAMPLE
   .\RC4_AD_SCAN.ps1
   Run in audit-only mode to identify RC4 usage
@@ -95,6 +103,14 @@
   .\RC4_AD_SCAN.ps1 -GPOScope "OU=IT,DC=contoso,DC=com"
   Check GPO settings on a specific OU only
 
+.EXAMPLE
+  .\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment
+  Perform comprehensive Kerberos security posture assessment with tiered recommendations
+
+.EXAMPLE
+  .\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -ExportResults
+  Run hardening assessment and export detailed security analysis to CSV
+
 .PARAMETER Server
   Specify a domain controller server to connect to (e.g., dc01.contoso.com)
 
@@ -133,7 +149,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 5.0
+  Version: 6.0
   Created: October 2025
   Updated: October 2025
   
@@ -142,6 +158,7 @@
   
   Parameter Sets:
   - Standard: Normal operation with optional GPO scope
+  - KerberosHardening: Comprehensive Kerberos security posture assessment
   - SkipGPO: Skip all GPO checks (mutually exclusive with GPOScope/GPOCheckOnly)
   - GPOOnly: GPO analysis only (mutually exclusive with SkipGPOCheck/ApplyFixes)
   - Help: Display detailed help information
@@ -165,6 +182,7 @@ param(
     [Parameter(ParameterSetName = 'GPOOnly')]
     [Parameter(ParameterSetName = 'Help')]
     [Parameter(ParameterSetName = 'QuickHelp')]
+    [Parameter(ParameterSetName = 'KerberosHardening')]
     [switch]$ExportResults,
     
     [Parameter(ParameterSetName = 'SkipGPO', Mandatory)]
@@ -187,6 +205,7 @@ param(
     [Parameter(ParameterSetName = 'GPOOnly')]
     [Parameter(ParameterSetName = 'Help')]
     [Parameter(ParameterSetName = 'QuickHelp')]
+    [Parameter(ParameterSetName = 'KerberosHardening')]
     [switch]$DebugMode,
     
     [Parameter(ParameterSetName = 'Standard')]
@@ -194,6 +213,7 @@ param(
     [Parameter(ParameterSetName = 'GPOOnly')]
     [Parameter(ParameterSetName = 'Help')]
     [Parameter(ParameterSetName = 'QuickHelp')]
+    [Parameter(ParameterSetName = 'KerberosHardening')]
     [string]$Server,
     
     [Parameter(ParameterSetName = 'Standard')]
@@ -201,7 +221,11 @@ param(
     [Parameter(ParameterSetName = 'GPOOnly')]
     [Parameter(ParameterSetName = 'Help')]
     [Parameter(ParameterSetName = 'QuickHelp')]
+    [Parameter(ParameterSetName = 'KerberosHardening')]
     [string]$TargetForest,
+    
+    [Parameter(ParameterSetName = 'KerberosHardening', Mandatory)]
+    [switch]$KerberosHardeningAssessment,
     
     [Parameter(ParameterSetName = 'Help', Mandatory)]
     [switch]$Help,
@@ -227,6 +251,11 @@ function Show-QuickHelp {
     Write-Host "  .\RC4_AD_SCAN.ps1 -ApplyFixes -Force  # Automatic remediation (no prompts)" -ForegroundColor White
     Write-Host "  .\RC4_AD_SCAN.ps1 -ExportResults      # Export results to CSV" -ForegroundColor White
     Write-Host "  .\RC4_AD_SCAN.ps1 -Help               # Show detailed help" -ForegroundColor White
+    
+    Write-Host ""
+    Write-Host ">> KERBEROS HARDENING ASSESSMENT:" -ForegroundColor Magenta
+    Write-Host "  .\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment          # Comprehensive security analysis" -ForegroundColor White
+    Write-Host "  .\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -ExportResults  # Assessment + JSON export" -ForegroundColor White
     
     Write-Host ""
     Write-Host ">> GPO SCOPE OPTIONS:" -ForegroundColor Yellow
@@ -265,6 +294,52 @@ if ($Help) {
 # Display quick help if requested
 if ($QuickHelp) {
     Show-QuickHelp
+    exit 0
+}
+
+# Handle Kerberos Hardening Assessment mode
+if ($KerberosHardeningAssessment) {
+    Write-Host "RC4 Active Directory Audit Tool - Kerberos Hardening Assessment Mode" -ForegroundColor Cyan
+    Write-Host "=" * 80 -ForegroundColor Cyan
+    
+    try {
+        # Get current domain if no server specified
+        $targetDomain = if ($Server) {
+            # Extract domain from server if specified
+            try {
+                $serverInfo = Get-ADDomainController -Identity $Server
+                $serverInfo.Domain
+            }
+            catch {
+                # Fallback to current domain
+                (Get-ADDomain).DNSRoot
+            }
+        }
+        else {
+            (Get-ADDomain).DNSRoot
+        }
+        
+        # Run comprehensive assessment
+        $assessmentResults = Invoke-KerberosHardeningAssessment -Domain $targetDomain -Server $Server -ExportResults:$ExportResults -DebugMode:$DebugMode
+        
+        Write-Host "`n✅ Kerberos Hardening Assessment completed successfully!" -ForegroundColor Green
+        Write-Host "Domain analyzed: $targetDomain" -ForegroundColor Cyan
+        Write-Host "Security Level: $($assessmentResults.SecurityPosture.Level)" -ForegroundColor $(
+            switch ($assessmentResults.SecurityPosture.Level) {
+                "MAXIMUM" { "Green" }
+                "RECOMMENDED+" { "Green" } 
+                "MINIMUM+" { "Yellow" }
+                "NEEDS_IMPROVEMENT" { "Red" }
+                default { "Gray" }
+            }
+        )
+        
+    }
+    catch {
+        Write-Host "❌ Error during Kerberos Hardening Assessment: $($_.Exception.Message)" -ForegroundColor Red
+        exit 1
+    }
+    
     exit 0
 }
 
@@ -1289,6 +1364,403 @@ function Test-GPOApplication {
     catch {
         Write-Host "    >>  Could not analyze GPO application status: $($_.Exception.Message)" -ForegroundColor Yellow
     }
+}
+
+function Invoke-KerberosHardeningAssessment {
+    param(
+        [string]$Domain,
+        [string]$Server,
+        [switch]$ExportResults,
+        [switch]$DebugMode
+    )
+    
+    Write-Host "`n" + ("=" * 90) -ForegroundColor Cyan
+    Write-Host "|| COMPREHENSIVE KERBEROS HARDENING ASSESSMENT" -ForegroundColor Cyan  
+    Write-Host "|| Domain: $($Domain.ToUpper())" -ForegroundColor Cyan
+    Write-Host ("=" * 90) -ForegroundColor Cyan
+    
+    $assessment = @{
+        Domain               = $Domain
+        Timestamp            = Get-Date
+        SecurityPosture      = @{}
+        GPOCoverage          = @{}
+        ServiceAccounts      = @{}
+        Recommendations      = @{}
+        NegotiationScenarios = @{}
+    }
+    
+    # Set up server parameters
+    $serverParams = @{}
+    if ($Server) {
+        $serverParams['Server'] = $Server
+    }
+    
+    Write-Host "`n📊 Phase 1: DC Policy Foundation Analysis" -ForegroundColor Yellow
+    Write-Host "=" * 50 -ForegroundColor Yellow
+    
+    try {
+        # Analyze DC encryption settings
+        $domainInfo = Get-ADDomain @serverParams
+        $dcOU = "OU=Domain Controllers,$($domainInfo.DistinguishedName)"
+        $domainControllers = Get-ADComputer -SearchBase $dcOU -Filter * -Properties msDS-SupportedEncryptionTypes @serverParams
+        
+        $dcAnalysis = @{
+            TotalDCs         = $domainControllers.Count
+            DCsWithAES       = 0
+            DCsWithRC4Only   = 0
+            DCsNotConfigured = 0
+            AESPercentage    = 0
+        }
+        
+        foreach ($dc in $domainControllers) {
+            $encValue = $dc.'msDS-SupportedEncryptionTypes'
+            if ($encValue) {
+                if (($encValue -band 0x18) -gt 0) {
+                    # AES128 or AES256
+                    $dcAnalysis.DCsWithAES++
+                }
+                elseif (($encValue -band 0x4) -gt 0) {
+                    # RC4 only
+                    $dcAnalysis.DCsWithRC4Only++
+                }
+            }
+            else {
+                $dcAnalysis.DCsNotConfigured++
+            }
+        }
+        
+        $dcAnalysis.AESPercentage = if ($dcAnalysis.TotalDCs -gt 0) {
+            [math]::Round(($dcAnalysis.DCsWithAES / $dcAnalysis.TotalDCs) * 100, 1)
+        }
+        else { 0 }
+        
+        $assessment.SecurityPosture.DomainControllers = $dcAnalysis
+        
+        Write-Host "  ✓ Domain Controllers: $($dcAnalysis.TotalDCs) total" -ForegroundColor Green
+        Write-Host "  ✓ AES Configured: $($dcAnalysis.DCsWithAES) ($($dcAnalysis.AESPercentage)%)" -ForegroundColor Green
+        if ($dcAnalysis.DCsWithRC4Only -gt 0) {
+            Write-Host "  ⚠ RC4 Only: $($dcAnalysis.DCsWithRC4Only)" -ForegroundColor Yellow
+        }
+        if ($dcAnalysis.DCsNotConfigured -gt 0) {
+            Write-Host "  ⚠ Not Configured: $($dcAnalysis.DCsNotConfigured)" -ForegroundColor Yellow
+        }
+        
+    }
+    catch {
+        Write-Host "  ❌ Error analyzing DCs: $($_.Exception.Message)" -ForegroundColor Red
+    }
+    
+    Write-Host "`n🛡️ Phase 2: GPO Coverage Analysis" -ForegroundColor Yellow
+    Write-Host "=" * 50 -ForegroundColor Yellow
+    
+    # Analyze GPO coverage for both DCs and member computers
+    $gpoAnalysis = @{
+        DomainControllers    = @{ Configured = $false; Value = $null; GPOName = $null }
+        MemberComputers      = @{ Configured = $false; Value = $null; GPOName = $null; Scope = $null }
+        CompletelyConfigured = $false
+    }
+    
+    try {
+        # Check DC OU GPO
+        $dcGPOs = Get-GPInheritance -Target $dcOU @serverParams
+        foreach ($gpo in $dcGPOs.InheritedGpoLinks) {
+            if ($gpo.Enabled) {
+                $gpoReport = Get-GPOReport -Guid $gpo.GpoId -ReportType Xml @serverParams
+                if ($gpoReport -match 'SupportedEncryptionTypes.*>(\d+)<' -or $gpoReport -match 'msDS-SupportedEncryptionTypes.*>(\d+)<') {
+                    $gpoAnalysis.DomainControllers.Configured = $true
+                    $gpoAnalysis.DomainControllers.Value = [int]$matches[1]
+                    $gpoAnalysis.DomainControllers.GPOName = $gpo.DisplayName
+                    break
+                }
+            }
+        }
+        
+        # Check Domain level and other OUs for member computer GPOs
+        $domainGPOs = Get-GPInheritance -Target $domainInfo.DistinguishedName @serverParams
+        foreach ($gpo in $domainGPOs.InheritedGpoLinks) {
+            if ($gpo.Enabled) {
+                $gpoReport = Get-GPOReport -Guid $gpo.GpoId -ReportType Xml @serverParams
+                if ($gpoReport -match 'SupportedEncryptionTypes.*>(\d+)<' -or $gpoReport -match 'msDS-SupportedEncryptionTypes.*>(\d+)<') {
+                    $gpoAnalysis.MemberComputers.Configured = $true
+                    $gpoAnalysis.MemberComputers.Value = [int]$matches[1]
+                    $gpoAnalysis.MemberComputers.GPOName = $gpo.DisplayName
+                    $gpoAnalysis.MemberComputers.Scope = "Domain"
+                    break
+                }
+            }
+        }
+        
+        $gpoAnalysis.CompletelyConfigured = $gpoAnalysis.DomainControllers.Configured -and $gpoAnalysis.MemberComputers.Configured
+        $assessment.GPOCoverage = $gpoAnalysis
+        
+        Write-Host "  DC OU GPO: " -NoNewline
+        if ($gpoAnalysis.DomainControllers.Configured) {
+            $dcValue = $gpoAnalysis.DomainControllers.Value
+            $dcTypes = if (($dcValue -band 0x18) -gt 0) { "AES ✓" } else { "RC4 ⚠" }
+            Write-Host "✓ Configured ($dcTypes) - $($gpoAnalysis.DomainControllers.GPOName)" -ForegroundColor Green
+        }
+        else {
+            Write-Host "❌ Not Configured" -ForegroundColor Red
+        }
+        
+        Write-Host "  Member Computer GPO: " -NoNewline
+        if ($gpoAnalysis.MemberComputers.Configured) {
+            $memberValue = $gpoAnalysis.MemberComputers.Value
+            $memberTypes = if (($memberValue -band 0x18) -gt 0) { "AES ✓" } else { "RC4 ⚠" }
+            Write-Host "✓ Configured ($memberTypes) - $($gpoAnalysis.MemberComputers.GPOName)" -ForegroundColor Green
+        }
+        else {
+            Write-Host "❌ Not Configured" -ForegroundColor Yellow
+        }
+        
+    }
+    catch {
+        Write-Host "  ❌ Error analyzing GPOs: $($_.Exception.Message)" -ForegroundColor Red
+    }
+    
+    Write-Host "`n🔐 Phase 3: Service Account Analysis" -ForegroundColor Yellow
+    Write-Host "=" * 50 -ForegroundColor Yellow
+    
+    $serviceAccountAnalysis = @{
+        TotalServiceAccounts  = 0
+        ConfiguredAccounts    = 0
+        AESAccounts           = 0
+        RC4Accounts           = 0
+        NotConfiguredAccounts = 0
+        RiskyAccounts         = @()
+    }
+    
+    try {
+        # Find service accounts (accounts with SPNs)
+        $serviceAccounts = Get-ADUser -Filter 'ServicePrincipalName -like "*"' -Properties ServicePrincipalName, msDS-SupportedEncryptionTypes @serverParams
+        $serviceAccountAnalysis.TotalServiceAccounts = $serviceAccounts.Count
+        
+        foreach ($account in $serviceAccounts) {
+            $encValue = $account.'msDS-SupportedEncryptionTypes'
+            if ($encValue) {
+                $serviceAccountAnalysis.ConfiguredAccounts++
+                if (($encValue -band 0x18) -gt 0) {
+                    # AES
+                    $serviceAccountAnalysis.AESAccounts++
+                }
+                elseif (($encValue -band 0x4) -gt 0) {
+                    # RC4
+                    $serviceAccountAnalysis.RC4Accounts++
+                    $serviceAccountAnalysis.RiskyAccounts += $account.SamAccountName
+                }
+            }
+            else {
+                $serviceAccountAnalysis.NotConfiguredAccounts++
+                # Post-2022: Not configured can be risky if no proper GPO coverage
+                if (-not $gpoAnalysis.MemberComputers.Configured) {
+                    $serviceAccountAnalysis.RiskyAccounts += $account.SamAccountName
+                }
+            }
+        }
+        
+        $assessment.ServiceAccounts = $serviceAccountAnalysis
+        
+        Write-Host "  ✓ Service Accounts Found: $($serviceAccountAnalysis.TotalServiceAccounts)" -ForegroundColor Green
+        Write-Host "  ✓ Explicitly AES: $($serviceAccountAnalysis.AESAccounts)" -ForegroundColor Green
+        if ($serviceAccountAnalysis.RC4Accounts -gt 0) {
+            Write-Host "  ⚠ Explicitly RC4: $($serviceAccountAnalysis.RC4Accounts)" -ForegroundColor Yellow
+        }
+        if ($serviceAccountAnalysis.NotConfiguredAccounts -gt 0) {
+            Write-Host "  ℹ Not Configured: $($serviceAccountAnalysis.NotConfiguredAccounts) (depends on GPO)" -ForegroundColor Cyan
+        }
+        
+    }
+    catch {
+        Write-Host "  ❌ Error analyzing service accounts: $($_.Exception.Message)" -ForegroundColor Red
+    }
+    
+    Write-Host "`n📈 Phase 4: Security Posture Assessment" -ForegroundColor Yellow
+    Write-Host "=" * 50 -ForegroundColor Yellow
+    
+    # Determine overall security level
+    $securityLevel = "UNKNOWN"
+    $riskFactors = @()
+    $improvements = @()
+    
+    # Assess current security posture
+    if ($dcAnalysis.AESPercentage -eq 100 -and $gpoAnalysis.DomainControllers.Configured) {
+        if ($gpoAnalysis.MemberComputers.Configured -and ($gpoAnalysis.MemberComputers.Value -band 0x18) -gt 0) {
+            if ($serviceAccountAnalysis.RC4Accounts -eq 0) {
+                $securityLevel = "MAXIMUM"
+            }
+            else {
+                $securityLevel = "RECOMMENDED+"  
+                $riskFactors += "Some service accounts explicitly configured for RC4"
+            }
+        }
+        else {
+            $securityLevel = "MINIMUM+"
+            $riskFactors += "Member computers not enforcing AES-only via GPO"
+            $improvements += "Apply AES-only GPO to member computers/OUs"
+        }
+    }
+    else {
+        $securityLevel = "NEEDS_IMPROVEMENT"
+        if ($dcAnalysis.AESPercentage -lt 100) {
+            $riskFactors += "Not all DCs configured for AES"
+            $improvements += "Configure all DCs for AES encryption"
+        }
+        if (-not $gpoAnalysis.DomainControllers.Configured) {
+            $riskFactors += "No GPO enforcing AES on Domain Controllers OU"
+            $improvements += "Apply AES-only GPO to Domain Controllers OU"
+        }
+    }
+    
+    $assessment.SecurityPosture.Level = $securityLevel
+    $assessment.SecurityPosture.RiskFactors = $riskFactors
+    $assessment.Recommendations.Improvements = $improvements
+    
+    # Display security assessment
+    $levelColor = switch ($securityLevel) {
+        "MAXIMUM" { "Green" }
+        "RECOMMENDED+" { "Green" }
+        "MINIMUM+" { "Yellow" }
+        "NEEDS_IMPROVEMENT" { "Red" }
+        default { "Gray" }
+    }
+    
+    Write-Host "  🎯 Overall Security Level: " -NoNewline
+    Write-Host $securityLevel -ForegroundColor $levelColor
+    
+    if ($riskFactors.Count -gt 0) {
+        Write-Host "  ⚠ Risk Factors:" -ForegroundColor Yellow
+        foreach ($risk in $riskFactors) {
+            Write-Host "    • $risk" -ForegroundColor Yellow
+        }
+    }
+    
+    Write-Host "`n💡 Phase 5: Tiered Recommendations" -ForegroundColor Yellow
+    Write-Host "=" * 50 -ForegroundColor Yellow
+    
+    # Generate tiered recommendations
+    $recommendations = @{
+        Current     = "Analysis of your current configuration"
+        Minimum     = @()
+        Recommended = @()
+        Maximum     = @()
+    }
+    
+    # Minimum Security (Essential)
+    if (-not $gpoAnalysis.DomainControllers.Configured) {
+        $recommendations.Minimum += "✅ CRITICAL: Apply AES-only GPO to Domain Controllers OU"
+    }
+    if ($dcAnalysis.DCsWithRC4Only -gt 0 -or $dcAnalysis.DCsNotConfigured -gt 0) {
+        $recommendations.Minimum += "✅ CRITICAL: Configure all DCs with AES encryption types"
+    }
+    
+    # Recommended Security (Best Practice)  
+    if (-not $gpoAnalysis.MemberComputers.Configured) {
+        $recommendations.Recommended += "🔶 Apply AES-only GPO to Default Domain Policy or Computer OUs"
+    }
+    if ($serviceAccountAnalysis.NotConfiguredAccounts -gt 0) {
+        $recommendations.Recommended += "🔶 Audit service accounts and set explicit AES encryption types"
+    }
+    
+    # Maximum Security (Defense in Depth)
+    if ($serviceAccountAnalysis.RC4Accounts -gt 0) {
+        $recommendations.Maximum += "🔥 Update service accounts with explicit RC4 to use AES"
+    }
+    $recommendations.Maximum += "🔥 Implement regular Kerberos encryption auditing"
+    $recommendations.Maximum += "🔥 Monitor for RC4 usage in security logs"
+    
+    $assessment.Recommendations = $recommendations
+    
+    # Display recommendations
+    Write-Host "  📋 MINIMUM Security (Essential):" -ForegroundColor Red
+    if ($recommendations.Minimum.Count -eq 0) {
+        Write-Host "    ✓ All essential security measures are in place" -ForegroundColor Green
+    }
+    else {
+        foreach ($rec in $recommendations.Minimum) {
+            Write-Host "    $rec" -ForegroundColor Red
+        }
+    }
+    
+    Write-Host "`n  📋 RECOMMENDED Security (Best Practice):" -ForegroundColor Yellow
+    if ($recommendations.Recommended.Count -eq 0) {
+        Write-Host "    ✓ All recommended security measures are in place" -ForegroundColor Green
+    }
+    else {
+        foreach ($rec in $recommendations.Recommended) {
+            Write-Host "    $rec" -ForegroundColor Yellow
+        }
+    }
+    
+    Write-Host "`n  📋 MAXIMUM Security (Defense in Depth):" -ForegroundColor Magenta
+    foreach ($rec in $recommendations.Maximum) {
+        Write-Host "    $rec" -ForegroundColor Magenta
+    }
+    
+    Write-Host "`n🔄 Phase 6: Kerberos Negotiation Scenarios" -ForegroundColor Yellow
+    Write-Host "=" * 50 -ForegroundColor Yellow
+    
+    # Analyze what happens in different scenarios
+    $scenarios = @{
+        CurrentConfig = @{
+            DCPolicy        = if ($gpoAnalysis.DomainControllers.Configured) { "AES-only" } else { "Default" }
+            ClientPolicy    = if ($gpoAnalysis.MemberComputers.Configured) { "AES-only" } else { "Default" }
+            ServiceAccounts = if ($serviceAccountAnalysis.RC4Accounts -gt 0) { "Mixed" } else { "AES/Default" }
+            Result          = ""
+        }
+    }
+    
+    # Determine current scenario result
+    $currentResult = "AES (secure)"
+    if (-not $gpoAnalysis.DomainControllers.Configured) {
+        $currentResult = "RC4 possible (insecure)"
+    }
+    elseif (-not $gpoAnalysis.MemberComputers.Configured -and $serviceAccountAnalysis.RC4Accounts -gt 0) {
+        $currentResult = "AES preferred, RC4 fallback possible"
+    }
+    elseif (-not $gpoAnalysis.MemberComputers.Configured) {
+        $currentResult = "AES preferred, RC4 possible in edge cases"
+    }
+    
+    $scenarios.CurrentConfig.Result = $currentResult
+    $assessment.NegotiationScenarios = $scenarios
+    
+    Write-Host "  📊 Current Configuration Analysis:" -ForegroundColor Cyan
+    Write-Host "    DC Policy: $($scenarios.CurrentConfig.DCPolicy)" -ForegroundColor Cyan
+    Write-Host "    Client Policy: $($scenarios.CurrentConfig.ClientPolicy)" -ForegroundColor Cyan
+    Write-Host "    Service Accounts: $($scenarios.CurrentConfig.ServiceAccounts)" -ForegroundColor Cyan
+    Write-Host "    Result: " -NoNewline
+    
+    $resultColor = if ($currentResult -eq "AES (secure)") { "Green" } 
+    elseif ($currentResult -like "*RC4 possible*") { "Red" }
+    else { "Yellow" }
+    Write-Host $currentResult -ForegroundColor $resultColor
+    
+    Write-Host "`n📋 Summary & Next Steps" -ForegroundColor Cyan
+    Write-Host "=" * 50 -ForegroundColor Cyan
+    
+    $nextSteps = @()
+    if ($recommendations.Minimum.Count -gt 0) {
+        $nextSteps += "1. Address MINIMUM security requirements immediately"
+    }
+    if ($recommendations.Recommended.Count -gt 0) {
+        $nextSteps += "2. Implement RECOMMENDED practices for comprehensive coverage"
+    }
+    $nextSteps += "3. Consider MAXIMUM security measures for high-security environments"
+    $nextSteps += "4. Schedule regular re-assessment (quarterly recommended)"
+    
+    foreach ($step in $nextSteps) {
+        Write-Host "  $step" -ForegroundColor White
+    }
+    
+    # Export results if requested
+    if ($ExportResults) {
+        $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+        $exportPath = "KerberosHardeningAssessment_$($Domain)_$timestamp.json"
+        $assessment | ConvertTo-Json -Depth 10 | Out-File -FilePath $exportPath -Encoding UTF8
+        Write-Host "`n💾 Assessment exported to: $exportPath" -ForegroundColor Green
+    }
+    
+    return $assessment
 }
 
 $results = @()

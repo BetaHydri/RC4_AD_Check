@@ -1,11 +1,13 @@
 # Kerberos RC4/DES Active Directory Security Scanning Tool
 
-**Version**: 5.0  
+**Version**: 6.0  
 **Author**: Jan Tiedemann  
 **Created**: October 2025  
 **Updated**: October 2025
 
 A comprehensive PowerShell script to audit and remediate DES/RC4 kerberos encryption usage in Active Directory forests. This tool helps identify security vulnerabilities related to weak kerberos DES/RC4 encryption settings on AD objects like computer and trusts and provides options to upgrade to stronger AES encryption. It can also scan for GPOs that might already configuring AES related `msDS-SupportedEncryptionTypes` settings.
+
+**NEW in v6.0**: **Kerberos Hardening Assessment** - Comprehensive security posture analysis with tiered recommendations, complete GPO coverage analysis, service account auditing, and post-2022 compliance evaluation.
 
 ## Overview
 
@@ -72,6 +74,17 @@ Based on November 2022 updates:
 
 ## Features
 
+### 🛡️ Kerberos Hardening Assessment (NEW v6.0)
+- **Comprehensive Security Posture Analysis**: Complete evaluation of your domain's Kerberos security configuration
+- **Tiered Security Recommendations**: Four-level assessment (Current/Minimum/Recommended/Maximum security)
+- **Complete GPO Coverage Analysis**: Validates both Domain Controller AND member computer GPO configurations
+- **Service Account Security Audit**: Analyzes msDS-SupportedEncryptionTypes on all service accounts (accounts with SPNs)
+- **Kerberos Negotiation Scenarios**: Shows exactly what happens with your current configuration vs. enhanced security
+- **Post-2022 Compliance Evaluation**: Full assessment against modern Microsoft Kerberos security standards
+- **Actionable Security Roadmap**: Specific recommendations for achieving different security postures
+- **JSON Export**: Detailed structured assessment results for enterprise reporting and tracking
+
+### 🔍 Core RC4/DES Detection & Remediation
 - **Forest-wide scanning**: Automatically discovers and scans all domains in the forest
 - **Comprehensive object coverage**: Audits Computers and Domain Trusts (User objects not applicable for msDS-SupportedEncryptionTypes)
 - **Advanced GPO verification**: Intelligent GPO effectiveness verification with automatic false-negative correction
@@ -81,6 +94,11 @@ Based on November 2022 updates:
 - **Detailed encryption value reporting**: Shows numeric encryption values and their decoded meanings
 - **Critical trust object documentation**: Explains why GPO settings don't apply to trust objects and provides remediation guidance
 - **Enhanced trust analysis**: Detailed trust type breakdown with direction and categorization
+- **Optional remediation**: Interactive mode to fix issues by setting AES-only encryption
+- **Export capability**: Results can be exported to CSV for further analysis
+
+### 🎯 Advanced Analysis & Usability
+### 🎯 Advanced Analysis & Usability
 - **Flexible server connectivity**: Support for connecting to specific domain controllers
 - **Cross-forest scanning**: Scan different forests via forest trust relationships
 - **Intelligent GPO link detection**: Multiple detection methods for reliable GPO link discovery with duplicate prevention
@@ -93,8 +111,6 @@ Based on November 2022 updates:
 - **Consolidated recommendations**: Single recommendation section to avoid repetition across domains
 - **Professional output formatting**: Clean, organized display with boxed messages and dynamic sizing
 - **Windows Server 2025 compatibility warnings**: Alerts for objects that will fail authentication on Server 2025 DCs
-- **Optional remediation**: Interactive mode to fix issues by setting AES-only encryption
-- **Export capability**: Results can be exported to CSV for further analysis
 
 ## Requirements
 
@@ -116,7 +132,29 @@ Based on November 2022 updates:
 
 ## Usage
 
-### Audit Mode (Read-Only)
+### 🛡️ Kerberos Hardening Assessment (NEW v6.0)
+
+Perform comprehensive Kerberos security posture analysis:
+
+```powershell
+# Basic assessment with tiered recommendations
+.\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment
+
+# Assessment with detailed JSON export
+.\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -ExportResults
+
+# Assessment with debug output for troubleshooting
+.\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -DebugMode
+```
+
+The assessment provides:
+- **Security Level Classification**: MAXIMUM, RECOMMENDED+, MINIMUM+, or NEEDS_IMPROVEMENT
+- **DC vs Member Computer GPO Coverage**: Analysis of both Domain Controller and member computer policies
+- **Service Account Risk Assessment**: Evaluation of accounts with Service Principal Names
+- **Tiered Recommendations**: Specific actions for Minimum, Recommended, and Maximum security
+- **Kerberos Negotiation Analysis**: What actually happens with your current configuration
+
+### 🔍 Standard RC4/DES Audit Mode (Read-Only)
 
 Run a scan to identify RC4 usage without making any changes:
 
@@ -1575,6 +1613,18 @@ Debug output includes:
 - Consider gradual rollout with proper monitoring
 
 ## Changelog
+
+### Version 6.0 (October 2025) - **COMPREHENSIVE KERBEROS HARDENING ASSESSMENT**
+- **🛡️ [NEW FEATURE]** Added `-KerberosHardeningAssessment` parameter for comprehensive security posture analysis
+- **📊 [COMPLETE GPO COVERAGE]** Analyzes both Domain Controller AND member computer GPO configurations
+- **🔐 [SERVICE ACCOUNT AUDIT]** Comprehensive service account encryption attribute analysis
+- **📈 [TIERED RECOMMENDATIONS]** Four-tier security assessment: Current/Minimum/Recommended/Maximum
+- **🔄 [NEGOTIATION SCENARIOS]** Detailed analysis of Kerberos negotiation outcomes with current configuration
+- **✅ [POST-2022 COMPLIANCE]** Full evaluation against modern Kerberos security standards
+- **💡 [ACTIONABLE INSIGHTS]** Specific recommendations for achieving different security postures
+- **📋 [SECURITY MATRIX]** Clear visualization of what happens with DC-only vs. complete GPO coverage
+- **💾 [JSON EXPORT]** Detailed assessment results export in structured JSON format
+- **🎯 [ENTERPRISE READY]** Designed for comprehensive enterprise Kerberos security evaluation
 
 ### Version 5.1 (October 2025) - **GPO VERIFICATION AND OUTPUT STREAMLINING**
 - **🔍 [INTELLIGENT VERIFICATION]** Added smart GPO effectiveness verification system

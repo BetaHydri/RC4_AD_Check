@@ -419,7 +419,8 @@ The script uses **PowerShell parameter sets** to prevent contradictory parameter
 | **Standard** | *(none)* | `-ApplyFixes`, `-ExportResults`, `-GPOScope`, `-DebugMode`, `-Server`, `-TargetForest` | Normal operation with optional GPO analysis |
 | **SkipGPO** | `-SkipGPOCheck` | `-ApplyFixes`, `-ExportResults`, `-DebugMode`, `-Server`, `-TargetForest` | Skip GPO checks for faster object-only scanning |
 | **GPOOnly** | `-GPOCheckOnly` | `-ExportResults`, `-GPOScope`, `-DebugMode`, `-Server`, `-TargetForest` | GPO analysis only without object scanning |
-| **Help** | `-Help` OR `-QuickHelp` | `-ExportResults`, `-DebugMode`, `-Server`, `-TargetForest` | Display help information |
+| **Help** | `-Help` | `-ExportResults`, `-DebugMode`, `-Server`, `-TargetForest` | Display detailed help information |
+| **QuickHelp** | `-QuickHelp` | `-ExportResults`, `-DebugMode`, `-Server`, `-TargetForest` | Display quick reference guide |
 
 ### Parameter Set Benefits
 

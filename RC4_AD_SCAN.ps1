@@ -32,7 +32,7 @@
   - AllOUs: Check all OUs in the domain
   - OU=<Distinguished Name>: Check specific OU path (e.g., "OU=IT,DC=contoso,DC=com")
 
-.PARAMETER Debug
+.PARAMETER DebugMode
   Enable debug output for troubleshooting GPO detection
 
 .EXAMPLE
@@ -124,7 +124,8 @@
   - Standard: Normal operation with optional GPO scope
   - SkipGPO: Skip all GPO checks (mutually exclusive with GPOScope/GPOCheckOnly)
   - GPOOnly: GPO analysis only (mutually exclusive with SkipGPOCheck/ApplyFixes)
-  - Help: Display help information
+  - Help: Display detailed help information
+  - QuickHelp: Display quick reference guide
 #>
 
 [CmdletBinding(DefaultParameterSetName = 'Standard')]
@@ -132,12 +133,14 @@ param(
     [Parameter(ParameterSetName = 'Standard')]
     [Parameter(ParameterSetName = 'SkipGPO')]
     [Parameter(ParameterSetName = 'Help')]
+    [Parameter(ParameterSetName = 'QuickHelp')]
     [switch]$ApplyFixes,
     
     [Parameter(ParameterSetName = 'Standard')]
     [Parameter(ParameterSetName = 'SkipGPO')]
     [Parameter(ParameterSetName = 'GPOOnly')]
     [Parameter(ParameterSetName = 'Help')]
+    [Parameter(ParameterSetName = 'QuickHelp')]
     [switch]$ExportResults,
     
     [Parameter(ParameterSetName = 'SkipGPO', Mandatory)]
@@ -154,24 +157,27 @@ param(
     [Parameter(ParameterSetName = 'SkipGPO')]
     [Parameter(ParameterSetName = 'GPOOnly')]
     [Parameter(ParameterSetName = 'Help')]
+    [Parameter(ParameterSetName = 'QuickHelp')]
     [switch]$DebugMode,
     
     [Parameter(ParameterSetName = 'Standard')]
     [Parameter(ParameterSetName = 'SkipGPO')]
     [Parameter(ParameterSetName = 'GPOOnly')]
     [Parameter(ParameterSetName = 'Help')]
+    [Parameter(ParameterSetName = 'QuickHelp')]
     [string]$Server,
     
     [Parameter(ParameterSetName = 'Standard')]
     [Parameter(ParameterSetName = 'SkipGPO')]
     [Parameter(ParameterSetName = 'GPOOnly')]
     [Parameter(ParameterSetName = 'Help')]
+    [Parameter(ParameterSetName = 'QuickHelp')]
     [string]$TargetForest,
     
     [Parameter(ParameterSetName = 'Help', Mandatory)]
     [switch]$Help,
     
-    [Parameter(ParameterSetName = 'Help', Mandatory)]
+    [Parameter(ParameterSetName = 'QuickHelp', Mandatory)]
     [switch]$QuickHelp
 )
 

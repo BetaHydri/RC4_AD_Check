@@ -1274,6 +1274,39 @@ This provides additional technical details including:
 
 ## What to Expect from Version 6.1
 
+### Enhanced DC Analysis Logic
+Version 6.1 introduces smarter DC analysis that considers both explicit DC settings and GPO configuration:
+
+✅ **Improved Accuracy**: No more false RC4 fallback warnings when GPO provides secure AES encryption  
+✅ **Context-Aware Messages**: DC analysis shows whether security comes from explicit settings or GPO configuration  
+✅ **Post-2022 Compliant**: Correctly recognizes that GPO-based AES prevents RC4 fallback  
+
+### New DC Analysis Messages
+
+**When DCs have explicit AES settings:**
+```
+>> DC Analysis: Domain Controllers have adequate AES settings
+   Post-Nov 2022: Computer objects with undefined encryption inherit secure DC policy
+```
+
+**When GPO provides AES configuration:**
+```
+>> DC Analysis: Domain Controllers use GPO-based AES configuration  
+   Post-Nov 2022: Computer objects inherit secure GPO policy (no RC4 fallback)
+```
+
+**Only when both DC and GPO lack AES:**
+```
+>> DC Analysis: Domain Controllers may lack proper AES configuration
+   WARNING: Undefined computer encryption types may fall back to RC4
+   RECOMMENDATION: Configure GPO 'Network security: Configure encryption types allowed for Kerberos'
+```
+
+### Streamlined Tool Focus
+- **Removed**: `-KerberosHardeningAssessment` parameter for simplified functionality
+- **Enhanced**: Core RC4/DES audit and remediation capabilities  
+- **Improved**: GPO analysis considers both DC settings and policy configuration
+
 ### For Users with Kerberos-Related GPOs
 If your GPOs have names like "KerberosEncTypes", "Kerberos Encryption", or similar Kerberos-related names:
 

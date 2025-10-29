@@ -115,7 +115,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 3.8
+  Version: 3.9
   Created: October 2025
   Updated: October 2025
   
@@ -1221,8 +1221,26 @@ foreach ($domain in $forest.Domains) {
             if ($ApplyFixes) {
                 $answer = Read-Host "    >> Remediate Computer $($_.SamAccountName) in $domain> (Y/N)"
                 if ($answer -match '^[Yy]') {
-                    Set-ADComputer -Identity $_ -Replace @{"msDS-SupportedEncryptionTypes" = 24 }
-                    Write-Host "    > Fixed" -ForegroundColor Green
+                    try {
+                        Set-ADComputer -Identity $_ -Replace @{"msDS-SupportedEncryptionTypes" = 24 } @domainParams -ErrorAction Stop
+                        Write-Host "    > Fixed" -ForegroundColor Green
+                    }
+                    catch {
+                        Write-Host "    > FAILED: $($_.Exception.Message)" -ForegroundColor Red
+                        if ($_.Exception.Message -match "Insufficient access rights") {
+                            Write-Host "    >> PERMISSION ERROR: Need Domain Administrator rights to modify computer objects" -ForegroundColor Yellow
+                            Write-Host "    >> This is especially common when modifying Domain Controller objects" -ForegroundColor Yellow
+                            Write-Host "    >> Try running as Enterprise Administrator or from a different DC" -ForegroundColor Yellow
+                        }
+                        elseif ($_.Exception.Message -match "server is not operational") {
+                            Write-Host "    >> CONNECTION ERROR: Cannot reach domain controller" -ForegroundColor Yellow
+                            Write-Host "    >> Try specifying a different server with -Server parameter" -ForegroundColor Yellow
+                        }
+                        else {
+                            Write-Host "    >> Manual remediation required:" -ForegroundColor Yellow
+                            Write-Host "       Set-ADComputer -Identity '$($_.SamAccountName)' -Replace @{msDS-SupportedEncryptionTypes=24}" -ForegroundColor Gray
+                        }
+                    }
                 }
             }
         }

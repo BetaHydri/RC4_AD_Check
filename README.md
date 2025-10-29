@@ -1,6 +1,6 @@
 # Kerberos RC4/DES Active Directory Security Scanning Tool
 
-**Version**: 3.8  
+**Version**: 3.9  
 **Author**: Jan Tiedemann  
 **Created**: October 2025  
 **Updated**: October 2025
@@ -1195,6 +1195,13 @@ Debug output includes:
 - Consider gradual rollout with proper monitoring
 
 ## Changelog
+
+### Version 3.9 (October 2025)
+- **🔧 [CRITICAL FIX]** Fixed false success reporting for computer object remediation failures
+- **✅ [ENHANCED]** Added proper error handling for Set-ADComputer operations
+- **📖 [IMPROVED]** Added specific error messages for permission and connectivity issues
+- **🎯 [GUIDANCE]** Enhanced troubleshooting guidance for Domain Controller modification failures
+- **⚠️ [ACCURACY]** Script now accurately reports success vs. failure for computer object modifications
 
 ### Version 3.8 (October 2025)
 - **🎨 [FORMATTING]** Fixed misaligned box characters in README.md sample output

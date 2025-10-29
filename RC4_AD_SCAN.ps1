@@ -15,6 +15,9 @@
 .PARAMETER ApplyFixes
   Switch to enable interactive remediation mode
 
+.PARAMETER Force
+  Skip confirmation prompts when used with -ApplyFixes (automatic remediation of all flagged objects)
+
 .PARAMETER ExportResults
   Switch to export results to CSV file
 
@@ -46,12 +49,20 @@
   Run with interactive remediation prompts
 
 .EXAMPLE
+  .\RC4_AD_SCAN.ps1 -ApplyFixes -Force
+  Run with automatic remediation (no prompts - fixes all flagged objects)
+
+.EXAMPLE
   .\RC4_AD_SCAN.ps1 -ExportResults
   Run audit and export results to CSV file
 
 .EXAMPLE
   .\RC4_AD_SCAN.ps1 -ApplyFixes -ExportResults
   Run with remediation prompts and export results to CSV
+
+.EXAMPLE
+  .\RC4_AD_SCAN.ps1 -ApplyFixes -Force -ExportResults
+  Run with automatic remediation and export results to CSV
 
 .EXAMPLE
   .\RC4_AD_SCAN.ps1 -SkipGPOCheck
@@ -115,7 +126,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 4.1
+  Version: 4.2
   Created: October 2025
   Updated: October 2025
   
@@ -137,6 +148,10 @@ param(
     [Parameter(ParameterSetName = 'Help')]
     [Parameter(ParameterSetName = 'QuickHelp')]
     [switch]$ApplyFixes,
+    
+    [Parameter(ParameterSetName = 'Standard')]
+    [Parameter(ParameterSetName = 'SkipGPO')]
+    [switch]$Force,
     
     [Parameter(ParameterSetName = 'Standard')]
     [Parameter(ParameterSetName = 'SkipGPO')]
@@ -202,6 +217,7 @@ function Show-QuickHelp {
     Write-Host ">> BASIC USAGE:" -ForegroundColor Yellow
     Write-Host "  .\RC4_AD_SCAN.ps1                     # Audit only (read-only scan)" -ForegroundColor White
     Write-Host "  .\RC4_AD_SCAN.ps1 -ApplyFixes         # Interactive remediation" -ForegroundColor White
+    Write-Host "  .\RC4_AD_SCAN.ps1 -ApplyFixes -Force  # Automatic remediation (no prompts)" -ForegroundColor White
     Write-Host "  .\RC4_AD_SCAN.ps1 -ExportResults      # Export results to CSV" -ForegroundColor White
     Write-Host "  .\RC4_AD_SCAN.ps1 -Help               # Show detailed help" -ForegroundColor White
     
@@ -225,6 +241,7 @@ function Show-QuickHelp {
     Write-Host ">> EXAMPLE COMBINATIONS:" -ForegroundColor Yellow
     Write-Host "  .\RC4_AD_SCAN.ps1 -GPOScope AllOUs -DebugMode -ExportResults" -ForegroundColor Cyan
     Write-Host "  .\RC4_AD_SCAN.ps1 -ApplyFixes -GPOScope DomainControllers" -ForegroundColor Cyan
+    Write-Host "  .\RC4_AD_SCAN.ps1 -ApplyFixes -Force -ExportResults" -ForegroundColor Cyan
     Write-Host "  .\RC4_AD_SCAN.ps1 -TargetForest remote.com -Server dc01.remote.com" -ForegroundColor Cyan
     
     Write-Host ""
@@ -279,6 +296,13 @@ if ($PSCmdlet.ParameterSetName -in @('Standard', 'GPOOnly')) {
 if ($GPOCheckOnly -and $ApplyFixes) {
     Write-Host "ERROR: Cannot specify both -GPOCheckOnly and -ApplyFixes parameters!" -ForegroundColor Red
     Write-Host "GPO-only mode is for analysis purposes and does not modify objects." -ForegroundColor Yellow
+    exit 1
+}
+
+if ($Force -and -not $ApplyFixes) {
+    Write-Host "ERROR: -Force parameter can only be used with -ApplyFixes!" -ForegroundColor Red
+    Write-Host "-Force skips confirmation prompts during remediation." -ForegroundColor Yellow
+    Write-Host "Use: .\RC4_AD_SCAN.ps1 -ApplyFixes -Force" -ForegroundColor Yellow
     exit 1
 }
 
@@ -1171,6 +1195,21 @@ Write-Host ""
 Write-Host ">> SCANNING FOR OBJECTS WITH WEAK ENCRYPTION..." -ForegroundColor Magenta
 Write-Host (">" * 80) -ForegroundColor Magenta
 
+if ($ApplyFixes -and $Force) {
+    Write-Host ""
+    Write-Host "⚠️  FORCE MODE ENABLED: All flagged objects will be automatically remediated without prompts" -ForegroundColor Yellow
+    Write-Host ">> This will modify ALL computer and trust objects with weak encryption settings" -ForegroundColor Yellow
+    Write-Host ">> Press Ctrl+C within 5 seconds to cancel..." -ForegroundColor Red
+    Start-Sleep -Seconds 5
+    Write-Host ">> Proceeding with automatic remediation..." -ForegroundColor Green
+    Write-Host ""
+}
+elseif ($ApplyFixes) {
+    Write-Host ""
+    Write-Host ">> Interactive remediation mode: You will be prompted for each object" -ForegroundColor Cyan
+    Write-Host ""
+}
+
 $computerTotal = 0
 $computerRC4Count = 0
 $trustTotal = 0
@@ -1224,7 +1263,14 @@ foreach ($domain in $forest.Domains) {
             $results += $obj
 
             if ($ApplyFixes) {
-                $answer = Read-Host "    >> Remediate Computer $($_.SamAccountName) in $domain> (Y/N)"
+                if ($Force) {
+                    Write-Host "    >> Auto-remediating Computer $($_.SamAccountName) in $domain (Force mode)" -ForegroundColor Cyan
+                    $answer = "Y"
+                }
+                else {
+                    $answer = Read-Host "    >> Remediate Computer $($_.SamAccountName) in $domain> (Y/N)"
+                }
+                
                 if ($answer -match '^[Yy]') {
                     try {
                         Set-ADComputer -Identity $_ -Replace @{"msDS-SupportedEncryptionTypes" = 24 } @domainParams -ErrorAction Stop
@@ -1330,7 +1376,14 @@ foreach ($domain in $forest.Domains) {
             $results += $obj
 
             if ($ApplyFixes) {
-                $answer = Read-Host "    >> Remediate Trust $($_.Name) in $domain> (Y/N)"
+                if ($Force) {
+                    Write-Host "    >> Auto-remediating Trust $($_.Name) in $domain (Force mode)" -ForegroundColor Cyan
+                    $answer = "Y"
+                }
+                else {
+                    $answer = Read-Host "    >> Remediate Trust $($_.Name) in $domain> (Y/N)"
+                }
+                
                 if ($answer -match '^[Yy]') {
                     $trustName = $_.Name
                     $trustType = $_.TrustType

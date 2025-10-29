@@ -1,6 +1,6 @@
 # Kerberos RC4/DES Active Directory Security Scanning Tool
 
-**Version**: 4.1  
+**Version**: 4.2  
 **Author**: Jan Tiedemann  
 **Created**: October 2025  
 **Updated**: October 2025
@@ -1195,6 +1195,14 @@ Debug output includes:
 - Consider gradual rollout with proper monitoring
 
 ## Changelog
+
+### Version 4.2 (October 2025)
+- **🚀 [NEW FEATURE]** Added -Force parameter for automatic remediation without prompts
+- **⚡ [BULK OPERATIONS]** Enable mass remediation of all flagged objects with -ApplyFixes -Force
+- **⚠️ [SAFETY]** Added 5-second countdown warning before automatic remediation begins
+- **✅ [VALIDATION]** Force parameter requires ApplyFixes to prevent accidental usage
+- **📖 [ENHANCED HELP]** Updated help documentation and examples with Force parameter usage
+- **🎯 [USER EXPERIENCE]** Clear messaging for Force mode vs Interactive mode operations
 
 ### Version 4.1 (October 2025)
 - **📖 [UPDATED DOCUMENTATION]** Updated GPO limitations box to reflect current ksetup-based trust remediation

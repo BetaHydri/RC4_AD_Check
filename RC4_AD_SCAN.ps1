@@ -1455,18 +1455,46 @@ foreach ($domain in $forest.Domains) {
             }
         }
         else {
-            # Track computers with secure encryption settings
-            $secureObj = [PSCustomObject]@{
-                Domain     = $domain
-                ObjectType = "Computer"
-                Name       = $_.SamAccountName
-                DN         = $_.DistinguishedName
-                EncTypes   = Get-EncryptionTypes -EncValue $enc -ObjectType "Computer" -DomainContext $domainContext
-            }
-            $secureObjects += $secureObj
+            # Determine if this computer should be considered secure
+            $isComputerSecure = $false
+            $secureReason = ""
             
-            if ($DebugMode) {
-                Write-Host "    > Computer '$($_.SamAccountName)' has secure encryption: $(Get-EncryptionTypes -EncValue $enc -ObjectType "Computer" -DomainContext $domainContext)" -ForegroundColor Green
+            if ($enc -and ($enc -band 0x18) -gt 0) {
+                # Computer has explicit AES settings
+                $isComputerSecure = $true
+                $secureReason = "explicit AES configuration"
+            }
+            elseif (-not $enc -or $enc -eq 0) {
+                # Computer has undefined encryption - check if environment is safe for DC policy inheritance
+                if (-not $SkipGPOCheck -and $domainContext.DCsHaveAESSettings) {
+                    # GPO check was performed AND DC configuration is safe
+                    $isComputerSecure = $true
+                    $secureReason = "secure by default (inherits safe DC policy, post-Nov 2022)"
+                }
+                else {
+                    # Either GPO check was skipped OR DC configuration isn't confirmed safe
+                    # Don't add to secure list in this case
+                    if ($DebugMode) {
+                        $skipReason = if ($SkipGPOCheck) { "GPO check skipped" } else { "DC configuration uncertain" }
+                        Write-Host "    > Computer '$($_.SamAccountName)' has undefined encryption but not categorized as secure: $skipReason" -ForegroundColor Gray
+                    }
+                }
+            }
+            
+            if ($isComputerSecure) {
+                # Track computers with secure encryption settings
+                $secureObj = [PSCustomObject]@{
+                    Domain     = $domain
+                    ObjectType = "Computer"
+                    Name       = $_.SamAccountName
+                    DN         = $_.DistinguishedName
+                    EncTypes   = Get-EncryptionTypes -EncValue $enc -ObjectType "Computer" -DomainContext $domainContext
+                }
+                $secureObjects += $secureObj
+                
+                if ($DebugMode) {
+                    Write-Host "    > Computer '$($_.SamAccountName)' has secure encryption: $(Get-EncryptionTypes -EncValue $enc -ObjectType "Computer" -DomainContext $domainContext) ($secureReason)" -ForegroundColor Green
+                }
             }
         }
     }
@@ -1761,20 +1789,48 @@ foreach ($domain in $forest.Domains) {
             }
         }
         else {
-            # Track trusts with secure encryption settings
-            $secureObj = [PSCustomObject]@{
-                Domain     = $domain
-                ObjectType = "Trust"
-                Name       = $_.Name
-                DN         = $_.DistinguishedName
-                EncTypes   = Get-EncryptionTypes -EncValue $enc -ObjectType "Trust" -DomainContext $domainContext
-                TrustType  = $_.TrustType
-                Direction  = $_.Direction
-            }
-            $secureObjects += $secureObj
+            # Determine if this trust should be considered secure
+            $isTrustSecure = $false
+            $secureReason = ""
             
-            if ($DebugMode) {
-                Write-Host "    > Trust '$($_.Name)' has secure encryption: $(Get-EncryptionTypes -EncValue $enc -ObjectType "Trust" -DomainContext $domainContext)" -ForegroundColor Green
+            if ($enc -and ($enc -band 0x18) -gt 0) {
+                # Trust has explicit AES settings
+                $isTrustSecure = $true
+                $secureReason = "explicit AES configuration"
+            }
+            elseif (-not $enc -or $enc -eq 0) {
+                # Trust has undefined encryption - check if environment is safe for post-Nov 2022 defaults
+                if (-not $SkipGPOCheck -and $domainContext.DCsHaveAESSettings) {
+                    # GPO check was performed AND DC configuration is safe
+                    $isTrustSecure = $true
+                    $secureReason = "secure by default (post-Nov 2022, DC analysis confirms safe environment)"
+                }
+                else {
+                    # Either GPO check was skipped OR DC configuration isn't confirmed safe
+                    # Don't flag as weak (post-Nov 2022 logic) but don't add to secure list either
+                    if ($DebugMode) {
+                        $skipReason = if ($SkipGPOCheck) { "GPO check skipped" } else { "DC configuration uncertain" }
+                        Write-Host "    > Trust '$($_.Name)' has undefined encryption but not categorized as secure: $skipReason" -ForegroundColor Gray
+                    }
+                }
+            }
+            
+            if ($isTrustSecure) {
+                # Track trusts with secure encryption settings
+                $secureObj = [PSCustomObject]@{
+                    Domain     = $domain
+                    ObjectType = "Trust"
+                    Name       = $_.Name
+                    DN         = $_.DistinguishedName
+                    EncTypes   = Get-EncryptionTypes -EncValue $enc -ObjectType "Trust" -DomainContext $domainContext
+                    TrustType  = $_.TrustType
+                    Direction  = $_.Direction
+                }
+                $secureObjects += $secureObj
+                
+                if ($DebugMode) {
+                    Write-Host "    > Trust '$($_.Name)' has secure encryption: $(Get-EncryptionTypes -EncValue $enc -ObjectType "Trust" -DomainContext $domainContext) ($secureReason)" -ForegroundColor Green
+                }
             }
         }
     }
@@ -1801,11 +1857,15 @@ Write-Host ">>  User objects: Not scanned (msDS-SupportedEncryptionTypes is comp
 if ($results.Count -eq 0) {
     Write-Host "`n> AUDIT RESULT: SUCCESS!" -ForegroundColor Green
     
+    $gpoStatus = if ($SkipGPOCheck) { "GPO analysis skipped" } else { "GPO analysis completed" }
+    $dcStatus = if ($domainContext.DCsHaveAESSettings) { "DC configuration verified safe" } else { "DC configuration analysis completed" }
+    
     $messages = @(
         "No objects with weak encryption settings found!",
-        "All flagged objects benefit from modern Kerberos security (post-November 2022).",
-        "Trust objects: Default to AES when undefined (secure by default)",
-        "Computer objects: Inherit secure DC policies when DCs are properly configured"
+        "Enhanced post-November 2022 analysis completed ($gpoStatus, $dcStatus).",
+        "Trust objects: Secure by default when undefined encryption + safe environment confirmed",
+        "Computer objects: Inherit secure DC policies when DCs properly configured",
+        "Objects with undefined encryption properly categorized based on environment safety"
     )
     Write-BoxedMessage -Messages $messages -Color "Green"
 }
@@ -1862,12 +1922,30 @@ else {
         Write-Host "- Priority: Ensure DCs have proper AES settings for organization-wide security" -ForegroundColor Yellow
     }
     
-    # Check for secure-by-default objects (post-November 2022)
-    $secureByDefaultObjects = $results | Where-Object { $_.EncTypes -match "AES default post-Nov2022|inherits DC policy" }
+    # Enhanced secure-by-default analysis (post-November 2022)
+    $secureByDefaultObjects = $secureObjects | Where-Object { $_.EncTypes -match "AES default post-Nov2022|inherits.*policy|secure by default" }
+    $explicitlySecureObjects = $secureObjects | Where-Object { $_.EncTypes -match "AES.*96" -and $_.EncTypes -notmatch "default|inherits" }
+    
     if ($secureByDefaultObjects.Count -gt 0) {
-        Write-Host "`n>> INFO - Secure by Default (Post-November 2022):" -ForegroundColor Green
-        Write-Host "Found $($secureByDefaultObjects.Count) object(s) that are secure despite undefined encryption types." -ForegroundColor Green
-        Write-Host "These objects benefit from modern Kerberos defaults (AES for trusts, DC policy inheritance for computers)." -ForegroundColor Green
+        Write-Host "`n>> INFO - Enhanced Secure Analysis (Post-November 2022):" -ForegroundColor Green
+        Write-Host "Found $($secureByDefaultObjects.Count) object(s) that are secure by modern defaults:" -ForegroundColor Green
+        
+        $secureByDefaultComputers = $secureByDefaultObjects | Where-Object { $_.ObjectType -eq "Computer" }
+        $secureByDefaultTrusts = $secureByDefaultObjects | Where-Object { $_.ObjectType -eq "Trust" }
+        
+        if ($secureByDefaultComputers.Count -gt 0) {
+            Write-Host "  > $($secureByDefaultComputers.Count) computer(s): Inherit secure DC policy (undefined encryption + safe DC config)" -ForegroundColor White
+        }
+        if ($secureByDefaultTrusts.Count -gt 0) {
+            Write-Host "  > $($secureByDefaultTrusts.Count) trust(s): Default to AES when undefined (post-Nov 2022 + GPO analysis confirmed safe environment)" -ForegroundColor White
+        }
+        
+        Write-Host "These objects benefit from modern Kerberos security without explicit configuration." -ForegroundColor Green
+        
+        if ($SkipGPOCheck) {
+            Write-Host "`n>> NOTE: GPO check was skipped - some undefined objects may not be categorized optimally." -ForegroundColor Yellow
+            Write-Host "   Run without -SkipGPOCheck for complete secure-by-default analysis." -ForegroundColor Yellow
+        }
     }
     
     if ($trustObjects.Count -gt 0) {

@@ -119,29 +119,7 @@ Based on November 2022 updates:
 
 ## Usage
 
-### 🛡️ Kerberos Hardening Assessment (NEW v6.0)
-
-Perform comprehensive Kerberos security posture analysis:
-
-```powershell
-# Basic assessment with tiered recommendations
-.\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment
-
-# Assessment with detailed JSON export
-.\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -ExportResults
-
-# Assessment with debug output for troubleshooting
-.\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -DebugMode
-```
-
-The assessment provides:
-- **Security Level Classification**: MAXIMUM, RECOMMENDED+, MINIMUM+, or NEEDS_IMPROVEMENT
-- **DC vs Member Computer GPO Coverage**: Analysis of both Domain Controller and member computer policies
-- **Service Account Risk Assessment**: Evaluation of accounts with Service Principal Names
-- **Tiered Recommendations**: Specific actions for Minimum, Recommended, and Maximum security
-- **Kerberos Negotiation Analysis**: What actually happens with your current configuration
-
-### 🔍 Standard RC4/DES Audit Mode (Read-Only)
+###  Standard RC4/DES Audit Mode (Read-Only)
 
 Run a scan to identify RC4 usage without making any changes:
 
@@ -698,7 +676,7 @@ The `msDS-SupportedEncryptionTypes` attribute is a **computer-based setting only
 | `SkipGPOCheck` | Switch | Skip Group Policy settings verification | False |
 | `GPOCheckOnly` | Switch | Perform only GPO analysis without object scanning | False |
 | `GPOScope` | String | Where to check GPO links: Domain, DomainControllers, Both, AllOUs, or OU=<DN> | Both |
-| `Debug` | Switch | Enable detailed troubleshooting output | False |
+| `DebugMode` | Switch | Enable detailed troubleshooting output | False |
 | `Server` | String | Specify domain controller to connect to | Auto-discover |
 | `TargetForest` | String | Target forest to scan via forest trust | Current forest |
 
@@ -1673,17 +1651,13 @@ Debug output includes:
 
 ## Changelog
 
-### Version 6.0 (October 2025) - **COMPREHENSIVE KERBEROS HARDENING ASSESSMENT**
-- **🛡️ [NEW FEATURE]** Added `-KerberosHardeningAssessment` parameter for comprehensive security posture analysis
-- **📊 [COMPLETE GPO COVERAGE]** Analyzes both Domain Controller AND member computer GPO configurations
-- **🔐 [SERVICE ACCOUNT AUDIT]** Comprehensive service account encryption attribute analysis
-- **📈 [TIERED RECOMMENDATIONS]** Four-tier security assessment: Current/Minimum/Recommended/Maximum
-- **🔄 [NEGOTIATION SCENARIOS]** Detailed analysis of Kerberos negotiation outcomes with current configuration
-- **✅ [POST-2022 COMPLIANCE]** Full evaluation against modern Kerberos security standards
-- **💡 [ACTIONABLE INSIGHTS]** Specific recommendations for achieving different security postures
-- **📋 [SECURITY MATRIX]** Clear visualization of what happens with DC-only vs. complete GPO coverage
-- **💾 [JSON EXPORT]** Detailed assessment results export in structured JSON format
-- **🎯 [ENTERPRISE READY]** Designed for comprehensive enterprise Kerberos security evaluation
+### Version 6.0 (October 2025) - **ENHANCED RC4 AUDIT CAPABILITIES**
+- **� [ENHANCED]** Improved GPO analysis with better verification logic
+- **✅ [STREAMLINED]** Cleaner output with reduced verbosity
+- **🎯 [FOCUSED]** Simplified tool focused on core RC4/DES audit and remediation
+- **� [IMPROVED]** Better object categorization and reporting
+- **� [REFINED]** Enhanced trust object handling and analysis
+- **📖 [UPDATED]** Comprehensive documentation updates reflecting current capabilities
 
 ### Version 5.1 (October 2025) - **GPO VERIFICATION AND OUTPUT STREAMLINING**
 - **🔍 [INTELLIGENT VERIFICATION]** Added smart GPO effectiveness verification system

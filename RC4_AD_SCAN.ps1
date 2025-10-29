@@ -1328,10 +1328,13 @@ function Invoke-KerberosHardeningAssessment {
         [switch]$DebugMode
     )
     
-    Write-Host "`n" + ("=" * 90) -ForegroundColor Cyan
-    Write-Host "|| COMPREHENSIVE KERBEROS HARDENING ASSESSMENT" -ForegroundColor Cyan  
-    Write-Host "|| Domain: $($Domain.ToUpper())" -ForegroundColor Cyan
-    Write-Host ("=" * 90) -ForegroundColor Cyan
+    Write-Host ""
+    $headerMessages = @(
+        "🛡️ COMPREHENSIVE KERBEROS HARDENING ASSESSMENT",
+        "Domain: $($Domain.ToUpper())",
+        "Timestamp: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+    )
+    Write-BoxedMessage -Messages $headerMessages -Color "Cyan"
     
     $assessment = @{
         Domain               = $Domain
@@ -1390,14 +1393,20 @@ function Invoke-KerberosHardeningAssessment {
         
         $assessment.SecurityPosture.DomainControllers = $dcAnalysis
         
-        Write-Host "  ✓ Domain Controllers: $($dcAnalysis.TotalDCs) total" -ForegroundColor Green
-        Write-Host "  ✓ AES Configured: $($dcAnalysis.DCsWithAES) ($($dcAnalysis.AESPercentage)%)" -ForegroundColor Green
+        # Create boxed DC analysis output
+        $dcMessages = @(
+            "Domain Controllers: $($dcAnalysis.TotalDCs) total",
+            "AES Configured: $($dcAnalysis.DCsWithAES) ($($dcAnalysis.AESPercentage)%)"
+        )
         if ($dcAnalysis.DCsWithRC4Only -gt 0) {
-            Write-Host "  ⚠ RC4 Only: $($dcAnalysis.DCsWithRC4Only)" -ForegroundColor Yellow
+            $dcMessages += "⚠ RC4 Only: $($dcAnalysis.DCsWithRC4Only)"
         }
         if ($dcAnalysis.DCsNotConfigured -gt 0) {
-            Write-Host "  ⚠ Not Configured: $($dcAnalysis.DCsNotConfigured)" -ForegroundColor Yellow
+            $dcMessages += "⚠ Not Configured: $($dcAnalysis.DCsNotConfigured)"
         }
+        
+        $headerMessages = @("📊 Phase 1: DC Policy Foundation Analysis")
+        Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $dcMessages -Color "Green"
         
     }
     catch {
@@ -1447,25 +1456,32 @@ function Invoke-KerberosHardeningAssessment {
         $gpoAnalysis.CompletelyConfigured = $gpoAnalysis.DomainControllers.Configured -and $gpoAnalysis.MemberComputers.Configured
         $assessment.GPOCoverage = $gpoAnalysis
         
-        Write-Host "  DC OU GPO: " -NoNewline
+        # Create boxed GPO analysis output
+        $gpoMessages = @()
+        
+        # DC OU GPO status
         if ($gpoAnalysis.DomainControllers.Configured) {
             $dcValue = $gpoAnalysis.DomainControllers.Value
             $dcTypes = if (($dcValue -band 0x18) -gt 0) { "AES ✓" } else { "RC4 ⚠" }
-            Write-Host "✓ Configured ($dcTypes) - $($gpoAnalysis.DomainControllers.GPOName)" -ForegroundColor Green
+            $gpoMessages += "DC OU GPO: ✓ Configured ($dcTypes) - $($gpoAnalysis.DomainControllers.GPOName)"
         }
         else {
-            Write-Host "❌ Not Configured" -ForegroundColor Red
+            $gpoMessages += "DC OU GPO: ❌ Not Configured"
         }
         
-        Write-Host "  Member Computer GPO: " -NoNewline
+        # Member Computer GPO status
         if ($gpoAnalysis.MemberComputers.Configured) {
             $memberValue = $gpoAnalysis.MemberComputers.Value
             $memberTypes = if (($memberValue -band 0x18) -gt 0) { "AES ✓" } else { "RC4 ⚠" }
-            Write-Host "✓ Configured ($memberTypes) - $($gpoAnalysis.MemberComputers.GPOName)" -ForegroundColor Green
+            $gpoMessages += "Member Computer GPO: ✓ Configured ($memberTypes) - $($gpoAnalysis.MemberComputers.GPOName)"
         }
         else {
-            Write-Host "❌ Not Configured" -ForegroundColor Yellow
+            $gpoMessages += "Member Computer GPO: ❌ Not Configured"
         }
+        
+        $headerMessages = @("🛡️ Phase 2: GPO Coverage Analysis")
+        $boxColor = if ($gpoAnalysis.CompletelyConfigured) { "Green" } else { "Yellow" }
+        Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $gpoMessages -Color $boxColor
         
     }
     catch {
@@ -1514,14 +1530,21 @@ function Invoke-KerberosHardeningAssessment {
         
         $assessment.ServiceAccounts = $serviceAccountAnalysis
         
-        Write-Host "  ✓ Service Accounts Found: $($serviceAccountAnalysis.TotalServiceAccounts)" -ForegroundColor Green
-        Write-Host "  ✓ Explicitly AES: $($serviceAccountAnalysis.AESAccounts)" -ForegroundColor Green
+        # Create boxed service account analysis output
+        $serviceMessages = @(
+            "Service Accounts Found: $($serviceAccountAnalysis.TotalServiceAccounts)",
+            "Explicitly AES: $($serviceAccountAnalysis.AESAccounts)"
+        )
         if ($serviceAccountAnalysis.RC4Accounts -gt 0) {
-            Write-Host "  ⚠ Explicitly RC4: $($serviceAccountAnalysis.RC4Accounts)" -ForegroundColor Yellow
+            $serviceMessages += "⚠ Explicitly RC4: $($serviceAccountAnalysis.RC4Accounts)"
         }
         if ($serviceAccountAnalysis.NotConfiguredAccounts -gt 0) {
-            Write-Host "  ℹ Not Configured: $($serviceAccountAnalysis.NotConfiguredAccounts) (depends on GPO)" -ForegroundColor Cyan
+            $serviceMessages += "ℹ Not Configured: $($serviceAccountAnalysis.NotConfiguredAccounts) (depends on GPO)"
         }
+        
+        $headerMessages = @("🔐 Phase 3: Service Account Analysis")
+        $boxColor = if ($serviceAccountAnalysis.RC4Accounts -eq 0) { "Green" } else { "Yellow" }
+        Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $serviceMessages -Color $boxColor
         
     }
     catch {
@@ -1569,7 +1592,17 @@ function Invoke-KerberosHardeningAssessment {
     $assessment.SecurityPosture.RiskFactors = $riskFactors
     $assessment.Recommendations.Improvements = $improvements
     
-    # Display security assessment
+    # Create boxed security posture assessment
+    $postureMessages = @("🎯 Overall Security Level: $securityLevel")
+    if ($riskFactors.Count -gt 0) {
+        $postureMessages += ""
+        $postureMessages += "⚠ Risk Factors:"
+        foreach ($risk in $riskFactors) {
+            $postureMessages += "  • $risk"
+        }
+    }
+    
+    $headerMessages = @("📈 Phase 4: Security Posture Assessment")
     $levelColor = switch ($securityLevel) {
         "MAXIMUM" { "Green" }
         "RECOMMENDED+" { "Green" }
@@ -1577,16 +1610,7 @@ function Invoke-KerberosHardeningAssessment {
         "NEEDS_IMPROVEMENT" { "Red" }
         default { "Gray" }
     }
-    
-    Write-Host "  🎯 Overall Security Level: " -NoNewline
-    Write-Host $securityLevel -ForegroundColor $levelColor
-    
-    if ($riskFactors.Count -gt 0) {
-        Write-Host "  ⚠ Risk Factors:" -ForegroundColor Yellow
-        foreach ($risk in $riskFactors) {
-            Write-Host "    • $risk" -ForegroundColor Yellow
-        }
-    }
+    Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $postureMessages -Color $levelColor
     
     Write-Host "`n💡 Phase 5: Tiered Recommendations" -ForegroundColor Yellow
     Write-Host ("=" * 50) -ForegroundColor Yellow
@@ -1624,31 +1648,43 @@ function Invoke-KerberosHardeningAssessment {
     
     $assessment.Recommendations = $recommendations
     
-    # Display recommendations
-    Write-Host "  📋 MINIMUM Security (Essential):" -ForegroundColor Red
+    # Create comprehensive tiered recommendations box
+    $recMessages = @()
+    
+    # Minimum Security
+    $recMessages += "📋 MINIMUM Security (Essential):"
     if ($recommendations.Minimum.Count -eq 0) {
-        Write-Host "    ✓ All essential security measures are in place" -ForegroundColor Green
+        $recMessages += "  ✓ All essential security measures are in place"
     }
     else {
         foreach ($rec in $recommendations.Minimum) {
-            Write-Host "    $rec" -ForegroundColor Red
+            $recMessages += "  $rec"
         }
     }
     
-    Write-Host "`n  📋 RECOMMENDED Security (Best Practice):" -ForegroundColor Yellow
+    $recMessages += ""
+    
+    # Recommended Security
+    $recMessages += "📋 RECOMMENDED Security (Best Practice):"
     if ($recommendations.Recommended.Count -eq 0) {
-        Write-Host "    ✓ All recommended security measures are in place" -ForegroundColor Green
+        $recMessages += "  ✓ All recommended security measures are in place"
     }
     else {
         foreach ($rec in $recommendations.Recommended) {
-            Write-Host "    $rec" -ForegroundColor Yellow
+            $recMessages += "  $rec"
         }
     }
     
-    Write-Host "`n  📋 MAXIMUM Security (Defense in Depth):" -ForegroundColor Magenta
+    $recMessages += ""
+    
+    # Maximum Security
+    $recMessages += "📋 MAXIMUM Security (Defense in Depth):"
     foreach ($rec in $recommendations.Maximum) {
-        Write-Host "    $rec" -ForegroundColor Magenta
+        $recMessages += "  $rec"
     }
+    
+    $headerMessages = @("💡 Phase 5: Tiered Recommendations")
+    Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $recMessages -Color "Cyan"
     
     Write-Host "`n🔄 Phase 6: Kerberos Negotiation Scenarios" -ForegroundColor Yellow
     Write-Host ("=" * 50) -ForegroundColor Yellow
@@ -1678,20 +1714,24 @@ function Invoke-KerberosHardeningAssessment {
     $scenarios.CurrentConfig.Result = $currentResult
     $assessment.NegotiationScenarios = $scenarios
     
-    Write-Host "  📊 Current Configuration Analysis:" -ForegroundColor Cyan
-    Write-Host "    DC Policy: $($scenarios.CurrentConfig.DCPolicy)" -ForegroundColor Cyan
-    Write-Host "    Client Policy: $($scenarios.CurrentConfig.ClientPolicy)" -ForegroundColor Cyan
-    Write-Host "    Service Accounts: $($scenarios.CurrentConfig.ServiceAccounts)" -ForegroundColor Cyan
-    Write-Host "    Result: " -NoNewline
+    # Create boxed negotiation scenario analysis
+    $scenarioMessages = @(
+        "📊 Current Configuration Analysis:",
+        "",
+        "DC Policy: $($scenarios.CurrentConfig.DCPolicy)",
+        "Client Policy: $($scenarios.CurrentConfig.ClientPolicy)",
+        "Service Accounts: $($scenarios.CurrentConfig.ServiceAccounts)",
+        "",
+        "🔄 Kerberos Negotiation Result: $currentResult"
+    )
     
+    $headerMessages = @("🔄 Phase 6: Kerberos Negotiation Scenarios")
     $resultColor = if ($currentResult -eq "AES (secure)") { "Green" } 
     elseif ($currentResult -like "*RC4 possible*") { "Red" }
     else { "Yellow" }
-    Write-Host $currentResult -ForegroundColor $resultColor
+    Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $scenarioMessages -Color $resultColor
     
-    Write-Host "`n📋 Summary & Next Steps" -ForegroundColor Cyan
-    Write-Host ("=" * 50) -ForegroundColor Cyan
-    
+    # Create final summary box
     $nextSteps = @()
     if ($recommendations.Minimum.Count -gt 0) {
         $nextSteps += "1. Address MINIMUM security requirements immediately"
@@ -1702,9 +1742,8 @@ function Invoke-KerberosHardeningAssessment {
     $nextSteps += "3. Consider MAXIMUM security measures for high-security environments"
     $nextSteps += "4. Schedule regular re-assessment (quarterly recommended)"
     
-    foreach ($step in $nextSteps) {
-        Write-Host "  $step" -ForegroundColor White
-    }
+    $headerMessages = @("📋 Summary & Next Steps")
+    Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $nextSteps -Color "White"
     
     # Export results if requested
     if ($ExportResults) {

@@ -134,6 +134,50 @@ param(
     [switch]$QuickHelp
 )
 
+# Import required modules first
+Import-Module ActiveDirectory
+
+# Define helper functions before parameter validation
+function Show-QuickHelp {
+    Write-Host ""
+    Write-Host ("═" * 80) -ForegroundColor Cyan
+    Write-Host "🔍 RC4 ACTIVE DIRECTORY AUDIT TOOL - QUICK REFERENCE" -ForegroundColor Cyan
+    Write-Host ("═" * 80) -ForegroundColor Cyan
+    
+    Write-Host ""
+    Write-Host "📋 BASIC USAGE:" -ForegroundColor Yellow
+    Write-Host "  .\RC4_AD_SCAN.ps1                     # Audit only (read-only scan)" -ForegroundColor White
+    Write-Host "  .\RC4_AD_SCAN.ps1 -ApplyFixes         # Interactive remediation" -ForegroundColor White
+    Write-Host "  .\RC4_AD_SCAN.ps1 -ExportResults      # Export results to CSV" -ForegroundColor White
+    Write-Host "  .\RC4_AD_SCAN.ps1 -Help               # Show detailed help" -ForegroundColor White
+    
+    Write-Host ""
+    Write-Host "🎯 GPO SCOPE OPTIONS:" -ForegroundColor Yellow
+    Write-Host "  -GPOScope Domain                      # Check domain root only" -ForegroundColor White
+    Write-Host "  -GPOScope DomainControllers           # Check DC OU only" -ForegroundColor White
+    Write-Host "  -GPOScope Both                        # Check both (default)" -ForegroundColor White
+    Write-Host "  -GPOScope AllOUs                      # Check all OUs" -ForegroundColor White
+    Write-Host "  -GPOScope `"OU=IT,DC=contoso,DC=com`"   # Check specific OU" -ForegroundColor White
+    
+    Write-Host ""
+    Write-Host "🔧 ADVANCED OPTIONS:" -ForegroundColor Yellow
+    Write-Host "  -SkipGPOCheck                         # Skip GPO verification" -ForegroundColor White
+    Write-Host "  -GPOCheckOnly                         # GPO analysis only" -ForegroundColor White
+    Write-Host "  -Debug                                # Enable debug output" -ForegroundColor White
+    Write-Host "  -Server dc01.contoso.com              # Specific domain controller" -ForegroundColor White
+    Write-Host "  -TargetForest target.com              # Cross-forest scanning" -ForegroundColor White
+    
+    Write-Host ""
+    Write-Host "💡 EXAMPLE COMBINATIONS:" -ForegroundColor Yellow
+    Write-Host "  .\RC4_AD_SCAN.ps1 -GPOScope AllOUs -Debug -ExportResults" -ForegroundColor Cyan
+    Write-Host "  .\RC4_AD_SCAN.ps1 -ApplyFixes -GPOScope DomainControllers" -ForegroundColor Cyan
+    Write-Host "  .\RC4_AD_SCAN.ps1 -TargetForest remote.com -Server dc01.remote.com" -ForegroundColor Cyan
+    
+    Write-Host ""
+    Write-Host "📖 For detailed help: Get-Help .\RC4_AD_SCAN.ps1 -Detailed" -ForegroundColor Gray
+    Write-Host ("═" * 80) -ForegroundColor Cyan
+}
+
 # Display help if requested
 if ($Help) {
     Get-Help $MyInvocation.MyCommand.Path -Detailed
@@ -188,8 +232,6 @@ if ($GPOScope -notin $validScopes -and $GPOScope -notmatch "^OU=.*") {
     exit 1
 }
 
-Import-Module ActiveDirectory
-
 function Write-BoxedMessage {
     param(
         [string[]]$Messages,
@@ -211,46 +253,6 @@ function Write-BoxedMessage {
     
     # Bottom border
     Write-Host ("└" + ("─" * ($boxWidth - 2)) + "┘") -ForegroundColor $Color
-}
-
-function Show-QuickHelp {
-    Write-Host ""
-    Write-Host ("═" * 80) -ForegroundColor Cyan
-    Write-Host "🔍 RC4 ACTIVE DIRECTORY AUDIT TOOL - QUICK REFERENCE" -ForegroundColor Cyan
-    Write-Host ("═" * 80) -ForegroundColor Cyan
-    
-    Write-Host ""
-    Write-Host "📋 BASIC USAGE:" -ForegroundColor Yellow
-    Write-Host "  .\RC4_AD_SCAN.ps1                     # Audit only (read-only scan)" -ForegroundColor White
-    Write-Host "  .\RC4_AD_SCAN.ps1 -ApplyFixes         # Interactive remediation" -ForegroundColor White
-    Write-Host "  .\RC4_AD_SCAN.ps1 -ExportResults      # Export results to CSV" -ForegroundColor White
-    Write-Host "  .\RC4_AD_SCAN.ps1 -Help               # Show detailed help" -ForegroundColor White
-    
-    Write-Host ""
-    Write-Host "🎯 GPO SCOPE OPTIONS:" -ForegroundColor Yellow
-    Write-Host "  -GPOScope Domain                      # Check domain root only" -ForegroundColor White
-    Write-Host "  -GPOScope DomainControllers           # Check DC OU only" -ForegroundColor White
-    Write-Host "  -GPOScope Both                        # Check both (default)" -ForegroundColor White
-    Write-Host "  -GPOScope AllOUs                      # Check all OUs" -ForegroundColor White
-    Write-Host "  -GPOScope `"OU=IT,DC=contoso,DC=com`"   # Check specific OU" -ForegroundColor White
-    
-    Write-Host ""
-    Write-Host "🔧 ADVANCED OPTIONS:" -ForegroundColor Yellow
-    Write-Host "  -SkipGPOCheck                         # Skip GPO verification" -ForegroundColor White
-    Write-Host "  -GPOCheckOnly                         # GPO analysis only" -ForegroundColor White
-    Write-Host "  -Debug                                # Enable debug output" -ForegroundColor White
-    Write-Host "  -Server dc01.contoso.com              # Specific domain controller" -ForegroundColor White
-    Write-Host "  -TargetForest target.com              # Cross-forest scanning" -ForegroundColor White
-    
-    Write-Host ""
-    Write-Host "💡 EXAMPLE COMBINATIONS:" -ForegroundColor Yellow
-    Write-Host "  .\RC4_AD_SCAN.ps1 -GPOScope AllOUs -Debug -ExportResults" -ForegroundColor Cyan
-    Write-Host "  .\RC4_AD_SCAN.ps1 -ApplyFixes -GPOScope DomainControllers" -ForegroundColor Cyan
-    Write-Host "  .\RC4_AD_SCAN.ps1 -TargetForest remote.com -Server dc01.remote.com" -ForegroundColor Cyan
-    
-    Write-Host ""
-    Write-Host "📖 For detailed help: Get-Help .\RC4_AD_SCAN.ps1 -Detailed" -ForegroundColor Gray
-    Write-Host ("═" * 80) -ForegroundColor Cyan
 }
 
 function Write-BoxedMessageWithDivider {

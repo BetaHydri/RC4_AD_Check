@@ -5,7 +5,7 @@
 **Created**: October 2025  
 **Updated**: October 2025
 
-A comprehensive PowerShell script to audit and remediate RC4 encryption usage in Active Directory forests. This tool helps identify security vulnerabilities related to weak kerberos DES/RC4 encryption and provides options to upgrade to stronger AES encryption.
+A comprehensive PowerShell script to audit and remediate DES/RC4 kerberos encryption usage in Active Directory forests. This tool helps identify security vulnerabilities related to weak kerberos DES/RC4 encryption and provides options to upgrade to stronger AES encryption.
 
 ## Overview
 

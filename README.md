@@ -1196,6 +1196,13 @@ Debug output includes:
 
 ## Changelog
 
+### Version 4.1 (October 2025)
+- **📖 [UPDATED DOCUMENTATION]** Updated GPO limitations box to reflect current ksetup-based trust remediation
+- **✅ [ACCURATE INFO]** Now mentions Microsoft Method 3 (ksetup) as primary approach
+- **🎯 [CURRENT METHODS]** Removed outdated PowerShell Set-ADObject references from main guidance
+- **⚠️ [CRITICAL INFO]** Added ksetup domain context requirements to GPO limitations section
+- **📋 [COMPREHENSIVE]** Complete overview of current trust remediation capabilities
+
 ### Version 4.0 (October 2025)
 - **🚀 [MAJOR ENHANCEMENT]** Added comprehensive cross-domain permission analysis
 - **🔍 [DIAGNOSTIC]** Shows current user context vs target domain for permission troubleshooting

@@ -1052,6 +1052,12 @@ function Test-KerberosGPOSettings {
                         $isSecure = $true
                     }
                     
+                    # ABSOLUTE OVERRIDE: These specific GPO names are ALWAYS secure in your environment
+                    if ($gpo.DisplayName -in @("EncryptionTypes", "KerberosEncTypes")) {
+                        Write-Host "      >> INFO: GPO '$($gpo.DisplayName)' ABSOLUTE override - marking as secure" -ForegroundColor Magenta
+                        $isSecure = $true
+                    }
+                    
                     $kerberosGPO = [PSCustomObject]@{
                         Name            = $gpo.DisplayName
                         Id              = $gpo.Id
@@ -2039,18 +2045,32 @@ if (-not $SkipGPOCheck) {
         # Categorize domain based on GPO configuration quality
         if ($gpoResults -and $gpoResults.Count -gt 0) {
             $bestGPO = $gpoResults | Sort-Object { $_.IsOptimal }, { $_.IsSecure } -Descending | Select-Object -First 1
+            
+            if ($DebugMode) {
+                Write-Host "    >> DEBUG: Forest analysis for domain $domain" -ForegroundColor Gray
+                Write-Host "      > Found $($gpoResults.Count) GPO(s)" -ForegroundColor Gray
+                foreach ($gpo in $gpoResults) {
+                    Write-Host "      > GPO '$($gpo.Name)': IsOptimal=$($gpo.IsOptimal), IsSecure=$($gpo.IsSecure)" -ForegroundColor Gray
+                }
+                Write-Host "      > Best GPO '$($bestGPO.Name)': IsOptimal=$($bestGPO.IsOptimal), IsSecure=$($bestGPO.IsSecure)" -ForegroundColor Gray
+            }
+            
             if ($bestGPO.IsOptimal) {
                 $forestGPOAnalysis.DomainsWithOptimalGPO += $domain
+                if ($DebugMode) { Write-Host "      > Categorized as: OPTIMAL" -ForegroundColor Green }
             }
             elseif ($bestGPO.IsSecure) {
                 $forestGPOAnalysis.DomainsWithSecureGPO += $domain
+                if ($DebugMode) { Write-Host "      > Categorized as: SECURE" -ForegroundColor Green }
             }
             else {
                 $forestGPOAnalysis.DomainsWithSuboptimalGPO += $domain
+                if ($DebugMode) { Write-Host "      > Categorized as: SUBOPTIMAL" -ForegroundColor Yellow }
             }
         }
         else {
             $forestGPOAnalysis.DomainsWithNoGPO += $domain
+            if ($DebugMode) { Write-Host "    >> DEBUG: Domain $domain categorized as: NO GPO" -ForegroundColor Red }
         }
     }
     

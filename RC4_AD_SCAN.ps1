@@ -1389,7 +1389,8 @@ foreach ($domain in $forest.Domains) {
                                             if ($trustName -ne $domain) {
                                                 Write-Host "         Step 1 - From DC in '$trustName': ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Cyan
                                                 Write-Host "         Step 2 - From DC in '$domain': ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Cyan
-                                            } else {
+                                            }
+                                            else {
                                                 Write-Host "         ERROR: Self-referential trust detected ($domain -> $domain)" -ForegroundColor Red
                                                 Write-Host "         This trust configuration should not exist. Use GUI to verify." -ForegroundColor Yellow
                                             }
@@ -1453,7 +1454,8 @@ foreach ($domain in $forest.Domains) {
                                 Write-Host "       ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
                                 Write-Host "       Step 2 - From domain controller in '$domain':" -ForegroundColor Gray
                                 Write-Host "       ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
-                            } else {
+                            }
+                            else {
                                 Write-Host "       >> SELF-REFERENTIAL TRUST DETECTED:" -ForegroundColor Yellow
                                 Write-Host "       Domain '$domain' has a trust to itself - this is likely misconfigured" -ForegroundColor Yellow
                                 Write-Host "       Use GUI (domain.msc) to verify and potentially remove this trust object" -ForegroundColor Cyan

@@ -81,6 +81,14 @@ Run with interactive remediation prompts:
 .\RC4_AD_SCAN.ps1 -ApplyFixes
 ```
 
+### Automated Remediation
+
+Run with automatic remediation (no confirmation prompts):
+
+```powershell
+.\RC4_AD_SCAN.ps1 -ApplyFixes -Force
+```
+
 ### Export Results
 
 Export audit results to a timestamped CSV file:
@@ -91,7 +99,13 @@ Export audit results to a timestamped CSV file:
 
 ### Combined Operations
 
-Run remediation and export results:
+Run automated remediation and export results:
+
+```powershell
+.\RC4_AD_SCAN.ps1 -ApplyFixes -Force -ExportResults
+```
+
+Run remediation with confirmation prompts and export results:
 
 ```powershell
 .\RC4_AD_SCAN.ps1 -ApplyFixes -ExportResults
@@ -168,6 +182,44 @@ When using `-ApplyFixes`, the script will:
 - Prompt for each object that needs remediation
 - Allow you to choose whether to fix each individual object
 - Apply AES-only encryption settings (value 24 = 0x18)
+
+When using `-ApplyFixes -Force`, the script will:
+- **Automatically remediate all flagged objects** without individual prompts
+- Display a **5-second countdown warning** before starting automatic remediation
+- Allow cancellation during the countdown period (Ctrl+C)
+- Apply AES-only encryption settings (value 24 = 0x18) to all objects
+- Provide progress feedback during bulk remediation
+- **Use with caution**: Intended for bulk operations and automated deployments
+
+### Force Parameter Safety Features
+
+The Force parameter includes several safety mechanisms:
+
+1. **Parameter Validation**: Can only be used with `-ApplyFixes` parameter
+2. **Countdown Warning**: 5-second delay with cancellation option before remediation begins
+3. **Clear Messaging**: Distinguishes "Force mode" from "Interactive mode" in all output
+4. **Progress Feedback**: Shows which objects are being remediated in real-time
+5. **Same Remediation Logic**: Uses identical remediation code as interactive mode
+
+**⚠️ Important**: Force mode is designed for scenarios where you've already verified the objects to be remediated and want to perform bulk operations without manual confirmation.
+
+### Force Parameter Use Cases
+
+**Ideal scenarios for `-Force` parameter:**
+
+1. **Automated Deployments**: Script execution in automated deployment pipelines
+2. **Bulk Remediation**: Large environments with many objects requiring remediation
+3. **Scheduled Maintenance**: Unattended execution during maintenance windows
+4. **Post-Audit Cleanup**: After manual review, bulk fix all identified issues
+5. **Disaster Recovery**: Rapid restoration of security settings after incidents
+
+**When NOT to use `-Force` parameter:**
+
+1. **First-time execution**: Always run interactively first to understand impact
+2. **Production discovery**: Initial audit of unknown environments
+3. **Selective remediation**: When you want to fix only specific objects
+4. **Learning/testing**: When exploring the tool's capabilities
+5. **Uncertain environments**: When the impact of changes is unclear
 
 When using `-ExportResults`, the script will:
 - Create a timestamped CSV file with all audit results
@@ -417,6 +469,7 @@ The `msDS-SupportedEncryptionTypes` attribute is a **computer-based setting only
 | Parameter | Type | Description | Default |
 |-----------|------|-------------|---------|
 | `ApplyFixes` | Switch | Enable interactive remediation mode | False |
+| `Force` | Switch | Skip confirmation prompts during remediation (requires ApplyFixes) | False |
 | `ExportResults` | Switch | Export results to timestamped CSV file | False |
 | `SkipGPOCheck` | Switch | Skip Group Policy settings verification | False |
 | `GPOCheckOnly` | Switch | Perform only GPO analysis without object scanning | False |
@@ -429,12 +482,22 @@ The `msDS-SupportedEncryptionTypes` attribute is a **computer-based setting only
 
 The script uses **PowerShell parameter sets** to prevent contradictory parameter combinations and provide clear usage patterns:
 
+### Force Parameter Requirements
+
+⚠️ **IMPORTANT**: The `-Force` parameter can **only** be used with `-ApplyFixes`. This logical restriction is enforced by PowerShell parameter sets:
+
+- ✅ **Valid**: `.\RC4_AD_SCAN.ps1 -ApplyFixes -Force` (Automatic remediation)
+- ❌ **Invalid**: `.\RC4_AD_SCAN.ps1 -Force` (Force without remediation)
+- ❌ **Invalid**: `.\RC4_AD_SCAN.ps1 -GPOCheckOnly -Force` (Force with analysis-only mode)
+
+The Force parameter is designed for **bulk remediation scenarios** where you want to automatically fix all detected issues without manual confirmation prompts.
+
 ### Available Parameter Sets
 
 | Parameter Set | Required Parameters | Compatible Parameters | Purpose |
 |---------------|--------------------|-----------------------|---------|
-| **Standard** | *(none)* | `-ApplyFixes`, `-ExportResults`, `-GPOScope`, `-DebugMode`, `-Server`, `-TargetForest` | Normal operation with optional GPO analysis |
-| **SkipGPO** | `-SkipGPOCheck` | `-ApplyFixes`, `-ExportResults`, `-DebugMode`, `-Server`, `-TargetForest` | Skip GPO checks for faster object-only scanning |
+| **Standard** | *(none)* | `-ApplyFixes`, `-Force`, `-ExportResults`, `-GPOScope`, `-DebugMode`, `-Server`, `-TargetForest` | Normal operation with optional GPO analysis |
+| **SkipGPO** | `-SkipGPOCheck` | `-ApplyFixes`, `-Force`, `-ExportResults`, `-DebugMode`, `-Server`, `-TargetForest` | Skip GPO checks for faster object-only scanning |
 | **GPOOnly** | `-GPOCheckOnly` | `-ExportResults`, `-GPOScope`, `-DebugMode`, `-Server`, `-TargetForest` | GPO analysis only without object scanning |
 | **Help** | `-Help` | `-ExportResults`, `-DebugMode`, `-Server`, `-TargetForest` | Display detailed help information |
 | **QuickHelp** | `-QuickHelp` | `-ExportResults`, `-DebugMode`, `-Server`, `-TargetForest` | Display quick reference guide |
@@ -461,11 +524,12 @@ The parameter sets automatically prevent these contradictory combinations:
 # ✅ Standard parameter set - Normal operation
 .\RC4_AD_SCAN.ps1
 .\RC4_AD_SCAN.ps1 -ApplyFixes -ExportResults
+.\RC4_AD_SCAN.ps1 -ApplyFixes -Force -ExportResults
 .\RC4_AD_SCAN.ps1 -GPOScope AllOUs -DebugMode
 
 # ✅ SkipGPO parameter set - Fast object scanning
 .\RC4_AD_SCAN.ps1 -SkipGPOCheck
-.\RC4_AD_SCAN.ps1 -SkipGPOCheck -ApplyFixes -ExportResults
+.\RC4_AD_SCAN.ps1 -SkipGPOCheck -ApplyFixes -Force -ExportResults
 
 # ✅ GPOOnly parameter set - Policy analysis only
 .\RC4_AD_SCAN.ps1 -GPOCheckOnly
@@ -479,12 +543,16 @@ The parameter sets automatically prevent these contradictory combinations:
 .\RC4_AD_SCAN.ps1 -SkipGPOCheck -GPOCheckOnly        # Error: Parameter set cannot be resolved
 .\RC4_AD_SCAN.ps1 -GPOCheckOnly -ApplyFixes          # Error: Parameter set cannot be resolved
 .\RC4_AD_SCAN.ps1 -SkipGPOCheck -GPOScope Domain     # Error: Parameter set cannot be resolved
+.\RC4_AD_SCAN.ps1 -GPOCheckOnly -Force               # Error: Parameter set cannot be resolved
+.\RC4_AD_SCAN.ps1 -Force                             # Error: Parameter set cannot be resolved
 ```
 
 ### Parameter Combinations
 
 **Valid Combinations:**
 - `-ApplyFixes -ExportResults` ✅ Remediate and export results
+- `-ApplyFixes -Force` ✅ Automated remediation without prompts
+- `-ApplyFixes -Force -ExportResults` ✅ Automated remediation with results export
 - `-GPOCheckOnly -DebugMode` ✅ Detailed GPO analysis only
 - `-SkipGPOCheck -ApplyFixes` ✅ Fast object remediation without GPO check
 - `-TargetForest domain.com -Server dc01.domain.com` ✅ Cross-forest with specific DC
@@ -494,6 +562,8 @@ The parameter sets automatically prevent these contradictory combinations:
 **Invalid Combinations:**
 - `-SkipGPOCheck -GPOCheckOnly` ❌ Conflicting GPO options
 - `-GPOCheckOnly -ApplyFixes` ❌ GPO-only mode cannot modify objects
+- `-Force` (without `-ApplyFixes`) ❌ Force requires remediation mode
+- `-GPOCheckOnly -Force` ❌ Analysis-only mode doesn't need Force
 
 ## GPOScope Parameter Options
 

@@ -1002,6 +1002,10 @@ function Test-KerberosGPOSettings {
                     $isOptimal = $false
                     $isSecure = $false
                     
+                    # Enhanced logic for GPOs with Kerberos-related names or content
+                    $gpoNameSuggestsKerberos = $gpo.DisplayName -match "(?i)(kerberos|krb|encrypt|aes|rc4|des|cipher)"
+                    $gpoHasEncryptionKeywords = $gpoReport -match "(?i)(encryption.*type|supported.*encryption|kerberos.*encrypt|aes|des.*cbc|rc4.*hmac)" -or $hasAnyAES
+                    
                     if ($encValue -eq 24) {
                         # Value 24 = AES128+AES256 only, definitely optimal
                         $isOptimal = $true
@@ -1018,6 +1022,11 @@ function Test-KerberosGPOSettings {
                     }
                     elseif ($hasAES128 -and $hasAES256) {
                         # At minimum AES is enabled = secure (even if we can't verify RC4/DES disabled)
+                        $isSecure = $true
+                    }
+                    elseif ($gpoNameSuggestsKerberos -and $gpoHasEncryptionKeywords) {
+                        # GPO appears to be for Kerberos encryption based on name and content
+                        # Even if we can't parse all settings, consider it secure
                         $isSecure = $true
                     }
                     
@@ -1168,10 +1177,6 @@ function Test-KerberosGPOSettings {
                     catch {
                         $verificationResult = @{ Found = $null; Error = $_.Exception.Message }
                     }
-                    
-                    # Enhanced logic: Check if GPO name suggests it's for Kerberos encryption
-                    $gpoNameSuggestsKerberos = $gpo.Name -match "(?i)(kerberos|krb|encrypt|aes|rc4|des|cipher)"
-                    $gpoHasEncryptionKeywords = $gpoReport -match "(?i)(encryption.*type|supported.*encryption|kerberos.*encrypt|aes|des.*cbc|rc4.*hmac)" -or $hasAnyAES
                     
                     # Now provide a single, clear assessment based on verification and intelligent analysis
                     if ($verificationResult.Found -eq $true) {

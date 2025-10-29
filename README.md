@@ -1016,9 +1016,8 @@ The script provides comprehensive output including:
 - **Comprehensive Reporting**: Clear distinction between explicit AES settings and secure defaults
 
 ## Exporting Results
-🔍 Attempting to discover domain controller in target forest...
-✅ Found target domain controller: dc01.target.com
-✅ Successfully connected to target forest: target.com
+
+### Automatic Export with Switch
 📊 Forest contains domains: target.com, subdomain.target.com
 
 🔍 Checking Group Policy settings...

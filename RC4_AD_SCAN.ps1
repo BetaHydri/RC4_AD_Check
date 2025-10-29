@@ -115,7 +115,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 3.5
+  Version: 3.6
   Created: October 2025
   Updated: October 2025
   
@@ -1285,6 +1285,17 @@ foreach ($domain in $forest.Domains) {
                     $trustType = $_.TrustType
                     $trustDirection = $_.Direction
                     
+                    # Check for self-referential trust (domain trusting itself)
+                    if ($trustName -eq $domain) {
+                        Write-Host "`n    >> SKIPPING SELF-REFERENTIAL TRUST" -ForegroundColor Yellow
+                        Write-Host "    >> Trust: $trustName" -ForegroundColor White
+                        Write-Host "    >> Current Domain: $domain" -ForegroundColor White
+                        Write-Host "    >> Cannot configure a domain's trust to itself using ksetup" -ForegroundColor Yellow
+                        Write-Host "    >> This may be a misconfigured trust object or forest artifact" -ForegroundColor Gray
+                        Write-Host "    >> RECOMMENDATION: Verify trust configuration via GUI (domain.msc)" -ForegroundColor Cyan
+                        continue
+                    }
+                    
                     Write-Host "`n    >> TRUST AES ENCRYPTION REMEDIATION" -ForegroundColor Cyan
                     Write-Host "    >> Trust: $trustName (Type: $trustType, Direction: $trustDirection)" -ForegroundColor White
                     Write-Host "    >> Domain: $domain" -ForegroundColor White
@@ -1375,8 +1386,13 @@ foreach ($domain in $forest.Domains) {
                                             Write-Host "         From DC in '$domain': ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Cyan
                                         }
                                         elseif ($trustDirection -eq "BiDirectional") {
-                                            Write-Host "         Step 1 - From DC in '$trustName': ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Cyan
-                                            Write-Host "         Step 2 - From DC in '$domain': ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Cyan
+                                            if ($trustName -ne $domain) {
+                                                Write-Host "         Step 1 - From DC in '$trustName': ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Cyan
+                                                Write-Host "         Step 2 - From DC in '$domain': ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Cyan
+                                            } else {
+                                                Write-Host "         ERROR: Self-referential trust detected ($domain -> $domain)" -ForegroundColor Red
+                                                Write-Host "         This trust configuration should not exist. Use GUI to verify." -ForegroundColor Yellow
+                                            }
                                         }
                                         Write-Host "       >> ALTERNATIVE: Use GUI method (domain.msc) which handles context automatically" -ForegroundColor Green
                                     }
@@ -1431,11 +1447,17 @@ foreach ($domain in $forest.Domains) {
                             Write-Host "       ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
                         }
                         elseif ($trustDirection -eq "BiDirectional") {
-                            Write-Host "       >> For BIDIRECTIONAL trust - Run from BOTH domain DCs:" -ForegroundColor Cyan
-                            Write-Host "       Step 1 - From domain controller in '$trustName':" -ForegroundColor Gray
-                            Write-Host "       ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
-                            Write-Host "       Step 2 - From domain controller in '$domain':" -ForegroundColor Gray
-                            Write-Host "       ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
+                            if ($trustName -ne $domain) {
+                                Write-Host "       >> For BIDIRECTIONAL trust - Run from BOTH domain DCs:" -ForegroundColor Cyan
+                                Write-Host "       Step 1 - From domain controller in '$trustName':" -ForegroundColor Gray
+                                Write-Host "       ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
+                                Write-Host "       Step 2 - From domain controller in '$domain':" -ForegroundColor Gray
+                                Write-Host "       ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
+                            } else {
+                                Write-Host "       >> SELF-REFERENTIAL TRUST DETECTED:" -ForegroundColor Yellow
+                                Write-Host "       Domain '$domain' has a trust to itself - this is likely misconfigured" -ForegroundColor Yellow
+                                Write-Host "       Use GUI (domain.msc) to verify and potentially remove this trust object" -ForegroundColor Cyan
+                            }
                         }
                         Write-Host "       >> This is exactly what the GUI checkbox does programmatically" -ForegroundColor Green
                         

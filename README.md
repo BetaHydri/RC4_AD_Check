@@ -1,6 +1,6 @@
 # Kerberos RC4/DES Active Directory Security Scanning Tool
 
-**Version**: 3.5  
+**Version**: 3.6  
 **Author**: Jan Tiedemann  
 **Created**: October 2025  
 **Updated**: October 2025
@@ -1195,6 +1195,13 @@ Debug output includes:
 - Consider gradual rollout with proper monitoring
 
 ## Changelog
+
+### Version 3.6 (October 2025)
+- **🔧 [CRITICAL FIX]** Fixed confusing self-referential trust handling
+- **🛡️ [ADDED]** Detection and skip logic for self-referential trusts (domain trusting itself)
+- **📖 [IMPROVED]** Enhanced error messages to identify misconfigured trust objects
+- **🎯 [CLARIFIED]** Clearer domain context guidance prevents impossible ksetup scenarios
+- **⚠️ [SAFETY]** Added validation to prevent attempting to configure domain's trust to itself
 
 ### Version 3.5 (October 2025)
 - **🔧 [CRITICAL FIX]** Fixed false success reporting when ksetup commands fail with error codes

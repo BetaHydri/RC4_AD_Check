@@ -1303,7 +1303,30 @@ foreach ($domain in $forest.Domains) {
                         # Execute ksetup command with AES-only (Microsoft Method 3)
                         $ksetupResult = & ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96 2>&1
                         
-                        if ($LASTEXITCODE -eq 0) {
+                        # Check for success - ksetup often returns 0 even on failure, so parse output
+                        $ksetupSuccess = $true
+                        $errorCode = $null
+                        
+                        # Convert result to string for analysis
+                        $ksetupOutput = $ksetupResult -join " "
+                        
+                        # Check for common error patterns in ksetup output
+                        if ($ksetupOutput -match "failed with (0x[0-9a-fA-F]+)" -or 
+                            $ksetupOutput -match "Failed.*: (0x[0-9a-fA-F]+)" -or
+                            $ksetupOutput -match "error" -or
+                            $ksetupOutput -match "Error") {
+                            $ksetupSuccess = $false
+                            if ($matches -and $matches[1]) {
+                                $errorCode = $matches[1]
+                            }
+                        }
+                        
+                        # Additional check: if output contains the word "failed" it's likely an error
+                        if ($ksetupOutput -match "failed" -and $ksetupOutput -notmatch "Setting enctypes") {
+                            $ksetupSuccess = $false
+                        }
+                        
+                        if ($ksetupSuccess -and $LASTEXITCODE -eq 0) {
                             Write-Host "    > SUCCESS: Trust configured with AES-only encryption (Microsoft Method 3)" -ForegroundColor Green
                             Write-Host "    >> $ksetupResult" -ForegroundColor Green
                             Write-Host "    >> This matches the 'AES Encryption' checkbox in AD Domains and Trusts" -ForegroundColor Green
@@ -1312,13 +1335,46 @@ foreach ($domain in $forest.Domains) {
                             # Verify the setting
                             Write-Host "    >> Verifying setting..." -ForegroundColor Gray
                             $verifyResult = & ksetup /getenctypeattr $trustName 2>&1
-                            if ($LASTEXITCODE -eq 0) {
+                            $verifyOutput = $verifyResult -join " "
+                            
+                            # Check if verification also failed
+                            if ($verifyOutput -match "failed with (0x[0-9a-fA-F]+)" -or 
+                                $verifyOutput -match "Failed.*: (0x[0-9a-fA-F]+)") {
+                                Write-Host "    >> Verification failed: $verifyResult" -ForegroundColor Red
+                                Write-Host "    >> Note: Trust setting may not have been applied successfully" -ForegroundColor Yellow
+                                $remediated = $false
+                            }
+                            elseif ($LASTEXITCODE -eq 0) {
                                 Write-Host "    >> Verification result: $verifyResult" -ForegroundColor Green
+                            }
+                            else {
+                                Write-Host "    >> Verification exit code: $LASTEXITCODE" -ForegroundColor Yellow
                             }
                         }
                         else {
-                            Write-Host "    > AES-only method failed with exit code: $LASTEXITCODE" -ForegroundColor Red
+                            Write-Host "    > ksetup method failed" -ForegroundColor Red
                             Write-Host "    >> Output: $ksetupResult" -ForegroundColor Red
+                            if ($errorCode) {
+                                Write-Host "    >> Error code: $errorCode" -ForegroundColor Red
+                                
+                                # Provide specific guidance for common error codes
+                                switch ($errorCode) {
+                                    "0xc0000034" {
+                                        Write-Host "    >> Error 0xc0000034: STATUS_OBJECT_NAME_NOT_FOUND" -ForegroundColor Yellow
+                                        Write-Host "       - Must run from correct domain controller" -ForegroundColor Yellow
+                                        Write-Host "       - Trust name must be exact FQDN" -ForegroundColor Yellow
+                                        Write-Host "       - Check trust direction (can only set on trusting domain)" -ForegroundColor Yellow
+                                    }
+                                    "0xc0000022" {
+                                        Write-Host "    >> Error 0xc0000022: STATUS_ACCESS_DENIED" -ForegroundColor Yellow
+                                        Write-Host "       - Need Domain/Enterprise Admin privileges" -ForegroundColor Yellow
+                                        Write-Host "       - Run as administrator" -ForegroundColor Yellow
+                                    }
+                                    default {
+                                        Write-Host "    >> Unknown error code. Check Microsoft documentation." -ForegroundColor Yellow
+                                    }
+                                }
+                            }
                         }
                     }
                     catch {

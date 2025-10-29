@@ -100,7 +100,7 @@
   Connect to a specific domain controller for scanning
 
 .EXAMPLE
-  .\RC4_AD_SCAN.ps1 -DebugMode -Server dc01.contoso.com
+  .\RC4_AD_SCAN.ps1 -Debug -Server dc01.contoso.com
   Run with debug output using a specific domain controller
 
 .EXAMPLE
@@ -113,7 +113,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 3.2
+  Version: 3.1
   Created: October 2025
   Updated: October 2025
   
@@ -154,7 +154,7 @@ param(
     [Parameter(ParameterSetName = 'SkipGPO')]
     [Parameter(ParameterSetName = 'GPOOnly')]
     [Parameter(ParameterSetName = 'Help')]
-    [switch]$DebugMode,
+    [switch]$Debug,
     
     [Parameter(ParameterSetName = 'Standard')]
     [Parameter(ParameterSetName = 'SkipGPO')]
@@ -204,13 +204,13 @@ function Show-QuickHelp {
     Write-Host "?? ADVANCED OPTIONS:" -ForegroundColor Yellow
     Write-Host "  -SkipGPOCheck                         # Skip GPO verification" -ForegroundColor White
     Write-Host "  -GPOCheckOnly                         # GPO analysis only" -ForegroundColor White
-    Write-Host "  -DebugMode                            # Enable debug output" -ForegroundColor White
+    Write-Host "  -Debug                                # Enable debug output" -ForegroundColor White
     Write-Host "  -Server dc01.contoso.com              # Specific domain controller" -ForegroundColor White
     Write-Host "  -TargetForest target.com              # Cross-forest scanning" -ForegroundColor White
     
     Write-Host ""
     Write-Host "?? EXAMPLE COMBINATIONS:" -ForegroundColor Yellow
-    Write-Host "  .\RC4_AD_SCAN.ps1 -GPOScope AllOUs -DebugMode -ExportResults" -ForegroundColor Cyan
+    Write-Host "  .\RC4_AD_SCAN.ps1 -GPOScope AllOUs -Debug -ExportResults" -ForegroundColor Cyan
     Write-Host "  .\RC4_AD_SCAN.ps1 -ApplyFixes -GPOScope DomainControllers" -ForegroundColor Cyan
     Write-Host "  .\RC4_AD_SCAN.ps1 -TargetForest remote.com -Server dc01.remote.com" -ForegroundColor Cyan
     
@@ -351,7 +351,7 @@ function Test-KerberosGPOSettings {
     param(
         [string]$Domain,
         [string]$Scope = "Both",
-        [switch]$DebugMode,
+        [switch]$Debug,
         [string]$Server,
         [string]$TargetForest
     )
@@ -367,13 +367,13 @@ function Test-KerberosGPOSettings {
     $adParams = @{}
     if ($Server) {
         $adParams['Server'] = $Server
-        if ($DebugMode) {
+        if ($Debug) {
             Write-Host "      ?? Using server: $Server" -ForegroundColor Gray
         }
     }
     
     # Handle target forest context
-    if ($TargetForest -and $DebugMode) {
+    if ($TargetForest -and $Debug) {
         Write-Host "      ?? Operating in target forest: $TargetForest" -ForegroundColor Gray
     }
     
@@ -382,7 +382,7 @@ function Test-KerberosGPOSettings {
         $domainDN = (Get-ADDomain -Server $Domain @adParams).DistinguishedName
         $domainControllersOU = "OU=Domain Controllers,$domainDN"
         
-        if ($DebugMode) {
+        if ($Debug) {
             Write-Host "      ?? Domain DN: $domainDN" -ForegroundColor Gray
             Write-Host "      ?? Domain Controllers OU: $domainControllersOU" -ForegroundColor Gray
         }
@@ -395,7 +395,7 @@ function Test-KerberosGPOSettings {
         }
         if ($Server) {
             # Note: Get-GPO doesn't accept -Server parameter, but uses current session context
-            if ($DebugMode) {
+            if ($Debug) {
                 Write-Host "      ??  Note: Get-GPO uses current session context" -ForegroundColor Gray
             }
         }
@@ -405,14 +405,14 @@ function Test-KerberosGPOSettings {
         
         # Check each GPO for Kerberos settings
         foreach ($gpo in $gpos) {
-            if ($DebugMode) {
+            if ($Debug) {
                 Write-Host "      ?? Checking GPO: $($gpo.DisplayName)" -ForegroundColor Gray
             }
             
             try {
                 $gpoReport = Get-GPOReport -Guid $gpo.Id -ReportType Xml -Domain $Domain -ErrorAction SilentlyContinue
                 
-                if ($DebugMode -and $gpoReport) {
+                if ($Debug -and $gpoReport) {
                     Write-Host "      ?? GPO report retrieved successfully" -ForegroundColor Gray
                     if ($gpoReport -match "Configure encryption types allowed for Kerberos") {
                         Write-Host "      ? Found Kerberos encryption configuration" -ForegroundColor Gray
@@ -429,7 +429,7 @@ function Test-KerberosGPOSettings {
                         $fullGpoReport = Get-GPOReport -Guid $gpo.Id -ReportType Xml -Domain $Domain -ErrorAction SilentlyContinue
                         
                         if ($fullGpoReport) {
-                            if ($DebugMode) {
+                            if ($Debug) {
                                 Write-Host "      ?? Full GPO report retrieved for link analysis" -ForegroundColor Gray
                             }
                             
@@ -437,7 +437,7 @@ function Test-KerberosGPOSettings {
                             $xmlDoc = [xml]$fullGpoReport
                             $linkNodes = $xmlDoc.SelectNodes("//LinksTo")
                             
-                            if ($DebugMode) {
+                            if ($Debug) {
                                 Write-Host "      ?? Found $($linkNodes.Count) potential link nodes" -ForegroundColor Gray
                             }
                             
@@ -446,7 +446,7 @@ function Test-KerberosGPOSettings {
                                 $enabled = $linkNode.Enabled -eq "true"
                                 $noOverride = $linkNode.NoOverride -eq "true"
                                 
-                                if ($DebugMode) {
+                                if ($Debug) {
                                     Write-Host "      ?? Link found: $somPath (Enabled: $enabled)" -ForegroundColor Gray
                                 }
                                 
@@ -482,7 +482,7 @@ function Test-KerberosGPOSettings {
                         
                         # If no links found in XML, try alternative method
                         if ($allGPOLinks.Count -eq 0) {
-                            if ($DebugMode) {
+                            if ($Debug) {
                                 Write-Host "      ?? XML parsing found no links, trying alternative GPO link detection..." -ForegroundColor Gray
                             }
                             
@@ -492,19 +492,19 @@ function Test-KerberosGPOSettings {
                             switch ($Scope) {
                                 "Domain" {
                                     $searchContainers = @($domainDN)
-                                    if ($DebugMode) {
+                                    if ($Debug) {
                                         Write-Host "      ?? Scope: Domain - checking domain root only" -ForegroundColor Gray
                                     }
                                 }
                                 "DomainControllers" {
                                     $searchContainers = @($domainControllersOU)
-                                    if ($DebugMode) {
+                                    if ($Debug) {
                                         Write-Host "      ?? Scope: DomainControllers - checking DC OU only" -ForegroundColor Gray
                                     }
                                 }
                                 "Both" {
                                     $searchContainers = @($domainDN, $domainControllersOU)
-                                    if ($DebugMode) {
+                                    if ($Debug) {
                                         Write-Host "      ?? Scope: Both - checking domain root and DC OU" -ForegroundColor Gray
                                     }
                                 }
@@ -516,12 +516,12 @@ function Test-KerberosGPOSettings {
                                         foreach ($ou in $allOUs) {
                                             $searchContainers += $ou.DistinguishedName
                                         }
-                                        if ($DebugMode) {
+                                        if ($Debug) {
                                             Write-Host "      ?? Scope: AllOUs - checking domain root, DC OU, and $($allOUs.Count) additional OUs" -ForegroundColor Gray
                                         }
                                     }
                                     catch {
-                                        if ($DebugMode) {
+                                        if ($Debug) {
                                             Write-Host "      ??  Could not enumerate all OUs: $($_.Exception.Message)" -ForegroundColor Gray
                                         }
                                     }
@@ -533,7 +533,7 @@ function Test-KerberosGPOSettings {
                                         try {
                                             $null = Get-ADOrganizationalUnit -Identity $Scope -Server $Domain -ErrorAction Stop
                                             $searchContainers = @($Scope)
-                                            if ($DebugMode) {
+                                            if ($Debug) {
                                                 Write-Host "      ?? Scope: Custom OU - checking specified OU: $Scope" -ForegroundColor Gray
                                             }
                                         }
@@ -546,14 +546,14 @@ function Test-KerberosGPOSettings {
                                     else {
                                         # Fallback to default behavior
                                         $searchContainers = @($domainDN, $domainControllersOU)
-                                        if ($DebugMode) {
+                                        if ($Debug) {
                                             Write-Host "      ?? Fallback: Using domain root and DC OU" -ForegroundColor Gray
                                         }
                                     }
                                 }
                             }
                             
-                            if ($DebugMode) {
+                            if ($Debug) {
                                 Write-Host "      ?? Final search containers ($($searchContainers.Count) total):" -ForegroundColor Gray
                                 foreach ($container in $searchContainers) {
                                     Write-Host "         - $container" -ForegroundColor Gray
@@ -562,19 +562,19 @@ function Test-KerberosGPOSettings {
                             
                             foreach ($container in $searchContainers) {
                                 try {
-                                    if ($DebugMode) {
+                                    if ($Debug) {
                                         Write-Host "      ?? Checking container: $container" -ForegroundColor Gray
                                     }
                                     
                                     $inheritance = Get-GPInheritance -Target $container -Domain $Domain -ErrorAction SilentlyContinue
                                     if ($inheritance -and $inheritance.GpoLinks) {
-                                        if ($DebugMode) {
+                                        if ($Debug) {
                                             Write-Host "      ?? Found $($inheritance.GpoLinks.Count) GPO links in this container" -ForegroundColor Gray
                                         }
                                         
                                         $linkedGPO = $inheritance.GpoLinks | Where-Object { $_.GpoId -eq $gpo.Id }
                                         if ($linkedGPO) {
-                                            if ($DebugMode) {
+                                            if ($Debug) {
                                                 Write-Host "      ? Found matching GPO link! GPO ID: $($gpo.Id)" -ForegroundColor Green
                                             }
                                             
@@ -603,19 +603,19 @@ function Test-KerberosGPOSettings {
                                             }
                                         }
                                         else {
-                                            if ($DebugMode) {
+                                            if ($Debug) {
                                                 Write-Host "      ? No matching GPO found in this container (checked $($inheritance.GpoLinks.Count) links)" -ForegroundColor Gray
                                             }
                                         }
                                     }
                                     else {
-                                        if ($DebugMode) {
+                                        if ($Debug) {
                                             Write-Host "      ? No GPO inheritance found for this container" -ForegroundColor Gray
                                         }
                                     }
                                 }
                                 catch {
-                                    if ($DebugMode) {
+                                    if ($Debug) {
                                         Write-Host "      ??  Error checking container $container : $($_.Exception.Message)" -ForegroundColor Gray
                                     }
                                     continue
@@ -625,7 +625,7 @@ function Test-KerberosGPOSettings {
                         
                         # Final fallback: Try to get GPO links directly from Active Directory (only if still no links found)
                         if ($allGPOLinks.Count -eq 0) {
-                            if ($DebugMode) {
+                            if ($Debug) {
                                 Write-Host "      ?? Final fallback: Searching AD for GPO links..." -ForegroundColor Gray
                             }
                             
@@ -634,19 +634,19 @@ function Test-KerberosGPOSettings {
                                 $gpoGuid = $gpo.Id.ToString()
                                 $filter = "gPLink -like '*$gpoGuid*'"
                                 
-                                if ($DebugMode) {
+                                if ($Debug) {
                                     Write-Host "      ?? Searching for gPLink containing: $gpoGuid" -ForegroundColor Gray
                                 }
                                 
                                 $linkedObjects = Get-ADObject -Filter $filter -Server $Domain -Properties gPLink, Name -ErrorAction SilentlyContinue
                                 
                                 if ($linkedObjects) {
-                                    if ($DebugMode) {
+                                    if ($Debug) {
                                         Write-Host "      ?? Found $($linkedObjects.Count) objects with gPLink containing this GPO" -ForegroundColor Gray
                                     }
                                     
                                     foreach ($obj in $linkedObjects) {
-                                        if ($DebugMode) {
+                                        if ($Debug) {
                                             Write-Host "      ?? Found link in: $($obj.Name) ($($obj.DistinguishedName))" -ForegroundColor Gray
                                             Write-Host "      ?? gPLink value: $($obj.gPLink)" -ForegroundColor Gray
                                         }
@@ -687,13 +687,13 @@ function Test-KerberosGPOSettings {
                                     }
                                 }
                                 else {
-                                    if ($DebugMode) {
+                                    if ($Debug) {
                                         Write-Host "      ? No objects found with gPLink containing this GPO GUID" -ForegroundColor Gray
                                     }
                                 }
                             }
                             catch {
-                                if ($DebugMode) {
+                                if ($Debug) {
                                     Write-Host "      ??  Error in AD search fallback: $($_.Exception.Message)" -ForegroundColor Gray
                                 }
                             }
@@ -709,14 +709,14 @@ function Test-KerberosGPOSettings {
                                     $uniqueLinks += $link
                                     $seenContainers += $link.Container
                                 }
-                                elseif ($DebugMode) {
+                                elseif ($Debug) {
                                     Write-Host "      ??  Removing duplicate link for container: $($link.Container)" -ForegroundColor Yellow
                                 }
                             }
                             
                             $allGPOLinks = $uniqueLinks
                             
-                            if ($DebugMode) {
+                            if ($Debug) {
                                 Write-Host "      ? Final unique links count: $($allGPOLinks.Count)" -ForegroundColor Green
                             }
                         }
@@ -738,7 +738,7 @@ function Test-KerberosGPOSettings {
                     $encValue = $null
                     if ($gpoReport -match "SupportedEncryptionTypes.*?(\d+)") {
                         $encValue = [int]$matches[1]
-                        if ($DebugMode) {
+                        if ($Debug) {
                             Write-Host "      ?? Found numeric encryption value: $encValue" -ForegroundColor Gray
                             Write-Host "      ?? Decoding value: $(Get-EncryptionTypes $encValue)" -ForegroundColor Gray
                         }
@@ -1079,7 +1079,7 @@ catch {
 if (-not $SkipGPOCheck) {
     Write-Host "?? Checking Group Policy settings..." -ForegroundColor Magenta
     foreach ($domain in $forest.Domains) {
-        Test-KerberosGPOSettings -Domain $domain -Scope $GPOScope -DebugMode:$DebugMode -Server $Server -TargetForest $TargetForest
+        Test-KerberosGPOSettings -Domain $domain -Scope $GPOScope -Debug:$Debug -Server $Server -TargetForest $TargetForest
     }
     
     # Show recommendations once after all domains are checked
@@ -1174,7 +1174,7 @@ foreach ($domain in $forest.Domains) {
         $domainParams['Server'] = $domain
     }
     
-    if ($TargetForest -and $DebugMode) {
+    if ($TargetForest -and $Debug) {
         Write-Host "  ?? Scanning in target forest context: $TargetForest" -ForegroundColor Gray
     }
 
@@ -1224,7 +1224,7 @@ foreach ($domain in $forest.Domains) {
             }
             $secureObjects += $secureObj
             
-            if ($DebugMode) {
+            if ($Debug) {
                 Write-Host "    ? Computer '$($_.SamAccountName)' has secure encryption: $(Get-EncryptionTypes $enc)" -ForegroundColor Green
             }
         }
@@ -1242,7 +1242,7 @@ foreach ($domain in $forest.Domains) {
         $domainTrustCount++
         $trustTotal++
         
-        if ($DebugMode) {
+        if ($Debug) {
             Write-Host "    ?? Found trust: $($_.Name) | Type: $($_.TrustType) | Direction: $($_.Direction) | DN: $($_.DistinguishedName)" -ForegroundColor Gray
         }
         
@@ -1293,7 +1293,7 @@ foreach ($domain in $forest.Domains) {
             }
             $secureObjects += $secureObj
             
-            if ($DebugMode) {
+            if ($Debug) {
                 Write-Host "    ? Trust '$($_.Name)' has secure encryption: $(Get-EncryptionTypes $enc)" -ForegroundColor Green
             }
         }
@@ -1440,7 +1440,7 @@ if ($secureObjects.Count -gt 0) {
             Write-Host "  ?? $($domainGroup.Name): $($domainGroup.Count) total ($($domainComputers.Count) computers, $($domainTrusts.Count) trusts)" -ForegroundColor Cyan
         }
         Write-Host ""
-        Write-Host "?? Use -DebugMode parameter to see detailed secure object listings" -ForegroundColor Gray
+        Write-Host "?? Use -Debug parameter to see detailed secure object listings" -ForegroundColor Gray
     }
     
     # Show encryption type breakdown for secure objects
@@ -1461,5 +1461,4 @@ if ($ExportResults) {
 
 # Optional export
 # $results | Export-Csv ".\\RC4_Audit_Results.csv" -NoTypeInformation -Encoding UTF8
-
 

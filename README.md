@@ -1,6 +1,6 @@
 # Kerberos RC4/DES Active Directory Security Scanning Tool
 
-**Version**: 3.0  
+**Version**: 3.2  
 **Author**: Jan Tiedemann  
 **Created**: October 2025  
 **Updated**: October 2025
@@ -134,7 +134,7 @@ Check GPO settings at specific organizational levels:
 .\RC4_AD_SCAN.ps1 -GPOScope "OU=IT,DC=contoso,DC=com"
 
 # Check a specific OU with debug output
-.\RC4_AD_SCAN.ps1 -GPOScope "OU=Servers,OU=IT,DC=contoso,DC=com" -Debug
+.\RC4_AD_SCAN.ps1 -GPOScope "OU=Servers,OU=IT,DC=contoso,DC=com" -DebugMode
 ```
 
 ### Cross-Forest Scanning
@@ -149,7 +149,7 @@ Scan a different forest via forest trust relationships:
 .\RC4_AD_SCAN.ps1 -TargetForest target.com -Server dc01.target.com
 
 # Debug cross-forest scanning
-.\RC4_AD_SCAN.ps1 -TargetForest target.com -Debug -ExportResults
+.\RC4_AD_SCAN.ps1 -TargetForest target.com -DebugMode -ExportResults
 ```
 
 ### Server Connectivity
@@ -161,7 +161,7 @@ Connect to a specific domain controller:
 .\RC4_AD_SCAN.ps1 -Server dc01.contoso.com
 
 # Combine with other parameters
-.\RC4_AD_SCAN.ps1 -Server dc01.contoso.com -Debug -ExportResults
+.\RC4_AD_SCAN.ps1 -Server dc01.contoso.com -DebugMode -ExportResults
 ```
 
 When using `-ApplyFixes`, the script will:
@@ -199,10 +199,10 @@ Enable detailed troubleshooting output for GPO detection:
 
 ```powershell
 # Enable debug output
-.\RC4_AD_SCAN.ps1 -Debug
+.\RC4_AD_SCAN.ps1 -DebugMode
 
 # Combine with other parameters
-.\RC4_AD_SCAN.ps1 -Debug -GPOScope DomainControllers -ExportResults
+.\RC4_AD_SCAN.ps1 -DebugMode -GPOScope DomainControllers -ExportResults
 ```
 
 When using `-TargetForest`, you can:
@@ -216,7 +216,7 @@ When using `-Server`, you can:
 - Target testing against particular DCs
 - Work around network or authentication issues
 
-When using `-Debug`, the script will:
+When using `-DebugMode`, the script will:
 - Show detailed GPO processing steps
 - Display GPO link detection progress with multiple detection methods
 - Report encryption setting analysis details with decoded values
@@ -408,14 +408,69 @@ The `msDS-SupportedEncryptionTypes` attribute is a **computer-based setting only
 | `Server` | String | Specify domain controller to connect to | Auto-discover |
 | `TargetForest` | String | Target forest to scan via forest trust | Current forest |
 
+## Parameter Sets
+
+The script uses **PowerShell parameter sets** to prevent contradictory parameter combinations and provide clear usage patterns:
+
+### Available Parameter Sets
+
+| Parameter Set | Required Parameters | Compatible Parameters | Purpose |
+|---------------|--------------------|-----------------------|---------|
+| **Standard** | *(none)* | `-ApplyFixes`, `-ExportResults`, `-GPOScope`, `-DebugMode`, `-Server`, `-TargetForest` | Normal operation with optional GPO analysis |
+| **SkipGPO** | `-SkipGPOCheck` | `-ApplyFixes`, `-ExportResults`, `-DebugMode`, `-Server`, `-TargetForest` | Skip GPO checks for faster object-only scanning |
+| **GPOOnly** | `-GPOCheckOnly` | `-ExportResults`, `-GPOScope`, `-DebugMode`, `-Server`, `-TargetForest` | GPO analysis only without object scanning |
+| **Help** | `-Help` OR `-QuickHelp` | `-ExportResults`, `-DebugMode`, `-Server`, `-TargetForest` | Display help information |
+
+### Parameter Set Benefits
+
+1. **Automatic Validation**: PowerShell prevents contradictory combinations automatically
+2. **Clear Error Messages**: Built-in "Parameter set cannot be resolved" errors when invalid combinations are used
+3. **IntelliSense Support**: Better tab completion and parameter suggestions in PowerShell ISE/VS Code
+4. **Self-Documenting**: Parameter relationships are explicit and enforceable
+5. **Maintainable**: No complex manual validation logic required
+
+### Prevented Parameter Combinations
+
+The parameter sets automatically prevent these contradictory combinations:
+
+- ❌ **`-SkipGPOCheck -GPOCheckOnly`** → Mutually exclusive (cannot skip and check GPOs simultaneously)
+- ❌ **`-SkipGPOCheck -GPOScope`** → GPO scope is irrelevant when skipping GPO checks  
+- ❌ **`-GPOCheckOnly -ApplyFixes`** → Cannot modify objects in GPO-only analysis mode
+
+### Parameter Set Examples
+
+```powershell
+# ✅ Standard parameter set - Normal operation
+.\RC4_AD_SCAN.ps1
+.\RC4_AD_SCAN.ps1 -ApplyFixes -ExportResults
+.\RC4_AD_SCAN.ps1 -GPOScope AllOUs -DebugMode
+
+# ✅ SkipGPO parameter set - Fast object scanning
+.\RC4_AD_SCAN.ps1 -SkipGPOCheck
+.\RC4_AD_SCAN.ps1 -SkipGPOCheck -ApplyFixes -ExportResults
+
+# ✅ GPOOnly parameter set - Policy analysis only
+.\RC4_AD_SCAN.ps1 -GPOCheckOnly
+.\RC4_AD_SCAN.ps1 -GPOCheckOnly -GPOScope DomainControllers -DebugMode
+
+# ✅ Help parameter set - Documentation
+.\RC4_AD_SCAN.ps1 -Help
+.\RC4_AD_SCAN.ps1 -QuickHelp
+
+# ❌ Invalid combinations (automatically prevented)
+.\RC4_AD_SCAN.ps1 -SkipGPOCheck -GPOCheckOnly        # Error: Parameter set cannot be resolved
+.\RC4_AD_SCAN.ps1 -GPOCheckOnly -ApplyFixes          # Error: Parameter set cannot be resolved
+.\RC4_AD_SCAN.ps1 -SkipGPOCheck -GPOScope Domain     # Error: Parameter set cannot be resolved
+```
+
 ### Parameter Combinations
 
 **Valid Combinations:**
 - `-ApplyFixes -ExportResults` ✅ Remediate and export results
-- `-GPOCheckOnly -Debug` ✅ Detailed GPO analysis only
+- `-GPOCheckOnly -DebugMode` ✅ Detailed GPO analysis only
 - `-SkipGPOCheck -ApplyFixes` ✅ Fast object remediation without GPO check
 - `-TargetForest domain.com -Server dc01.domain.com` ✅ Cross-forest with specific DC
-- `-GPOScope AllOUs -Debug` ✅ Comprehensive GPO analysis across all OUs
+- `-GPOScope AllOUs -DebugMode` ✅ Comprehensive GPO analysis across all OUs
 - `-GPOScope "OU=IT,DC=contoso,DC=com" -GPOCheckOnly` ✅ Focused GPO analysis on specific OU
 
 **Invalid Combinations:**
@@ -445,7 +500,7 @@ The `-GPOScope` parameter supports the following values:
 .\RC4_AD_SCAN.ps1 -GPOScope "OU=IT,DC=contoso,DC=com"
 
 # Check specific nested OU with debug output
-.\RC4_AD_SCAN.ps1 -GPOScope "OU=Servers,OU=IT,DC=contoso,DC=com" -Debug
+.\RC4_AD_SCAN.ps1 -GPOScope "OU=Servers,OU=IT,DC=contoso,DC=com" -DebugMode
 ```
 
 ### GPOScope Validation
@@ -1077,9 +1132,9 @@ Add-WindowsCapability -Online -Name "Rsat.ActiveDirectory.DS-LDS.Tools"
 ## Troubleshooting & Debugging
 
 ### Enable Debug Output
-Use the `-Debug` parameter to see detailed processing information:
+Use the `-DebugMode` parameter to see detailed processing information:
 ```powershell
-.\RC4_AD_SCAN.ps1 -Debug
+.\RC4_AD_SCAN.ps1 -DebugMode
 ```
 
 Debug output includes:
@@ -1115,6 +1170,31 @@ Debug output includes:
 - Test thoroughly in lab environment before production deployment
 - Consider gradual rollout with proper monitoring
 
+## Changelog
+
+### Version 3.2 (October 2025)
+- **🔧 BREAKING CHANGE**: Implemented PowerShell parameter sets for robust parameter validation
+- **🔧 BREAKING CHANGE**: Renamed `-Debug` parameter to `-DebugMode` to resolve conflict with PowerShell's built-in common parameter
+- **✅ Enhanced Parameter Validation**: Automatic prevention of contradictory parameter combinations
+- **🚫 Prevented Combinations**: `-SkipGPOCheck -GPOCheckOnly`, `-SkipGPOCheck -GPOScope`, `-GPOCheckOnly -ApplyFixes`
+- **📖 Improved IntelliSense**: Better tab completion and parameter suggestions in PowerShell editors
+- **🔍 Self-Documenting**: Parameter relationships are now explicit and automatically enforced
+- **⚡ Cleaner Architecture**: Removed manual parameter validation logic in favor of declarative parameter sets
+
+### Version 3.1 (October 2025)
+- Enhanced GPO analysis with flexible scope targeting
+- Added support for custom OU path specifications in GPOScope parameter
+- Improved parameter validation logic for contradictory combinations
+- Enhanced help system with QuickHelp functionality
+
+### Version 3.0 (October 2025)
+- Initial release with comprehensive forest-wide RC4 scanning
+- Advanced GPO verification and security analysis
+- Cross-forest scanning capabilities
+- Detailed trust analysis and remediation guidance
+- Windows Server 2025 compatibility warnings
+- Professional output formatting with boxed messages
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit pull requests or open issues for bugs and feature requests.
@@ -1126,3 +1206,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Disclaimer
 
 This tool modifies Active Directory objects. Always test in a non-production environment first and ensure you have proper backups before running in production.
+

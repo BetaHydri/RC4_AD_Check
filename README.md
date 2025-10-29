@@ -1,6 +1,6 @@
 # Kerberos RC4/DES Active Directory Security Scanning Tool
 
-**Version**: 6.0  
+**Version**: 6.1  
 **Author**: Jan Tiedemann  
 **Created**: October 2025  
 **Updated**: October 2025
@@ -1272,7 +1272,7 @@ This provides additional technical details including:
 - Secure object identification and reasoning
 - Cross-verification details and decision logic
 
-## What to Expect from Version 6.0
+## What to Expect from Version 6.1
 
 ### For Users with Kerberos-Related GPOs
 If your GPOs have names like "KerberosEncTypes", "Kerberos Encryption", or similar Kerberos-related names:
@@ -1650,6 +1650,14 @@ Debug output includes:
 - Consider gradual rollout with proper monitoring
 
 ## Changelog
+
+### Version 6.1 (October 2025) - **STREAMLINED FOCUS & IMPROVED GPO ANALYSIS**
+- **🔧 [PARAMETER CLEANUP]** Removed `-KerberosHardeningAssessment` parameter to streamline tool focus on core RC4 audit
+- **📊 [ENHANCED GPO LOGIC]** Improved DC analysis to consider GPO configuration alongside DC settings
+- **✅ [SMART WARNINGS]** DC analysis now shows GPO-based AES configuration status, reducing false warnings
+- **🎯 [POST-2022 ACCURACY]** Enhanced logic: No RC4 fallback warnings when GPO provides secure encryption
+- **📖 [SIMPLIFIED TOOL]** Focused on core RC4/DES detection and remediation without advanced assessment complexity
+- **🔍 [BETTER CONTEXT]** DC analysis messages now reflect both explicit DC settings and GPO-based configuration
 
 ### Version 6.0 (October 2025) - **ENHANCED RC4 AUDIT CAPABILITIES**
 - **� [ENHANCED]** Improved GPO analysis with better verification logic

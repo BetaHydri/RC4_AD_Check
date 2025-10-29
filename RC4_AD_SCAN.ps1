@@ -133,7 +133,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 6.0
+  Version: 6.1
   Created: October 2025
   Updated: October 2025
   

@@ -153,7 +153,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 6.12
+  Version: 6.13
   Created: October 2025
   Updated: October 2025
   
@@ -2442,6 +2442,115 @@ function Invoke-KerberosHardeningAssessment {
         $assessment | ConvertTo-Json -Depth 10 | Out-File -FilePath $exportPath -Encoding UTF8
         Write-Host "`n💾 Assessment exported to: $exportPath" -ForegroundColor Green
     }
+    
+    # Display detailed assessment results summary
+    Write-Host "`n" + ("=" * 80) -ForegroundColor Cyan
+    Write-Host "📊 DETAILED ASSESSMENT RESULTS SUMMARY" -ForegroundColor Cyan
+    Write-Host ("=" * 80) -ForegroundColor Cyan
+    
+    # Domain Controllers Details
+    Write-Host "`n🖥️  DOMAIN CONTROLLERS:" -ForegroundColor Yellow
+    Write-Host "   Total DCs: $($assessment.DomainControllers.Total)" -ForegroundColor White
+    Write-Host "   Secure DCs (AES-only): $($assessment.DomainControllers.SecureCount)" -ForegroundColor Green
+    Write-Host "   Vulnerable DCs (RC4-enabled): $($assessment.DomainControllers.VulnerableCount)" -ForegroundColor Red
+    Write-Host "   AES Percentage: $($assessment.DomainControllers.AESPercentage)%" -ForegroundColor White
+    if ($assessment.DomainControllers.VulnerableDCs.Count -gt 0) {
+        Write-Host "   Vulnerable DC List:" -ForegroundColor Red
+        foreach ($dc in $assessment.DomainControllers.VulnerableDCs) {
+            Write-Host "     • $dc" -ForegroundColor Red
+        }
+    }
+    
+    # GPO Coverage Details
+    Write-Host "`n📋 GROUP POLICY COVERAGE:" -ForegroundColor Yellow
+    Write-Host "   Completely Configured: $($assessment.GPOCoverage.CompletelyConfigured)" -ForegroundColor White
+    if ($assessment.GPOCoverage.SharedDomainGPO) {
+        Write-Host "   Shared Domain GPO: $($assessment.GPOCoverage.SharedDomainGPO)" -ForegroundColor Green
+    }
+    
+    Write-Host "   Domain Controllers GPO:" -ForegroundColor White
+    Write-Host "     • Configured: $($assessment.GPOCoverage.DomainControllers.Configured)" -ForegroundColor White
+    if ($assessment.GPOCoverage.DomainControllers.Configured) {
+        Write-Host "     • GPO Name: $($assessment.GPOCoverage.DomainControllers.GPOName)" -ForegroundColor Green
+        Write-Host "     • Source: $($assessment.GPOCoverage.DomainControllers.Source)" -ForegroundColor Green
+        Write-Host "     • Encryption Value: $($assessment.GPOCoverage.DomainControllers.Value)" -ForegroundColor Green
+    }
+    
+    Write-Host "   Member Computers GPO:" -ForegroundColor White
+    Write-Host "     • Configured: $($assessment.GPOCoverage.MemberComputers.Configured)" -ForegroundColor White
+    if ($assessment.GPOCoverage.MemberComputers.Configured) {
+        Write-Host "     • GPO Name: $($assessment.GPOCoverage.MemberComputers.GPOName)" -ForegroundColor Green
+        Write-Host "     • Scope: $($assessment.GPOCoverage.MemberComputers.Scope)" -ForegroundColor Green
+        Write-Host "     • Encryption Value: $($assessment.GPOCoverage.MemberComputers.Value)" -ForegroundColor Green
+    }
+    
+    # Service Accounts Details
+    Write-Host "`n👤 SERVICE ACCOUNTS:" -ForegroundColor Yellow
+    Write-Host "   Total Service Accounts: $($assessment.ServiceAccounts.TotalServiceAccounts)" -ForegroundColor White
+    Write-Host "   Configured Accounts: $($assessment.ServiceAccounts.ConfiguredAccounts)" -ForegroundColor White
+    Write-Host "   AES Accounts: $($assessment.ServiceAccounts.AESAccounts)" -ForegroundColor Green
+    Write-Host "   RC4 Accounts: $($assessment.ServiceAccounts.RC4Accounts)" -ForegroundColor Red
+    Write-Host "   Not Configured: $($assessment.ServiceAccounts.NotConfiguredAccounts)" -ForegroundColor Yellow
+    if ($assessment.ServiceAccounts.RiskyAccounts.Count -gt 0) {
+        Write-Host "   Risky Accounts:" -ForegroundColor Red
+        foreach ($account in $assessment.ServiceAccounts.RiskyAccounts) {
+            Write-Host "     • $account" -ForegroundColor Red
+        }
+    }
+    
+    # Security Posture Details
+    Write-Host "`n🎯 SECURITY POSTURE:" -ForegroundColor Yellow
+    Write-Host "   Security Level: $($assessment.SecurityPosture.Level)" -ForegroundColor $(
+        switch ($assessment.SecurityPosture.Level) {
+            "MAXIMUM" { "Green" }
+            "RECOMMENDED+" { "Green" } 
+            "MINIMUM+" { "Yellow" }
+            "NEEDS_IMPROVEMENT" { "Red" }
+            default { "Gray" }
+        }
+    )
+    if ($assessment.SecurityPosture.RiskFactors.Count -gt 0) {
+        Write-Host "   Risk Factors:" -ForegroundColor Red
+        foreach ($risk in $assessment.SecurityPosture.RiskFactors) {
+            Write-Host "     • $risk" -ForegroundColor Red
+        }
+    }
+    
+    # Recommendations Details
+    Write-Host "`n💡 RECOMMENDATIONS:" -ForegroundColor Yellow
+    if ($assessment.Recommendations.Minimum.Count -gt 0) {
+        Write-Host "   MINIMUM (Critical):" -ForegroundColor Red
+        foreach ($rec in $assessment.Recommendations.Minimum) {
+            Write-Host "     • $rec" -ForegroundColor Red
+        }
+    }
+    if ($assessment.Recommendations.Recommended.Count -gt 0) {
+        Write-Host "   RECOMMENDED (Best Practice):" -ForegroundColor Yellow
+        foreach ($rec in $assessment.Recommendations.Recommended) {
+            Write-Host "     • $rec" -ForegroundColor Yellow
+        }
+    }
+    if ($assessment.Recommendations.Maximum.Count -gt 0) {
+        Write-Host "   MAXIMUM (High Security):" -ForegroundColor Cyan
+        foreach ($rec in $assessment.Recommendations.Maximum) {
+            Write-Host "     • $rec" -ForegroundColor Cyan
+        }
+    }
+    
+    # Negotiation Scenarios
+    Write-Host "`n🔄 KERBEROS NEGOTIATION SCENARIOS:" -ForegroundColor Yellow
+    $currentConfig = $assessment.NegotiationScenarios.CurrentConfig
+    Write-Host "   Current Result: $($currentConfig.Result)" -ForegroundColor $(
+        if ($currentConfig.Result -eq "AES (secure)") { "Green" }
+        elseif ($currentConfig.Result -like "*RC4*") { "Red" }
+        else { "Yellow" }
+    )
+    Write-Host "   DC Policy: $($currentConfig.DCPolicy)" -ForegroundColor White
+    Write-Host "   Member Policy: $($currentConfig.MemberPolicy)" -ForegroundColor White
+    Write-Host "   Service Account Risk: $($currentConfig.ServiceAccountRisk)" -ForegroundColor White
+    
+    Write-Host "`n⏱️  Assessment completed: $($assessment.Timestamp)" -ForegroundColor Gray
+    Write-Host ("=" * 80) -ForegroundColor Cyan
     
     return $assessment
 }    # Handle Kerberos Hardening Assessment mode (after functions are defined)

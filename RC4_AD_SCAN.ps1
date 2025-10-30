@@ -2451,80 +2451,15 @@ function Invoke-KerberosHardeningAssessment {
         Write-Host ("=" * 80) -ForegroundColor Cyan
     
         try {
-            # Determine target domain based on parameters
-            $targetDomain = if ($Domain) {
-                # Use explicitly specified domain
-                $Domain
-            }
-            elseif ($Server) {
-                # Extract domain from server if specified
-                try {
-                    $serverInfo = Get-ADDomainController -Identity $Server
-                    $serverInfo.Domain
-                }
-                catch {
-                    # Fallback to current domain
-                    (Get-ADDomain).DNSRoot
-                }
-            }
-            else {
-                # Use current domain
-                (Get-ADDomain).DNSRoot
-            }
+            # Create parameters for the assessment function
+            $assessmentParams = @{}
+            if ($Domain) { $assessmentParams.Domain = $Domain }
+            if ($Server) { $assessmentParams.Server = $Server }
+            if ($ExportResults) { $assessmentParams.ExportResults = $ExportResults }
+            if ($DebugMode) { $assessmentParams.DebugMode = $DebugMode }
         
-            # Validate target domain if explicitly specified
-            if ($Domain) {
-                Write-Host "Validating access to target domain: $Domain" -ForegroundColor Yellow
-                try {
-                    $testDomain = Get-ADDomain -Identity $Domain -ErrorAction Stop
-                    Write-Host "✅ Successfully connected to domain: $($testDomain.DNSRoot)" -ForegroundColor Green
-                    if ($testDomain.DNSRoot -ne $Domain) {
-                        Write-Host "   Note: Domain resolved to: $($testDomain.DNSRoot)" -ForegroundColor Cyan
-                        $targetDomain = $testDomain.DNSRoot
-                    }
-                }
-                catch {
-                    Write-Host "❌ ERROR: Cannot access domain '$Domain'" -ForegroundColor Red
-                    Write-Host "   $($_.Exception.Message)" -ForegroundColor Red
-                    Write-Host "`n💡 TROUBLESHOOTING:" -ForegroundColor Yellow
-                    Write-Host "   • Verify domain name is correct" -ForegroundColor White
-                    Write-Host "   • Ensure you have permissions to read the target domain" -ForegroundColor White
-                    Write-Host "   • Check network connectivity to domain controllers" -ForegroundColor White
-                    Write-Host "   • Try specifying -Server parameter with a DC in the target domain" -ForegroundColor White
-                    return
-                }
-            }
-        
-            # Display execution context
-            $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-            $currentDomain = try { (Get-ADDomain).DNSRoot } catch { "Unknown" }
-        
-            Write-Host "`n🔍 EXECUTION CONTEXT:" -ForegroundColor Cyan
-            Write-Host "   Current User: $currentUser" -ForegroundColor White
-            Write-Host "   Current Domain: $currentDomain" -ForegroundColor White
-            Write-Host "   Target Domain: $targetDomain" -ForegroundColor White
-            if ($targetDomain -ne $currentDomain) {
-                Write-Host "   Cross-Domain Assessment: Yes" -ForegroundColor Yellow
-            }
-            else {
-                Write-Host "   Cross-Domain Assessment: No" -ForegroundColor Green
-            }
-        
-            # Run comprehensive assessment
-            $assessmentResults = Invoke-KerberosHardeningAssessment -Domain $targetDomain -Server $Server -ExportResults:$ExportResults -DebugMode:$DebugMode
-        
-            Write-Host "`n✅ Kerberos Hardening Assessment completed successfully!" -ForegroundColor Green
-            Write-Host "Domain analyzed: $targetDomain" -ForegroundColor Cyan
-            Write-Host "Security Level: $($assessmentResults.SecurityPosture.Level)" -ForegroundColor $(
-                switch ($assessmentResults.SecurityPosture.Level) {
-                    "MAXIMUM" { "Green" }
-                    "RECOMMENDED+" { "Green" } 
-                    "MINIMUM+" { "Yellow" }
-                    "NEEDS_IMPROVEMENT" { "Red" }
-                    default { "Gray" }
-                }
-            )
-        
+            # Call the assessment function with proper parameters
+            Invoke-KerberosHardeningAssessment @assessmentParams
         }
         catch {
             Write-Host "❌ Error during Kerberos Hardening Assessment: $($_.Exception.Message)" -ForegroundColor Red

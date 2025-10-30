@@ -37,6 +37,11 @@
 .PARAMETER KerberosHardeningAssessment
   Switch to perform comprehensive Kerberos hardening assessment with tiered recommendations (mutually exclusive with ApplyFixes and other scan modes)
 
+.PARAMETER Domain
+  Target domain to assess (only valid with KerberosHardeningAssessment mode). 
+  Allows assessment of other domains in the forest from the current domain context.
+  Example: "mylabs.contoso.com" to assess child domain from parent domain
+
 .PARAMETER GPOScope
   Specify where to check for GPO links (only valid with Standard or GPOOnly modes).
   Use tab completion for common values: Domain, DomainControllers, Both, AllOUs
@@ -89,6 +94,10 @@
 .EXAMPLE
   .\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -ExportResults
   Run hardening assessment and export detailed results to JSON file
+
+.EXAMPLE
+  .\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -Domain mylabs.contoso.com
+  Run hardening assessment targeting specific domain in the forest
 
 .EXAMPLE
   .\RC4_AD_SCAN.ps1 -GPOScope DomainControllers
@@ -144,7 +153,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 6.7
+  Version: 6.8
   Created: October 2025
   Updated: October 2025
   
@@ -212,6 +221,9 @@ param(
     [Parameter(ParameterSetName = 'KerberosAssessment')]
     [string]$TargetForest,
     
+    [Parameter(ParameterSetName = 'KerberosAssessment')]
+    [string]$Domain,
+    
     [Parameter(ParameterSetName = 'Help', Mandatory)]
     [switch]$Help,
     
@@ -250,6 +262,7 @@ function Show-QuickHelp {
     Write-Host "  -SkipGPOCheck                         # Skip GPO verification" -ForegroundColor White
     Write-Host "  -GPOCheckOnly                         # GPO analysis only" -ForegroundColor White
     Write-Host "  -KerberosHardeningAssessment          # Comprehensive hardening assessment" -ForegroundColor White
+    Write-Host "  -Domain mylabs.contoso.com            # Target specific domain (Kerberos assessment)" -ForegroundColor White
     Write-Host "  -DebugMode                            # Enable debug output" -ForegroundColor White
     Write-Host "  -Server dc01.contoso.com              # Specific domain controller" -ForegroundColor White
     Write-Host "  -TargetForest target.com              # Cross-forest scanning" -ForegroundColor White
@@ -260,6 +273,7 @@ function Show-QuickHelp {
     Write-Host "  .\RC4_AD_SCAN.ps1 -ApplyFixes -GPOScope DomainControllers" -ForegroundColor Cyan
     Write-Host "  .\RC4_AD_SCAN.ps1 -ApplyFixes -Force -ExportResults" -ForegroundColor Cyan
     Write-Host "  .\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -ExportResults" -ForegroundColor Cyan
+    Write-Host "  .\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -Domain child.contoso.com" -ForegroundColor Cyan
     Write-Host "  .\RC4_AD_SCAN.ps1 -TargetForest remote.com -Server dc01.remote.com" -ForegroundColor Cyan
     
     Write-Host ""
@@ -2192,8 +2206,11 @@ if ($KerberosHardeningAssessment) {
     Write-Host ("=" * 80) -ForegroundColor Cyan
     
     try {
-        # Get current domain if no server specified
-        $targetDomain = if ($Server) {
+        # Determine target domain based on parameters
+        $targetDomain = if ($Domain) {
+            # Use explicitly specified domain
+            $Domain
+        } elseif ($Server) {
             # Extract domain from server if specified
             try {
                 $serverInfo = Get-ADDomainController -Identity $Server
@@ -2205,7 +2222,45 @@ if ($KerberosHardeningAssessment) {
             }
         }
         else {
+            # Use current domain
             (Get-ADDomain).DNSRoot
+        }
+        
+        # Validate target domain if explicitly specified
+        if ($Domain) {
+            Write-Host "Validating access to target domain: $Domain" -ForegroundColor Yellow
+            try {
+                $testDomain = Get-ADDomain -Identity $Domain -ErrorAction Stop
+                Write-Host "✅ Successfully connected to domain: $($testDomain.DNSRoot)" -ForegroundColor Green
+                if ($testDomain.DNSRoot -ne $Domain) {
+                    Write-Host "   Note: Domain resolved to: $($testDomain.DNSRoot)" -ForegroundColor Cyan
+                    $targetDomain = $testDomain.DNSRoot
+                }
+            }
+            catch {
+                Write-Host "❌ ERROR: Cannot access domain '$Domain'" -ForegroundColor Red
+                Write-Host "   $($_.Exception.Message)" -ForegroundColor Red
+                Write-Host "`n💡 TROUBLESHOOTING:" -ForegroundColor Yellow
+                Write-Host "   • Verify domain name is correct" -ForegroundColor White
+                Write-Host "   • Ensure you have permissions to read the target domain" -ForegroundColor White
+                Write-Host "   • Check network connectivity to domain controllers" -ForegroundColor White
+                Write-Host "   • Try specifying -Server parameter with a DC in the target domain" -ForegroundColor White
+                return
+            }
+        }
+        
+        # Display execution context
+        $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+        $currentDomain = try { (Get-ADDomain).DNSRoot } catch { "Unknown" }
+        
+        Write-Host "`n🔍 EXECUTION CONTEXT:" -ForegroundColor Cyan
+        Write-Host "   Current User: $currentUser" -ForegroundColor White
+        Write-Host "   Current Domain: $currentDomain" -ForegroundColor White
+        Write-Host "   Target Domain: $targetDomain" -ForegroundColor White
+        if ($targetDomain -ne $currentDomain) {
+            Write-Host "   Cross-Domain Assessment: Yes" -ForegroundColor Yellow
+        } else {
+            Write-Host "   Cross-Domain Assessment: No" -ForegroundColor Green
         }
         
         # Run comprehensive assessment

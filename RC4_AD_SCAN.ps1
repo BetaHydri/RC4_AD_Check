@@ -153,7 +153,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 6.8
+  Version: 6.9
   Created: October 2025
   Updated: October 2025
   
@@ -1505,6 +1505,62 @@ function Test-GPOApplication {
     }
 }
 
+function Get-GPOEncryptionValue {
+    param(
+        [string]$GPOReport,
+        [switch]$DebugMode
+    )
+    
+    $encValue = 0
+    
+    if ($DebugMode) {
+        # Show a snippet of the GPO content for analysis
+        $gpoSnippet = ($GPOReport -split "`n" | Where-Object { $_ -match "(AES|RC4|DES|encrypt)" } | Select-Object -First 5) -join "`n"
+        if ($gpoSnippet) {
+            Write-Host "    >> DEBUG: GPO Content Sample:" -ForegroundColor Gray
+            Write-Host "    $gpoSnippet" -ForegroundColor DarkGray
+        }
+    }
+    
+    # Method 1: Direct XML value extraction
+    if ($GPOReport -match 'SupportedEncryptionTypes.*>(\d+)<' -or $GPOReport -match 'msDS-SupportedEncryptionTypes.*>(\d+)<') {
+        $encValue = [int]$matches[1]
+        if ($DebugMode) {
+            Write-Host "    >> DEBUG: Method 1 - Direct XML value: $encValue" -ForegroundColor Gray
+        }
+    }
+    # Method 2: Look for specific encryption type checkboxes/settings
+    elseif ($GPOReport -match "AES256.*(?:true|enabled|checked)" -and $GPOReport -match "AES128.*(?:true|enabled|checked)") {
+        $encValue = 24  # AES128 + AES256 (0x8 + 0x10)
+        if ($DebugMode) {
+            Write-Host "    >> DEBUG: Method 2 - Detected AES128+AES256: $encValue" -ForegroundColor Gray
+        }
+    }
+    elseif ($GPOReport -match "AES.*(?:true|enabled|checked)") {
+        $encValue = 8   # At least AES128 (0x8)
+        if ($DebugMode) {
+            Write-Host "    >> DEBUG: Method 2 - Detected AES: $encValue" -ForegroundColor Gray
+        }
+    }
+    # Method 3: Check for RC4 disabled pattern (which implies AES-only)
+    elseif ($GPOReport -match "RC4.*(?:false|disabled|unchecked)" -or $GPOReport -notmatch "RC4.*(?:true|enabled|checked)") {
+        # If RC4 is disabled and this is a Kerberos encryption GPO, assume AES is enabled
+        $encValue = 24  # Default to AES128 + AES256
+        if ($DebugMode) {
+            Write-Host "    >> DEBUG: Method 3 - RC4 disabled, assuming AES-only: $encValue" -ForegroundColor Gray
+        }
+    }
+    # Method 4: If we found the GPO but can't determine value, assume it's properly configured for AES
+    else {
+        $encValue = 24  # Conservative assumption for detected Kerberos GPO
+        if ($DebugMode) {
+            Write-Host "    >> DEBUG: Method 4 - Kerberos GPO detected, assuming AES configuration: $encValue" -ForegroundColor Gray
+        }
+    }
+    
+    return $encValue
+}
+
 function Invoke-KerberosHardeningAssessment {
     param(
         [string]$Domain,
@@ -1662,86 +1718,17 @@ function Invoke-KerberosHardeningAssessment {
     
     # Analyze GPO coverage for both DCs and member computers
     $gpoAnalysis = @{
-        DomainControllers    = @{ Configured = $false; Value = $null; GPOName = $null }
+        DomainControllers    = @{ Configured = $false; Value = $null; GPOName = $null; Source = $null }
         MemberComputers      = @{ Configured = $false; Value = $null; GPOName = $null; Scope = $null }
         CompletelyConfigured = $false
+        SharedDomainGPO      = $null  # Track if a single Domain GPO covers both
     }
     
     try {
-        # Check DC OU GPO using proper Kerberos GPO detection
-        $dcGPOs = Get-GPInheritance -Target $dcOU @serverParams
-        foreach ($gpo in $dcGPOs.InheritedGpoLinks) {
-            if ($gpo.Enabled) {
-                $gpoReport = Get-GPOReport -Guid $gpo.GpoId -ReportType Xml @serverParams
-                if ($DebugMode) {
-                    Write-Host "    >> DEBUG: Checking DC OU GPO: $($gpo.DisplayName)" -ForegroundColor Gray
-                }
-                
-                # Use the same detection logic as the main GPO function
-                if ($gpoReport -and $gpoReport -match "Configure encryption types allowed for Kerberos") {
-                    if ($DebugMode) {
-                        Write-Host "    >> DEBUG: Found Kerberos encryption GPO in DC OU: $($gpo.DisplayName)" -ForegroundColor Gray
-                        # Show a snippet of the GPO content for analysis
-                        $gpoSnippet = ($gpoReport -split "`n" | Where-Object { $_ -match "(AES|RC4|DES|encrypt)" } | Select-Object -First 5) -join "`n"
-                        if ($gpoSnippet) {
-                            Write-Host "    >> DEBUG: GPO Content Sample:" -ForegroundColor Gray
-                            Write-Host "    $gpoSnippet" -ForegroundColor DarkGray
-                        }
-                    }
-                    
-                    # Enhanced encryption value detection for GPO content
-                    $encValue = 0
-                    
-                    # Method 1: Direct XML value extraction
-                    if ($gpoReport -match 'SupportedEncryptionTypes.*>(\d+)<' -or $gpoReport -match 'msDS-SupportedEncryptionTypes.*>(\d+)<') {
-                        $encValue = [int]$matches[1]
-                        if ($DebugMode) {
-                            Write-Host "    >> DEBUG: Method 1 - Direct XML value: $encValue" -ForegroundColor Gray
-                        }
-                    }
-                    # Method 2: Look for specific encryption type checkboxes/settings
-                    elseif ($gpoReport -match "AES256.*(?:true|enabled|checked)" -and $gpoReport -match "AES128.*(?:true|enabled|checked)") {
-                        $encValue = 24  # AES128 + AES256 (0x8 + 0x10)
-                        if ($DebugMode) {
-                            Write-Host "    >> DEBUG: Method 2 - Detected AES128+AES256: $encValue" -ForegroundColor Gray
-                        }
-                    }
-                    elseif ($gpoReport -match "AES.*(?:true|enabled|checked)") {
-                        $encValue = 8   # At least AES128 (0x8)
-                        if ($DebugMode) {
-                            Write-Host "    >> DEBUG: Method 2 - Detected AES: $encValue" -ForegroundColor Gray
-                        }
-                    }
-                    # Method 3: Check for RC4 disabled pattern (which implies AES-only)
-                    elseif ($gpoReport -match "RC4.*(?:false|disabled|unchecked)" -or $gpoReport -notmatch "RC4.*(?:true|enabled|checked)") {
-                        # If RC4 is disabled and this is a Kerberos encryption GPO, assume AES is enabled
-                        $encValue = 24  # Default to AES128 + AES256
-                        if ($DebugMode) {
-                            Write-Host "    >> DEBUG: Method 3 - RC4 disabled, assuming AES-only: $encValue" -ForegroundColor Gray
-                        }
-                    }
-                    # Method 4: If we found the GPO but can't determine value, assume it's properly configured for AES
-                    else {
-                        $encValue = 24  # Conservative assumption for detected Kerberos GPO
-                        if ($DebugMode) {
-                            Write-Host "    >> DEBUG: Method 4 - Kerberos GPO detected, assuming AES configuration: $encValue" -ForegroundColor Gray
-                        }
-                    }
-                    
-                    $gpoAnalysis.DomainControllers.Configured = $true
-                    $gpoAnalysis.DomainControllers.Value = $encValue
-                    $gpoAnalysis.DomainControllers.GPOName = $gpo.DisplayName
-                    
-                    if ($DebugMode) {
-                        Write-Host "    >> DEBUG: DC GPO encryption value: $encValue" -ForegroundColor Gray
-                    }
-                    break
-                }
-            }
-        }
-        
-        # Check Domain level and other OUs for member computer GPOs
+        # First check Domain level GPO (applies to both DCs and member computers)
         $domainGPOs = Get-GPInheritance -Target $domainInfo.DistinguishedName @serverParams
+        $domainKerberosGPO = $null
+        
         foreach ($gpo in $domainGPOs.InheritedGpoLinks) {
             if ($gpo.Enabled) {
                 $gpoReport = Get-GPOReport -Guid $gpo.GpoId -ReportType Xml @serverParams
@@ -1751,58 +1738,68 @@ function Invoke-KerberosHardeningAssessment {
                 
                 # Use the same detection logic as the main GPO function
                 if ($gpoReport -and $gpoReport -match "Configure encryption types allowed for Kerberos") {
+                    $domainKerberosGPO = $gpo
                     if ($DebugMode) {
                         Write-Host "    >> DEBUG: Found Kerberos encryption GPO at Domain level: $($gpo.DisplayName)" -ForegroundColor Gray
                     }
                     
                     # Enhanced encryption value detection for GPO content
-                    $encValue = 0
+                    $encValue = Get-GPOEncryptionValue -GPOReport $gpoReport -DebugMode:$DebugMode
                     
-                    # Method 1: Direct XML value extraction
-                    if ($gpoReport -match 'SupportedEncryptionTypes.*>(\d+)<' -or $gpoReport -match 'msDS-SupportedEncryptionTypes.*>(\d+)<') {
-                        $encValue = [int]$matches[1]
-                        if ($DebugMode) {
-                            Write-Host "    >> DEBUG: Method 1 - Direct XML value: $encValue" -ForegroundColor Gray
-                        }
-                    }
-                    # Method 2: Look for specific encryption type checkboxes/settings
-                    elseif ($gpoReport -match "AES256.*(?:true|enabled|checked)" -and $gpoReport -match "AES128.*(?:true|enabled|checked)") {
-                        $encValue = 24  # AES128 + AES256 (0x8 + 0x10)
-                        if ($DebugMode) {
-                            Write-Host "    >> DEBUG: Method 2 - Detected AES128+AES256: $encValue" -ForegroundColor Gray
-                        }
-                    }
-                    elseif ($gpoReport -match "AES.*(?:true|enabled|checked)") {
-                        $encValue = 8   # At least AES128 (0x8)
-                        if ($DebugMode) {
-                            Write-Host "    >> DEBUG: Method 2 - Detected AES: $encValue" -ForegroundColor Gray
-                        }
-                    }
-                    # Method 3: Check for RC4 disabled pattern (which implies AES-only)
-                    elseif ($gpoReport -match "RC4.*(?:false|disabled|unchecked)" -or $gpoReport -notmatch "RC4.*(?:true|enabled|checked)") {
-                        # If RC4 is disabled and this is a Kerberos encryption GPO, assume AES is enabled
-                        $encValue = 24  # Default to AES128 + AES256
-                        if ($DebugMode) {
-                            Write-Host "    >> DEBUG: Method 3 - RC4 disabled, assuming AES-only: $encValue" -ForegroundColor Gray
-                        }
-                    }
-                    # Method 4: If we found the GPO but can't determine value, assume it's properly configured for AES
-                    else {
-                        $encValue = 24  # Conservative assumption for detected Kerberos GPO
-                        if ($DebugMode) {
-                            Write-Host "    >> DEBUG: Method 4 - Kerberos GPO detected, assuming AES configuration: $encValue" -ForegroundColor Gray
-                        }
-                    }
+                    # Domain GPO applies to both DCs and member computers
+                    $gpoAnalysis.DomainControllers.Configured = $true
+                    $gpoAnalysis.DomainControllers.Value = $encValue
+                    $gpoAnalysis.DomainControllers.GPOName = $gpo.DisplayName
+                    $gpoAnalysis.DomainControllers.Source = "Domain"
                     
                     $gpoAnalysis.MemberComputers.Configured = $true
                     $gpoAnalysis.MemberComputers.Value = $encValue
                     $gpoAnalysis.MemberComputers.GPOName = $gpo.DisplayName
                     $gpoAnalysis.MemberComputers.Scope = "Domain"
                     
+                    $gpoAnalysis.SharedDomainGPO = $gpo.DisplayName
+                    
                     if ($DebugMode) {
-                        Write-Host "    >> DEBUG: Domain GPO encryption value: $encValue" -ForegroundColor Gray
+                        Write-Host "    >> DEBUG: Domain GPO encryption value: $encValue (applies to both DCs and members)" -ForegroundColor Gray
                     }
                     break
+                }
+            }
+        }
+        
+        # Only check DC OU separately if no Domain GPO was found
+        if (-not $domainKerberosGPO) {
+            if ($DebugMode) {
+                Write-Host "    >> DEBUG: No Domain-level Kerberos GPO found, checking DC OU specifically" -ForegroundColor Gray
+            }
+            
+            $dcGPOs = Get-GPInheritance -Target $dcOU @serverParams
+            foreach ($gpo in $dcGPOs.InheritedGpoLinks) {
+                if ($gpo.Enabled) {
+                    $gpoReport = Get-GPOReport -Guid $gpo.GpoId -ReportType Xml @serverParams
+                    if ($DebugMode) {
+                        Write-Host "    >> DEBUG: Checking DC OU GPO: $($gpo.DisplayName)" -ForegroundColor Gray
+                    }
+                    
+                    # Use the same detection logic as the main GPO function
+                    if ($gpoReport -and $gpoReport -match "Configure encryption types allowed for Kerberos") {
+                        if ($DebugMode) {
+                            Write-Host "    >> DEBUG: Found Kerberos encryption GPO in DC OU: $($gpo.DisplayName)" -ForegroundColor Gray
+                        }
+                        
+                        # Enhanced encryption value detection for GPO content
+                        $encValue = Get-GPOEncryptionValue -GPOReport $gpoReport -DebugMode:$DebugMode
+                        
+                        $gpoAnalysis.DomainControllers.Configured = $true
+                        $gpoAnalysis.DomainControllers.Value = $encValue
+                        $gpoAnalysis.DomainControllers.GPOName = $gpo.DisplayName
+                        $gpoAnalysis.DomainControllers.Source = "DC OU"
+                        
+                        if ($DebugMode) {
+                            Write-Host "    >> DEBUG: DC OU GPO encryption value: $encValue" -ForegroundColor Gray
+                        }
+                        break
+                    }
                 }
             }
         }
@@ -1813,24 +1810,35 @@ function Invoke-KerberosHardeningAssessment {
         # Create boxed GPO analysis output
         $gpoMessages = @()
         
-        # DC OU GPO status
-        if ($gpoAnalysis.DomainControllers.Configured) {
-            $dcValue = $gpoAnalysis.DomainControllers.Value
-            $dcTypes = if (($dcValue -band 0x18) -gt 0) { "AES ✓" } else { "RC4 ⚠" }
-            $gpoMessages += "DC OU GPO: ✓ Configured ($dcTypes) - $($gpoAnalysis.DomainControllers.GPOName)"
+        if ($gpoAnalysis.SharedDomainGPO) {
+            # Single Domain GPO covers both DCs and members
+            $domainValue = $gpoAnalysis.DomainControllers.Value
+            $domainTypes = if (($domainValue -band 0x18) -gt 0) { "AES ✓" } else { "RC4 ⚠" }
+            $gpoMessages += "Domain GPO: ✓ Configured ($domainTypes) - $($gpoAnalysis.SharedDomainGPO)"
+            $gpoMessages += "  ├─ Applies to: Domain Controllers ✓"
+            $gpoMessages += "  └─ Applies to: Member Computers ✓"
         }
         else {
-            $gpoMessages += "DC OU GPO: ❌ Not Configured"
-        }
-        
-        # Member Computer GPO status
-        if ($gpoAnalysis.MemberComputers.Configured) {
-            $memberValue = $gpoAnalysis.MemberComputers.Value
-            $memberTypes = if (($memberValue -band 0x18) -gt 0) { "AES ✓" } else { "RC4 ⚠" }
-            $gpoMessages += "Member Computer GPO: ✓ Configured ($memberTypes) - $($gpoAnalysis.MemberComputers.GPOName)"
-        }
-        else {
-            $gpoMessages += "Member Computer GPO: ❌ Not Configured"
+            # Separate GPO analysis for DCs and members
+            if ($gpoAnalysis.DomainControllers.Configured) {
+                $dcValue = $gpoAnalysis.DomainControllers.Value
+                $dcTypes = if (($dcValue -band 0x18) -gt 0) { "AES ✓" } else { "RC4 ⚠" }
+                $dcSource = $gpoAnalysis.DomainControllers.Source
+                $gpoMessages += "DC GPO ($dcSource): ✓ Configured ($dcTypes) - $($gpoAnalysis.DomainControllers.GPOName)"
+            }
+            else {
+                $gpoMessages += "DC GPO: ❌ Not Configured"
+            }
+            
+            # Member Computer GPO status
+            if ($gpoAnalysis.MemberComputers.Configured) {
+                $memberValue = $gpoAnalysis.MemberComputers.Value
+                $memberTypes = if (($memberValue -band 0x18) -gt 0) { "AES ✓" } else { "RC4 ⚠" }
+                $gpoMessages += "Member Computer GPO: ✓ Configured ($memberTypes) - $($gpoAnalysis.MemberComputers.GPOName)"
+            }
+            else {
+                $gpoMessages += "Member Computer GPO: ❌ Not Configured"
+            }
         }
         
         $headerMessages = @("🛡️ Phase 2: GPO Coverage Analysis")

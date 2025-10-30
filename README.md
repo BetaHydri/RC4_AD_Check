@@ -1,6 +1,6 @@
 # Kerberos RC4/DES Active Directory Security Scanning Tool
 
-**Version**: 6.8  
+**Version**: 6.9  
 **Author**: Jan Tiedemann  
 **Created**: October 2025  
 **Updated**: October 2025
@@ -1948,6 +1948,16 @@ Debug output includes:
 - Consider gradual rollout with proper monitoring
 
 ## Changelog
+
+### Version 6.9 (October 2025) - **FIXED CROSS-DOMAIN GPO DETECTION LOGIC**
+- **🔧 [CRITICAL FIX]** Fixed incorrect GPO detection in cross-domain KerberosHardeningAssessment mode
+- **📊 [GPO ANALYSIS]** Corrected logic to properly detect when Domain-level GPO applies to both DCs and member computers
+- **✅ [ACCURATE REPORTING]** Domain GPO now correctly shows as single policy covering both DC and member computers
+- **🎯 [IMPROVED DISPLAY]** Enhanced GPO coverage display with tree structure showing policy application scope
+- **🔍 [DEBUG ENHANCEMENT]** Added `Get-GPOEncryptionValue` helper function for consistent encryption value detection
+- **📋 [LOGICAL FIX]** Fixed false reporting of separate DC OU GPO when only Domain GPO exists
+- **🌐 [CROSS-DOMAIN]** Specifically addresses GPO detection accuracy in cross-domain assessment scenarios
+- **💡 [USER EXPERIENCE]** Clearer GPO analysis output with proper inheritance and scope indication
 
 ### Version 6.8 (October 2025) - **CROSS-DOMAIN KERBEROS ASSESSMENT CAPABILITY**
 - **🌐 [NEW FEATURE]** Added `-Domain` parameter for KerberosHardeningAssessment mode to assess other domains in the forest

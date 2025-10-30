@@ -144,7 +144,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 6.2
+  Version: 6.4
   Created: October 2025
   Updated: October 2025
   
@@ -1540,35 +1540,78 @@ function Invoke-KerberosHardeningAssessment {
         # Analyze DC encryption settings
         $domainInfo = Get-ADDomain @serverParams
         $dcOU = "OU=Domain Controllers,$($domainInfo.DistinguishedName)"
-        $domainControllers = Get-ADComputer -SearchBase $dcOU -Filter * -Properties msDS-SupportedEncryptionTypes @serverParams
         
         if ($DebugMode) {
+            Write-Host "    >> DEBUG: Domain: $($domainInfo.Name)" -ForegroundColor Gray
             Write-Host "    >> DEBUG: DC OU: $dcOU" -ForegroundColor Gray
-            Write-Host "    >> DEBUG: Found $($domainControllers.Count) domain controllers" -ForegroundColor Gray
+        }
+        
+        try {
+            $domainControllers = Get-ADComputer -SearchBase $dcOU -Filter * -Properties msDS-SupportedEncryptionTypes @serverParams
+            
+            # Handle null/empty results properly
+            $dcCount = if ($domainControllers) { 
+                if ($domainControllers -is [array]) { $domainControllers.Count } else { 1 }
+            } else { 0 }
+            
+            if ($DebugMode) {
+                Write-Host "    >> DEBUG: Found $dcCount domain controllers" -ForegroundColor Gray
+                if ($dcCount -gt 0) {
+                    Write-Host "    >> DEBUG: DC Names: $($domainControllers.Name -join ', ')" -ForegroundColor Gray
+                } else {
+                    Write-Host "    >> DEBUG: No domain controllers found in search base" -ForegroundColor Yellow
+                }
+            }
+        }
+        catch {
+            $dcCount = 0
+            $domainControllers = @()
+            if ($DebugMode) {
+                Write-Host "    >> DEBUG: Error querying domain controllers: $($_.Exception.Message)" -ForegroundColor Red
+            }
         }
         
         $dcAnalysis = @{
-            TotalDCs         = $domainControllers.Count
+            TotalDCs         = $dcCount
             DCsWithAES       = 0
             DCsWithRC4Only   = 0
             DCsNotConfigured = 0
             AESPercentage    = 0
         }
         
-        foreach ($dc in $domainControllers) {
-            $encValue = $dc.'msDS-SupportedEncryptionTypes'
-            if ($encValue) {
-                if (($encValue -band 0x18) -gt 0) {
-                    # AES128 or AES256
-                    $dcAnalysis.DCsWithAES++
+        if ($domainControllers) {
+            foreach ($dc in $domainControllers) {
+                if ($DebugMode) {
+                    Write-Host "    >> DEBUG: Analyzing DC: $($dc.Name)" -ForegroundColor Gray
                 }
-                elseif (($encValue -band 0x4) -gt 0) {
-                    # RC4 only
-                    $dcAnalysis.DCsWithRC4Only++
+                
+                $encValue = $dc.'msDS-SupportedEncryptionTypes'
+                if ($DebugMode) {
+                    Write-Host "    >> DEBUG: DC $($dc.Name) encryption value: $encValue" -ForegroundColor Gray
                 }
-            }
-            else {
-                $dcAnalysis.DCsNotConfigured++
+                
+                if ($encValue) {
+                    if (($encValue -band 0x18) -gt 0) {
+                        # AES128 or AES256
+                        $dcAnalysis.DCsWithAES++
+                        if ($DebugMode) {
+                            Write-Host "    >> DEBUG: DC $($dc.Name) has AES encryption" -ForegroundColor Gray
+                        }
+                    }
+                    elseif (($encValue -band 0x4) -gt 0) {
+                        # RC4 only
+                        $dcAnalysis.DCsWithRC4Only++
+                        if ($DebugMode) {
+                            Write-Host "    >> DEBUG: DC $($dc.Name) has RC4 only" -ForegroundColor Gray
+                        }
+                    }
+                }
+                else {
+                    $dcAnalysis.DCsNotConfigured++
+                    if ($DebugMode) {
+                        Write-Host "    >> DEBUG: DC $($dc.Name) not configured" -ForegroundColor Gray
+                    }
+                }
             }
         }
         
@@ -1576,6 +1619,15 @@ function Invoke-KerberosHardeningAssessment {
             [math]::Round(($dcAnalysis.DCsWithAES / $dcAnalysis.TotalDCs) * 100, 1)
         }
         else { 0 }
+        
+        if ($DebugMode) {
+            Write-Host "    >> DEBUG: DC Analysis Summary:" -ForegroundColor Gray
+            Write-Host "    >> DEBUG: Total DCs: $($dcAnalysis.TotalDCs)" -ForegroundColor Gray
+            Write-Host "    >> DEBUG: DCs with AES: $($dcAnalysis.DCsWithAES)" -ForegroundColor Gray
+            Write-Host "    >> DEBUG: DCs with RC4 only: $($dcAnalysis.DCsWithRC4Only)" -ForegroundColor Gray
+            Write-Host "    >> DEBUG: DCs not configured: $($dcAnalysis.DCsNotConfigured)" -ForegroundColor Gray
+            Write-Host "    >> DEBUG: AES Percentage: $($dcAnalysis.AESPercentage)%" -ForegroundColor Gray
+        }
         
         $assessment.SecurityPosture.DomainControllers = $dcAnalysis
         

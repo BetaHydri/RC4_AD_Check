@@ -1,6 +1,6 @@
 # Kerberos RC4/DES Active Directory Security Scanning Tool
 
-**Version**: 6.2  
+**Version**: 6.4  
 **Author**: Jan Tiedemann  
 **Created**: October 2025  
 **Updated**: October 2025
@@ -1837,6 +1837,28 @@ Debug output includes:
 - Consider gradual rollout with proper monitoring
 
 ## Changelog
+
+### Version 6.4 (October 2025) - **FIXED DC ENUMERATION & ENHANCED DEBUGGING**
+- **🔧 [CRITICAL FIX]** Fixed missing domain controller count display in Phase 1 analysis (was showing blank instead of actual DC count)
+- **🛡️ [ENHANCED ERROR HANDLING]** Added proper null checking for domain controller query results to prevent empty count values
+- **🔍 [IMPROVED DEBUGGING]** Enhanced DC analysis debugging with individual DC encryption value analysis and comprehensive summary
+- **📊 [ROBUST COUNT HANDLING]** Fixed PowerShell array count issues when DC results are null, single object, or array
+- **🚀 [BETTER DIAGNOSTICS]** Added detailed debug output showing DC names, encryption values, and analysis categorization
+- **⚡ [ERROR RESILIENCE]** Added try-catch error handling for DC enumeration with fallback to zero count on query failures
+- **📈 [ACCURATE REPORTING]** Fixed percentage calculations and display formatting for DC encryption analysis
+- **🎯 [TROUBLESHOOTING]** Enhanced debug traces to identify permission issues or connectivity problems with domain controller queries
+
+### Version 6.3 (October 2025) - **ENHANCED GPO DETECTION & DEBUG IMPROVEMENTS**
+- **🔧 [CRITICAL FIX]** Fixed misleading GPO analysis in KerberosHardeningAssessment mode showing "RC4 ⚠" for properly configured AES-only GPOs
+- **🔍 [ENHANCED DETECTION]** Improved GPO encryption value parsing with 4-tier detection methodology
+- **📊 [METHOD 1]** Direct XML value extraction for precise numeric encryption type detection
+- **📊 [METHOD 2]** Pattern-based AES/RC4 checkbox detection from GPO content
+- **📊 [METHOD 3]** RC4-disabled pattern recognition (implies AES-only configuration)
+- **📊 [METHOD 4]** Conservative fallback assuming AES for detected Kerberos encryption GPOs
+- **🐛 [DEBUG ENHANCEMENT]** Added comprehensive debug output showing GPO content samples and detection method results
+- **🔧 [DC COUNT FIX]** Enhanced DC enumeration debugging to troubleshoot missing domain controller counts
+- **✅ [ACCURACY IMPROVEMENT]** GPOs with RC4 disabled now correctly display "AES ✓" instead of "RC4 ⚠"
+- **📖 [TROUBLESHOOTING]** Added detailed debug traces for GPO analysis workflow and encryption value detection
 
 ### Version 6.2 (October 2025) - **KERBEROS HARDENING ASSESSMENT & ENHANCED ANALYSIS**
 - **🛡️ [NEW FEATURE]** Added comprehensive KerberosHardeningAssessment mode for security posture evaluation

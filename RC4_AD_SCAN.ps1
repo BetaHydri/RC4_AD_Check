@@ -1605,15 +1605,38 @@ function Invoke-KerberosHardeningAssessment {
     }
     
     try {
-        # Check DC OU GPO
+        # Check DC OU GPO using proper Kerberos GPO detection
         $dcGPOs = Get-GPInheritance -Target $dcOU @serverParams
         foreach ($gpo in $dcGPOs.InheritedGpoLinks) {
             if ($gpo.Enabled) {
                 $gpoReport = Get-GPOReport -Guid $gpo.GpoId -ReportType Xml @serverParams
-                if ($gpoReport -match 'SupportedEncryptionTypes.*>(\d+)<' -or $gpoReport -match 'msDS-SupportedEncryptionTypes.*>(\d+)<') {
+                if ($DebugMode) {
+                    Write-Host "    >> DEBUG: Checking DC OU GPO: $($gpo.DisplayName)" -ForegroundColor Gray
+                }
+                
+                # Use the same detection logic as the main GPO function
+                if ($gpoReport -and $gpoReport -match "Configure encryption types allowed for Kerberos") {
+                    if ($DebugMode) {
+                        Write-Host "    >> DEBUG: Found Kerberos encryption GPO in DC OU: $($gpo.DisplayName)" -ForegroundColor Gray
+                    }
+                    
+                    # Try to extract the encryption value from the GPO content
+                    $encValue = 0
+                    if ($gpoReport -match 'SupportedEncryptionTypes.*>(\d+)<' -or $gpoReport -match 'msDS-SupportedEncryptionTypes.*>(\d+)<') {
+                        $encValue = [int]$matches[1]
+                    } elseif ($gpoReport -match "AES256.*true" -and $gpoReport -match "AES128.*true") {
+                        $encValue = 24  # AES128 + AES256
+                    } elseif ($gpoReport -match "AES.*true") {
+                        $encValue = 8   # At least some AES
+                    }
+                    
                     $gpoAnalysis.DomainControllers.Configured = $true
-                    $gpoAnalysis.DomainControllers.Value = [int]$matches[1]
+                    $gpoAnalysis.DomainControllers.Value = $encValue
                     $gpoAnalysis.DomainControllers.GPOName = $gpo.DisplayName
+                    
+                    if ($DebugMode) {
+                        Write-Host "    >> DEBUG: DC GPO encryption value: $encValue" -ForegroundColor Gray
+                    }
                     break
                 }
             }
@@ -1624,11 +1647,34 @@ function Invoke-KerberosHardeningAssessment {
         foreach ($gpo in $domainGPOs.InheritedGpoLinks) {
             if ($gpo.Enabled) {
                 $gpoReport = Get-GPOReport -Guid $gpo.GpoId -ReportType Xml @serverParams
-                if ($gpoReport -match 'SupportedEncryptionTypes.*>(\d+)<' -or $gpoReport -match 'msDS-SupportedEncryptionTypes.*>(\d+)<') {
+                if ($DebugMode) {
+                    Write-Host "    >> DEBUG: Checking Domain GPO: $($gpo.DisplayName)" -ForegroundColor Gray
+                }
+                
+                # Use the same detection logic as the main GPO function
+                if ($gpoReport -and $gpoReport -match "Configure encryption types allowed for Kerberos") {
+                    if ($DebugMode) {
+                        Write-Host "    >> DEBUG: Found Kerberos encryption GPO at Domain level: $($gpo.DisplayName)" -ForegroundColor Gray
+                    }
+                    
+                    # Try to extract the encryption value from the GPO content
+                    $encValue = 0
+                    if ($gpoReport -match 'SupportedEncryptionTypes.*>(\d+)<' -or $gpoReport -match 'msDS-SupportedEncryptionTypes.*>(\d+)<') {
+                        $encValue = [int]$matches[1]
+                    } elseif ($gpoReport -match "AES256.*true" -and $gpoReport -match "AES128.*true") {
+                        $encValue = 24  # AES128 + AES256
+                    } elseif ($gpoReport -match "AES.*true") {
+                        $encValue = 8   # At least some AES
+                    }
+                    
                     $gpoAnalysis.MemberComputers.Configured = $true
-                    $gpoAnalysis.MemberComputers.Value = [int]$matches[1]
+                    $gpoAnalysis.MemberComputers.Value = $encValue
                     $gpoAnalysis.MemberComputers.GPOName = $gpo.DisplayName
                     $gpoAnalysis.MemberComputers.Scope = "Domain"
+                    
+                    if ($DebugMode) {
+                        Write-Host "    >> DEBUG: Domain GPO encryption value: $encValue" -ForegroundColor Gray
+                    }
                     break
                 }
             }

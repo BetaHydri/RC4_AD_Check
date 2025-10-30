@@ -1949,6 +1949,16 @@ Debug output includes:
 
 ## Changelog
 
+### Version 6.10 (October 2025) - **ENHANCED CROSS-DOMAIN GPO DETECTION WITH INHERITANCE ANALYSIS**
+- **🔧 [CRITICAL FIX]** Enhanced GPO detection logic to properly distinguish between Domain GPOs and DC OU-specific GPOs
+- **🎯 [INHERITANCE ANALYSIS]** Added sophisticated GPO link detection to identify whether GPO is directly linked or inherited
+- **📊 [CROSS-DOMAIN CONTEXT]** Added explicit `-Domain` parameter to `Get-GPInheritance` and `Get-GPOReport` calls for cross-domain accuracy
+- **✅ [CORRECT CLASSIFICATION]** Domain-level GPOs now correctly identified as "Domain GPO" instead of "DC GPO (DC OU)"
+- **🔍 [ENHANCED DEBUGGING]** Comprehensive debug output showing GPO discovery process and link analysis
+- **🌐 [IMPROVED RELIABILITY]** Better handling of GPO inheritance in cross-domain scenarios
+- **📋 [ACCURATE REPORTING]** Fixed false reporting where Domain GPO found through DC OU inheritance was misclassified
+- **💡 [SMART DETECTION]** Fallback logic to correctly identify Domain GPOs when they appear in DC OU inheritance chain
+
 ### Version 6.9 (October 2025) - **FIXED CROSS-DOMAIN GPO DETECTION LOGIC**
 - **🔧 [CRITICAL FIX]** Fixed incorrect GPO detection in cross-domain KerberosHardeningAssessment mode
 - **📊 [GPO ANALYSIS]** Corrected logic to properly detect when Domain-level GPO applies to both DCs and member computers

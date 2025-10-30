@@ -1741,7 +1741,8 @@ function Invoke-KerberosHardeningAssessment {
                     foreach ($link in $domainGPOs.InheritedGpoLinks) {
                         Write-Host "    >> DEBUG:   - GPO: $($link.DisplayName) (Enabled: $($link.Enabled))" -ForegroundColor Gray
                     }
-                } else {
+                }
+                else {
                     Write-Host "    >> DEBUG: No inherited GPO links found at Domain level" -ForegroundColor Yellow
                 }
             }
@@ -1778,7 +1779,8 @@ function Invoke-KerberosHardeningAssessment {
                                     Write-Host "    >> DEBUG: Kerberos-related content:" -ForegroundColor Gray
                                     Write-Host "    $kerberosLines" -ForegroundColor DarkGray
                                 }
-                            } else {
+                            }
+                            else {
                                 Write-Host "    >> DEBUG: GPO report is null or empty" -ForegroundColor Yellow
                             }
                         }
@@ -1810,7 +1812,8 @@ function Invoke-KerberosHardeningAssessment {
                                 Write-Host "    >> DEBUG: Domain GPO encryption value: $encValue (applies to both DCs and members)" -ForegroundColor Gray
                             }
                             break
-                        } else {
+                        }
+                        else {
                             if ($DebugMode) {
                                 Write-Host "    >> DEBUG: GPO $($gpo.DisplayName) does not contain Kerberos encryption configuration" -ForegroundColor Gray
                             }
@@ -1823,7 +1826,8 @@ function Invoke-KerberosHardeningAssessment {
                         }
                         continue
                     }
-                } else {
+                }
+                else {
                     if ($DebugMode) {
                         Write-Host "    >> DEBUG: Skipping disabled GPO: $($gpo.DisplayName)" -ForegroundColor Gray
                     }
@@ -1950,1495 +1954,1215 @@ function Invoke-KerberosHardeningAssessment {
                     Write-Host "    >> DEBUG: No Domain-level Kerberos GPO found, checking DC OU specifically" -ForegroundColor Gray
                 }
             
-            $dcGPOs = Get-GPInheritance -Target $dcOU -Domain $Domain @serverParams
-            $dcSpecificGPO = $null
+                $dcGPOs = Get-GPInheritance -Target $dcOU -Domain $Domain @serverParams
+                $dcSpecificGPO = $null
             
-            if ($DebugMode) {
-                Write-Host "    >> DEBUG: DC OU DN: $dcOU" -ForegroundColor Gray
-                if ($dcGPOs -and $dcGPOs.InheritedGpoLinks) {
-                    Write-Host "    >> DEBUG: Found $($dcGPOs.InheritedGpoLinks.Count) inherited GPO links at DC OU level" -ForegroundColor Gray
-                }
-            }
-            
-            foreach ($gpo in $dcGPOs.InheritedGpoLinks) {
-                if ($gpo.Enabled) {
-                    $gpoReport = Get-GPOReport -Guid $gpo.GpoId -ReportType Xml -Domain $Domain @serverParams
-                    if ($DebugMode) {
-                        Write-Host "    >> DEBUG: Checking DC OU GPO: $($gpo.DisplayName)" -ForegroundColor Gray
+                if ($DebugMode) {
+                    Write-Host "    >> DEBUG: DC OU DN: $dcOU" -ForegroundColor Gray
+                    if ($dcGPOs -and $dcGPOs.InheritedGpoLinks) {
+                        Write-Host "    >> DEBUG: Found $($dcGPOs.InheritedGpoLinks.Count) inherited GPO links at DC OU level" -ForegroundColor Gray
                     }
+                }
+            
+                foreach ($gpo in $dcGPOs.InheritedGpoLinks) {
+                    if ($gpo.Enabled) {
+                        $gpoReport = Get-GPOReport -Guid $gpo.GpoId -ReportType Xml -Domain $Domain @serverParams
+                        if ($DebugMode) {
+                            Write-Host "    >> DEBUG: Checking DC OU GPO: $($gpo.DisplayName)" -ForegroundColor Gray
+                        }
                     
-                    # Use the same detection logic as the main GPO function
-                    if ($gpoReport -and $gpoReport -match "Configure encryption types allowed for Kerberos") {
-                        # Check if this GPO is directly linked to DC OU or inherited from Domain
-                        $directlyLinked = $false
-                        try {
-                            $dcInheritance = Get-GPInheritance -Target $dcOU -Domain $Domain @serverParams
-                            $directLinks = $dcInheritance.GpoLinks | Where-Object { $_.GpoId -eq $gpo.GpoId }
-                            $directlyLinked = $directLinks.Count -gt 0
+                        # Use the same detection logic as the main GPO function
+                        if ($gpoReport -and $gpoReport -match "Configure encryption types allowed for Kerberos") {
+                            # Check if this GPO is directly linked to DC OU or inherited from Domain
+                            $directlyLinked = $false
+                            try {
+                                $dcInheritance = Get-GPInheritance -Target $dcOU -Domain $Domain @serverParams
+                                $directLinks = $dcInheritance.GpoLinks | Where-Object { $_.GpoId -eq $gpo.GpoId }
+                                $directlyLinked = $directLinks.Count -gt 0
                             
-                            if ($DebugMode) {
-                                Write-Host "    >> DEBUG: GPO $($gpo.DisplayName) directly linked to DC OU: $directlyLinked" -ForegroundColor Gray
+                                if ($DebugMode) {
+                                    Write-Host "    >> DEBUG: GPO $($gpo.DisplayName) directly linked to DC OU: $directlyLinked" -ForegroundColor Gray
+                                }
                             }
-                        }
-                        catch {
-                            if ($DebugMode) {
-                                Write-Host "    >> DEBUG: Could not determine GPO link status: $($_.Exception.Message)" -ForegroundColor Gray
+                            catch {
+                                if ($DebugMode) {
+                                    Write-Host "    >> DEBUG: Could not determine GPO link status: $($_.Exception.Message)" -ForegroundColor Gray
+                                }
                             }
-                        }
                         
-                        if ($directlyLinked) {
-                            $dcSpecificGPO = $gpo
-                            if ($DebugMode) {
-                                Write-Host "    >> DEBUG: Found DC OU-specific Kerberos encryption GPO: $($gpo.DisplayName)" -ForegroundColor Gray
-                            }
+                            if ($directlyLinked) {
+                                $dcSpecificGPO = $gpo
+                                if ($DebugMode) {
+                                    Write-Host "    >> DEBUG: Found DC OU-specific Kerberos encryption GPO: $($gpo.DisplayName)" -ForegroundColor Gray
+                                }
                             
-                            # Enhanced encryption value detection for GPO content
-                            $encValue = Get-GPOEncryptionValue -GPOReport $gpoReport -DebugMode:$DebugMode
+                                # Enhanced encryption value detection for GPO content
+                                $encValue = Get-GPOEncryptionValue -GPOReport $gpoReport -DebugMode:$DebugMode
                             
-                            $gpoAnalysis.DomainControllers.Configured = $true
-                            $gpoAnalysis.DomainControllers.Value = $encValue
-                            $gpoAnalysis.DomainControllers.GPOName = $gpo.DisplayName
-                            $gpoAnalysis.DomainControllers.Source = "DC OU"
+                                $gpoAnalysis.DomainControllers.Configured = $true
+                                $gpoAnalysis.DomainControllers.Value = $encValue
+                                $gpoAnalysis.DomainControllers.GPOName = $gpo.DisplayName
+                                $gpoAnalysis.DomainControllers.Source = "DC OU"
                             
-                            if ($DebugMode) {
-                                Write-Host "    >> DEBUG: DC OU GPO encryption value: $encValue" -ForegroundColor Gray
-                            }
-                            break
-                        }
-                        else {
-                            if ($DebugMode) {
-                                Write-Host "    >> DEBUG: GPO $($gpo.DisplayName) found at DC OU but inherited from Domain - treating as Domain GPO" -ForegroundColor Gray
-                            }
-                            
-                            # This is actually a Domain GPO found through inheritance
-                            $domainKerberosGPO = $gpo
-                            $encValue = Get-GPOEncryptionValue -GPOReport $gpoReport -DebugMode:$DebugMode
-                            
-                            # Domain GPO applies to both DCs and member computers
-                            $gpoAnalysis.DomainControllers.Configured = $true
-                            $gpoAnalysis.DomainControllers.Value = $encValue
-                            $gpoAnalysis.DomainControllers.GPOName = $gpo.DisplayName
-                            $gpoAnalysis.DomainControllers.Source = "Domain"
-                            
-                            $gpoAnalysis.MemberComputers.Configured = $true
-                            $gpoAnalysis.MemberComputers.Value = $encValue
-                            $gpoAnalysis.MemberComputers.GPOName = $gpo.DisplayName
-                            $gpoAnalysis.MemberComputers.Scope = "Domain"
-                            
-                            $gpoAnalysis.SharedDomainGPO = $gpo.DisplayName
-                            
-                            if ($DebugMode) {
-                                Write-Host "    >> DEBUG: Domain GPO encryption value: $encValue (applies to both DCs and members)" -ForegroundColor Gray
-                            }
-                            break
-                        }
-                    }
-                }
-            }
-        }
-        
-        $gpoAnalysis.CompletelyConfigured = $gpoAnalysis.DomainControllers.Configured -and $gpoAnalysis.MemberComputers.Configured
-        $assessment.GPOCoverage = $gpoAnalysis
-        
-        # Create boxed GPO analysis output
-        $gpoMessages = @()
-        
-        if ($gpoAnalysis.SharedDomainGPO) {
-            # Single Domain GPO covers both DCs and members
-            $domainValue = $gpoAnalysis.DomainControllers.Value
-            $domainTypes = if (($domainValue -band 0x18) -gt 0) { "AES ✓" } else { "RC4 ⚠" }
-            $gpoMessages += "Domain GPO: ✓ Configured ($domainTypes) - $($gpoAnalysis.SharedDomainGPO)"
-            $gpoMessages += "  ├─ Applies to: Domain Controllers ✓"
-            $gpoMessages += "  └─ Applies to: Member Computers ✓"
-        }
-        else {
-            # Separate GPO analysis for DCs and members
-            if ($gpoAnalysis.DomainControllers.Configured) {
-                $dcValue = $gpoAnalysis.DomainControllers.Value
-                $dcTypes = if (($dcValue -band 0x18) -gt 0) { "AES ✓" } else { "RC4 ⚠" }
-                $dcSource = $gpoAnalysis.DomainControllers.Source
-                $gpoMessages += "DC GPO ($dcSource): ✓ Configured ($dcTypes) - $($gpoAnalysis.DomainControllers.GPOName)"
-            }
-            else {
-                $gpoMessages += "DC GPO: ❌ Not Configured"
-            }
-            
-            # Member Computer GPO status
-            if ($gpoAnalysis.MemberComputers.Configured) {
-                $memberValue = $gpoAnalysis.MemberComputers.Value
-                $memberTypes = if (($memberValue -band 0x18) -gt 0) { "AES ✓" } else { "RC4 ⚠" }
-                $gpoMessages += "Member Computer GPO: ✓ Configured ($memberTypes) - $($gpoAnalysis.MemberComputers.GPOName)"
-            }
-            else {
-                $gpoMessages += "Member Computer GPO: ❌ Not Configured"
-            }
-        }
-        
-        $headerMessages = @("🛡️ Phase 2: GPO Coverage Analysis")
-        $boxColor = if ($gpoAnalysis.CompletelyConfigured) { "Green" } else { "Yellow" }
-        Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $gpoMessages -Color $boxColor
-        
-    }
-    catch {
-        Write-Host "  ❌ Error analyzing GPOs: $($_.Exception.Message)" -ForegroundColor Red
-    }
-    
-    Write-Host "`n🔐 Phase 3: Service Account Analysis" -ForegroundColor Yellow
-    Write-Host ("=" * 50) -ForegroundColor Yellow
-    
-    $serviceAccountAnalysis = @{
-        TotalServiceAccounts  = 0
-        ConfiguredAccounts    = 0
-        AESAccounts           = 0
-        RC4Accounts           = 0
-        NotConfiguredAccounts = 0
-        RiskyAccounts         = @()
-    }
-    
-    try {
-        # Find service accounts (accounts with SPNs)
-        $serviceAccounts = Get-ADUser -Filter 'ServicePrincipalName -like "*"' -Properties ServicePrincipalName, msDS-SupportedEncryptionTypes, pwdLastSet, AdminCount @serverParams
-        $serviceAccountAnalysis.TotalServiceAccounts = $serviceAccounts.Count
-        
-        # Get AES threshold date (Read-only Domain Controllers group creation = first 2008+ DC)
-        $aesThresholdDate = $null
-        try {
-            $rodcGroup = Get-ADGroup "Read-only Domain Controllers" -Properties Created @serverParams -ErrorAction SilentlyContinue
-            if ($rodcGroup) {
-                $aesThresholdDate = $rodcGroup.Created
-                Write-Host "    >> AES Threshold Date: $($aesThresholdDate.ToString('yyyy-MM-dd')) (First 2008+ DC promotion)" -ForegroundColor Cyan
-            }
-        }
-        catch {
-            Write-Host "    >> WARNING: Could not determine AES threshold date" -ForegroundColor Yellow
-        }
-        
-        foreach ($account in $serviceAccounts) {
-            $encValue = $account.'msDS-SupportedEncryptionTypes'
-            $pwdLastSet = if ($account.pwdLastSet) { [DateTime]::FromFileTime($account.pwdLastSet) } else { $null }
-            $isPrivileged = $account.AdminCount -eq 1
-            
-            if ($encValue) {
-                $serviceAccountAnalysis.ConfiguredAccounts++
-                if (($encValue -band 0x18) -gt 0) {
-                    # AES
-                    $serviceAccountAnalysis.AESAccounts++
-                }
-                elseif (($encValue -band 0x4) -gt 0) {
-                    # RC4
-                    $serviceAccountAnalysis.RC4Accounts++
-                    $serviceAccountAnalysis.RiskyAccounts += $account.SamAccountName
-                }
-            }
-            else {
-                $serviceAccountAnalysis.NotConfiguredAccounts++
-                # Post-2022: Not configured can be risky if no proper GPO coverage
-                if (-not $gpoAnalysis.MemberComputers.Configured) {
-                    $serviceAccountAnalysis.RiskyAccounts += $account.SamAccountName
-                }
-            }
-        }
-        
-        # Check KRBTGT password age (critical for TGT encryption)
-        Write-Host "    >> Analyzing KRBTGT account..." -ForegroundColor Cyan
-        try {
-            $krbtgtAccount = Get-ADUser "krbtgt" -Properties pwdLastSet @serverParams
-            $krbtgtPwdDate = if ($krbtgtAccount.pwdLastSet) { [DateTime]::FromFileTime($krbtgtAccount.pwdLastSet) } else { $null }
-            
-            if ($krbtgtPwdDate -and $aesThresholdDate) {
-                if ($krbtgtPwdDate -lt $aesThresholdDate) {
-                    Write-Host "    >> ⚠️  CRITICAL: KRBTGT password predates AES support!" -ForegroundColor Red
-                    Write-Host "       Password last set: $($krbtgtPwdDate.ToString('yyyy-MM-dd'))" -ForegroundColor Red
-                    Write-Host "       AES threshold: $($aesThresholdDate.ToString('yyyy-MM-dd'))" -ForegroundColor Red
-                    Write-Host "       TGTs may still be issued with RC4 encryption!" -ForegroundColor Red
-                    Write-Host "" -ForegroundColor Red
-                    Write-Host "    >> 🔧 MICROSOFT KRBTGT PASSWORD ROTATION GUIDANCE:" -ForegroundColor Yellow
-                    Write-Host "       Step 1: Reset KRBTGT password TWICE (Microsoft recommendation)" -ForegroundColor Yellow
-                    Write-Host "       Step 2: Wait for replication between resets (minimum 10 hours)" -ForegroundColor Yellow
-                    Write-Host "       Step 3: Monitor for authentication issues during rotation" -ForegroundColor Yellow
-                    Write-Host "" -ForegroundColor Yellow
-                    Write-Host "    >> 📋 DETAILED ROTATION PROCEDURE:" -ForegroundColor Cyan
-                    Write-Host "       1. Run: 'kerberos-kdc-password-reset krbtgt' on PDC Emulator" -ForegroundColor White
-                    Write-Host "       2. Wait 10+ hours for domain-wide replication" -ForegroundColor White
-                    Write-Host "       3. Run second reset: 'kerberos-kdc-password-reset krbtgt' again" -ForegroundColor White
-                    Write-Host "       4. Monitor Event Logs: 4768 (TGT requests) for AES encryption" -ForegroundColor White
-                    Write-Host "       5. Verify TGT encryption with 'klist' on domain members" -ForegroundColor White
-                    Write-Host "" -ForegroundColor White
-                    Write-Host "    >> ⚠️  CRITICAL POST-2022 CONSIDERATIONS:" -ForegroundColor Red
-                    Write-Host "       • Old KRBTGT passwords prevent AES TGT issuance" -ForegroundColor Red
-                    Write-Host "       • Force authentication failures until password is current" -ForegroundColor Red
-                    Write-Host "       • Impact ALL domain authentication (users and computers)" -ForegroundColor Red
-                    Write-Host "       • Schedule during maintenance window" -ForegroundColor Red
-                    Write-Host "" -ForegroundColor Red
-                    Write-Host "    >> 📚 MICROSOFT REFERENCES:" -ForegroundColor Gray
-                    Write-Host "       • KB5021131: Managing Kerberos protocol changes (CVE-2022-37966)" -ForegroundColor Gray
-                    Write-Host "       • Windows Security blog: KRBTGT account password rotation" -ForegroundColor Gray
-                    Write-Host "       • AD best practices: Kerberos Key Distribution Center hardening" -ForegroundColor Gray
-                }
-                else {
-                    Write-Host "    >> ✅ KRBTGT password supports AES (set: $($krbtgtPwdDate.ToString('yyyy-MM-dd')))" -ForegroundColor Green
-                    Write-Host "       TGT encryption: Compatible with post-2022 AES requirements" -ForegroundColor Green
-                }
-            }
-            else {
-                Write-Host "    >> ⚠️  Could not verify KRBTGT password age" -ForegroundColor Yellow
-            }
-        }
-        catch {
-            Write-Host "    >> ⚠️  Could not analyze KRBTGT account: $($_.Exception.Message)" -ForegroundColor Yellow
-        }
-        
-        $assessment.ServiceAccounts = $serviceAccountAnalysis
-        
-        # Create boxed service account analysis output
-        $serviceMessages = @(
-            "Service Accounts Found: $($serviceAccountAnalysis.TotalServiceAccounts)",
-            "Explicitly AES: $($serviceAccountAnalysis.AESAccounts)"
-        )
-        if ($serviceAccountAnalysis.RC4Accounts -gt 0) {
-            $serviceMessages += "⚠ Explicitly RC4: $($serviceAccountAnalysis.RC4Accounts)"
-        }
-        if ($serviceAccountAnalysis.NotConfiguredAccounts -gt 0) {
-            $serviceMessages += "ℹ Not Configured: $($serviceAccountAnalysis.NotConfiguredAccounts) (depends on GPO)"
-        }
-        
-        $headerMessages = @("🔐 Phase 3: Service Account Analysis")
-        $boxColor = if ($serviceAccountAnalysis.RC4Accounts -eq 0) { "Green" } else { "Yellow" }
-        Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $serviceMessages -Color $boxColor
-        
-    }
-    catch {
-        Write-Host "  ❌ Error analyzing service accounts: $($_.Exception.Message)" -ForegroundColor Red
-    }
-    
-    Write-Host "`n📈 Phase 4: Security Posture Assessment" -ForegroundColor Yellow
-    Write-Host ("=" * 50) -ForegroundColor Yellow
-    
-    # Determine overall security level
-    $securityLevel = "UNKNOWN"
-    $riskFactors = @()
-    $improvements = @()
-    
-    # Assess current security posture
-    if ($dcAnalysis.AESPercentage -eq 100 -and $gpoAnalysis.DomainControllers.Configured) {
-        if ($gpoAnalysis.MemberComputers.Configured -and ($gpoAnalysis.MemberComputers.Value -band 0x18) -gt 0) {
-            if ($serviceAccountAnalysis.RC4Accounts -eq 0) {
-                $securityLevel = "MAXIMUM"
-            }
-            else {
-                $securityLevel = "RECOMMENDED+"  
-                $riskFactors += "Some service accounts explicitly configured for RC4"
-            }
-        }
-        else {
-            $securityLevel = "MINIMUM+"
-            $riskFactors += "Member computers not enforcing AES-only via GPO"
-            $improvements += "Apply AES-only GPO to member computers/OUs"
-        }
-    }
-    else {
-        $securityLevel = "NEEDS_IMPROVEMENT"
-        if ($dcAnalysis.AESPercentage -lt 100) {
-            $riskFactors += "Not all DCs configured for AES"
-            $improvements += "Configure all DCs for AES encryption"
-        }
-        if (-not $gpoAnalysis.DomainControllers.Configured) {
-            $riskFactors += "No GPO enforcing AES on Domain Controllers OU"
-            $improvements += "Apply AES-only GPO to Domain Controllers OU"
-        }
-    }
-    
-    $assessment.SecurityPosture.Level = $securityLevel
-    $assessment.SecurityPosture.RiskFactors = $riskFactors
-    $assessment.Recommendations.Improvements = $improvements
-    
-    # Create boxed security posture assessment
-    $postureMessages = @("🎯 Overall Security Level: $securityLevel")
-    if ($riskFactors.Count -gt 0) {
-        $postureMessages += ""
-        $postureMessages += "⚠ Risk Factors:"
-        foreach ($risk in $riskFactors) {
-            $postureMessages += "  • $risk"
-        }
-    }
-    
-    $headerMessages = @("📈 Phase 4: Security Posture Assessment")
-    $levelColor = switch ($securityLevel) {
-        "MAXIMUM" { "Green" }
-        "RECOMMENDED+" { "Green" }
-        "MINIMUM+" { "Yellow" }
-        "NEEDS_IMPROVEMENT" { "Red" }
-        default { "Gray" }
-    }
-    Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $postureMessages -Color $levelColor
-    
-    Write-Host "`n💡 Phase 5: Tiered Recommendations" -ForegroundColor Yellow
-    Write-Host ("=" * 50) -ForegroundColor Yellow
-    
-    # Generate tiered recommendations
-    $recommendations = @{
-        Current     = "Analysis of your current configuration"
-        Minimum     = @()
-        Recommended = @()
-        Maximum     = @()
-    }
-    
-    # Minimum Security (Essential)
-    if (-not $gpoAnalysis.DomainControllers.Configured) {
-        $recommendations.Minimum += "✅ CRITICAL: Apply AES-only GPO to Domain Controllers OU"
-    }
-    if ($dcAnalysis.DCsWithRC4Only -gt 0 -or $dcAnalysis.DCsNotConfigured -gt 0) {
-        $recommendations.Minimum += "✅ CRITICAL: Configure all DCs with AES encryption types"
-    }
-    
-    # Add Microsoft-recommended minimum security measures
-    if ($serviceAccountAnalysis.RiskyAccounts.Count -gt 0) {
-        $recommendations.Minimum += "✅ CRITICAL: Reset passwords for high-privilege service accounts with pre-AES passwords"
-    }
-    
-    # Always include KRBTGT recommendation if password is old
-    try {
-        $krbtgtAccount = Get-ADUser "krbtgt" -Properties pwdLastSet @serverParams -ErrorAction SilentlyContinue
-        if ($krbtgtAccount -and $aesThresholdDate) {
-            $krbtgtPwdAge = if ($krbtgtAccount.pwdLastSet) { [DateTime]::FromFileTime($krbtgtAccount.pwdLastSet) } else { [DateTime]::MinValue }
-            if ($krbtgtPwdAge -lt $aesThresholdDate) {
-                $recommendations.Minimum += "✅ CRITICAL: Reset KRBTGT password TWICE with 10+ hour replication wait"
-                $recommendations.Minimum += "✅ CRITICAL: Monitor TGT encryption post-reset (Event IDs 4768/4769)"
-            }
-        }
-    }
-    catch {
-        # Silently handle KRBTGT query errors
-    }
-    
-    # Recommended Security (Best Practice)  
-    if (-not $gpoAnalysis.MemberComputers.Configured) {
-        $recommendations.Recommended += "🔶 Create dedicated Kerberos GPO and link to domain root (NOT Default Domain Policy)"
-        $recommendations.Recommended += "🔶 Configure 'Network security: Configure encryption types allowed for Kerberos' = AES only"
-    }
-    if ($serviceAccountAnalysis.NotConfiguredAccounts -gt 0) {
-        $recommendations.Recommended += "🔶 Audit service accounts and set explicit AES encryption types"
-    }
-    
-    # Maximum Security (Defense in Depth)
-    if ($serviceAccountAnalysis.RC4Accounts -gt 0) {
-        $recommendations.Maximum += "🔥 Update service accounts with explicit RC4 to use AES"
-    }
-    $recommendations.Maximum += "🔥 Implement regular Kerberos encryption auditing"
-    $recommendations.Maximum += "🔥 Monitor for RC4 usage in security logs (Event IDs 4768/4769)"
-    $recommendations.Maximum += "🔥 Test GPO application with 'gpupdate /force' and validate"
-    $recommendations.Maximum += "🔥 Plan for Windows Server 2025 compatibility (RC4 fallback disabled)"
-    $recommendations.Maximum += "🔥 Establish quarterly KRBTGT password rotation schedule"
-    $recommendations.Maximum += "🔥 Implement automated KRBTGT password age monitoring"
-    
-    $assessment.Recommendations = $recommendations
-    
-    # Create comprehensive tiered recommendations box
-    $recMessages = @()
-    
-    # Minimum Security
-    $recMessages += "📋 MINIMUM Security (Essential):"
-    if ($recommendations.Minimum.Count -eq 0) {
-        $recMessages += "  ✓ All essential security measures are in place"
-    }
-    else {
-        foreach ($rec in $recommendations.Minimum) {
-            $recMessages += "  $rec"
-        }
-    }
-    
-    $recMessages += ""
-    
-    # Recommended Security
-    $recMessages += "📋 RECOMMENDED Security (Best Practice):"
-    if ($recommendations.Recommended.Count -eq 0) {
-        $recMessages += "  ✓ All recommended security measures are in place"
-    }
-    else {
-        foreach ($rec in $recommendations.Recommended) {
-            $recMessages += "  $rec"
-        }
-    }
-    
-    $recMessages += ""
-    
-    # Maximum Security
-    $recMessages += "📋 MAXIMUM Security (Defense in Depth):"
-    foreach ($rec in $recommendations.Maximum) {
-        $recMessages += "  $rec"
-    }
-    
-    $headerMessages = @("💡 Phase 5: Tiered Recommendations")
-    Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $recMessages -Color "Cyan"
-    
-    Write-Host "`n🔄 Phase 6: Kerberos Negotiation Scenarios" -ForegroundColor Yellow
-    Write-Host ("=" * 50) -ForegroundColor Yellow
-    
-    # Analyze what happens in different scenarios
-    $scenarios = @{
-        CurrentConfig = @{
-            DCPolicy        = if ($gpoAnalysis.DomainControllers.Configured) { "AES-only" } else { "Default" }
-            ClientPolicy    = if ($gpoAnalysis.MemberComputers.Configured) { "AES-only" } else { "Default" }
-            ServiceAccounts = if ($serviceAccountAnalysis.RC4Accounts -gt 0) { "Mixed" } else { "AES/Default" }
-            Result          = ""
-        }
-    }
-    
-    # Determine current scenario result
-    $currentResult = "AES (secure)"
-    if (-not $gpoAnalysis.DomainControllers.Configured) {
-        $currentResult = "RC4 possible (insecure)"
-    }
-    elseif (-not $gpoAnalysis.MemberComputers.Configured -and $serviceAccountAnalysis.RC4Accounts -gt 0) {
-        $currentResult = "AES preferred, RC4 fallback possible"
-    }
-    elseif (-not $gpoAnalysis.MemberComputers.Configured) {
-        $currentResult = "AES preferred, RC4 possible in edge cases"
-    }
-    
-    $scenarios.CurrentConfig.Result = $currentResult
-    $assessment.NegotiationScenarios = $scenarios
-    
-    # Create boxed negotiation scenario analysis
-    $scenarioMessages = @(
-        "📊 Current Configuration Analysis:",
-        "",
-        "DC Policy: $($scenarios.CurrentConfig.DCPolicy)",
-        "Client Policy: $($scenarios.CurrentConfig.ClientPolicy)",
-        "Service Accounts: $($scenarios.CurrentConfig.ServiceAccounts)",
-        "",
-        "🔄 Kerberos Negotiation Result: $currentResult"
-    )
-    
-    $headerMessages = @("🔄 Phase 6: Kerberos Negotiation Scenarios")
-    $resultColor = if ($currentResult -eq "AES (secure)") { "Green" } 
-    elseif ($currentResult -like "*RC4 possible*") { "Red" }
-    else { "Yellow" }
-    Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $scenarioMessages -Color $resultColor
-    
-    # Create final summary box
-    $nextSteps = @()
-    if ($recommendations.Minimum.Count -gt 0) {
-        $nextSteps += "1. Address MINIMUM security requirements immediately"
-    }
-    if ($recommendations.Recommended.Count -gt 0) {
-        $nextSteps += "2. Implement RECOMMENDED practices for comprehensive coverage"
-    }
-    $nextSteps += "3. Consider MAXIMUM security measures for high-security environments"
-    $nextSteps += "4. Schedule regular re-assessment (quarterly recommended)"
-    
-    $headerMessages = @("📋 Summary & Next Steps")
-    Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $nextSteps -Color "White"
-    
-    # Export results if requested
-    if ($ExportResults) {
-        $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-        $exportPath = "KerberosHardeningAssessment_$($Domain)_$timestamp.json"
-        $assessment | ConvertTo-Json -Depth 10 | Out-File -FilePath $exportPath -Encoding UTF8
-        Write-Host "`n💾 Assessment exported to: $exportPath" -ForegroundColor Green
-    }
-    
-    return $assessment
-}
-
-# Handle Kerberos Hardening Assessment mode (after functions are defined)
-if ($KerberosHardeningAssessment) {
-    Write-Host "RC4 Active Directory Audit Tool - Kerberos Hardening Assessment Mode" -ForegroundColor Cyan
-    Write-Host ("=" * 80) -ForegroundColor Cyan
-    
-    try {
-        # Determine target domain based on parameters
-        $targetDomain = if ($Domain) {
-            # Use explicitly specified domain
-            $Domain
-        }
-        elseif ($Server) {
-            # Extract domain from server if specified
-            try {
-                $serverInfo = Get-ADDomainController -Identity $Server
-                $serverInfo.Domain
-            }
-            catch {
-                # Fallback to current domain
-                (Get-ADDomain).DNSRoot
-            }
-        }
-        else {
-            # Use current domain
-            (Get-ADDomain).DNSRoot
-        }
-        
-        # Validate target domain if explicitly specified
-        if ($Domain) {
-            Write-Host "Validating access to target domain: $Domain" -ForegroundColor Yellow
-            try {
-                $testDomain = Get-ADDomain -Identity $Domain -ErrorAction Stop
-                Write-Host "✅ Successfully connected to domain: $($testDomain.DNSRoot)" -ForegroundColor Green
-                if ($testDomain.DNSRoot -ne $Domain) {
-                    Write-Host "   Note: Domain resolved to: $($testDomain.DNSRoot)" -ForegroundColor Cyan
-                    $targetDomain = $testDomain.DNSRoot
-                }
-            }
-            catch {
-                Write-Host "❌ ERROR: Cannot access domain '$Domain'" -ForegroundColor Red
-                Write-Host "   $($_.Exception.Message)" -ForegroundColor Red
-                Write-Host "`n💡 TROUBLESHOOTING:" -ForegroundColor Yellow
-                Write-Host "   • Verify domain name is correct" -ForegroundColor White
-                Write-Host "   • Ensure you have permissions to read the target domain" -ForegroundColor White
-                Write-Host "   • Check network connectivity to domain controllers" -ForegroundColor White
-                Write-Host "   • Try specifying -Server parameter with a DC in the target domain" -ForegroundColor White
-                return
-            }
-        }
-        
-        # Display execution context
-        $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-        $currentDomain = try { (Get-ADDomain).DNSRoot } catch { "Unknown" }
-        
-        Write-Host "`n🔍 EXECUTION CONTEXT:" -ForegroundColor Cyan
-        Write-Host "   Current User: $currentUser" -ForegroundColor White
-        Write-Host "   Current Domain: $currentDomain" -ForegroundColor White
-        Write-Host "   Target Domain: $targetDomain" -ForegroundColor White
-        if ($targetDomain -ne $currentDomain) {
-            Write-Host "   Cross-Domain Assessment: Yes" -ForegroundColor Yellow
-        }
-        else {
-            Write-Host "   Cross-Domain Assessment: No" -ForegroundColor Green
-        }
-        
-        # Run comprehensive assessment
-        $assessmentResults = Invoke-KerberosHardeningAssessment -Domain $targetDomain -Server $Server -ExportResults:$ExportResults -DebugMode:$DebugMode
-        
-        Write-Host "`n✅ Kerberos Hardening Assessment completed successfully!" -ForegroundColor Green
-        Write-Host "Domain analyzed: $targetDomain" -ForegroundColor Cyan
-        Write-Host "Security Level: $($assessmentResults.SecurityPosture.Level)" -ForegroundColor $(
-            switch ($assessmentResults.SecurityPosture.Level) {
-                "MAXIMUM" { "Green" }
-                "RECOMMENDED+" { "Green" } 
-                "MINIMUM+" { "Yellow" }
-                "NEEDS_IMPROVEMENT" { "Red" }
-                default { "Gray" }
-            }
-        )
-        
-    }
-    catch {
-        Write-Host "❌ Error during Kerberos Hardening Assessment: $($_.Exception.Message)" -ForegroundColor Red
-        exit 1
-    }
-    
-    exit 0
-}
-
-$results = @()
-$secureObjects = @()  # Track objects that already have secure settings
-
-# Set up server parameter for AD commands
-$adParams = @{}
-if ($Server) {
-    $adParams['Server'] = $Server
-    Write-Host ">> Connecting to specified server: $Server" -ForegroundColor Cyan
-}
-
-# Handle target forest specification
-$forestParams = @{}
-if ($TargetForest) {
-    $forestParams['Identity'] = $TargetForest
-    Write-Host ">> Targeting forest: $TargetForest" -ForegroundColor Cyan
-    
-    # If TargetForest is specified but no specific server, try to find a DC in the target forest
-    if (-not $Server) {
-        try {
-            Write-Host ">> Attempting to discover domain controller in target forest..." -ForegroundColor Gray
-            $targetForestInfo = Get-ADForest -Identity $TargetForest
-            $rootDomain = $targetForestInfo.RootDomain
-            
-            # Try to get a DC from the root domain of the target forest
-            $targetDC = Get-ADDomainController -DomainName $rootDomain -Discover -ErrorAction SilentlyContinue
-            if ($targetDC) {
-                $adParams['Server'] = $targetDC.HostName[0]
-                Write-Host "> Found target domain controller: $($targetDC.HostName[0])" -ForegroundColor Green
-            }
-        }
-        catch {
-            Write-Host ">>  Could not auto-discover DC in target forest. Consider using -Server parameter." -ForegroundColor Yellow
-        }
-    }
-}
-
-try {
-    if ($TargetForest) {
-        $forest = Get-ADForest @forestParams @adParams
-        Write-Host "> Successfully connected to target forest: $($forest.Name)" -ForegroundColor Green
-        Write-Host ">> Forest contains domains: $($forest.Domains -join ', ')" -ForegroundColor Cyan
-    }
-    else {
-        $forest = Get-ADForest @adParams
-    }
-}
-catch {
-    Write-Host "> ERROR: Could not connect to Active Directory forest" -ForegroundColor Red
-    Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
-    if ($TargetForest) {
-        Write-Host ">> FOREST TRUST TROUBLESHOOTING:" -ForegroundColor Yellow
-        Write-Host "> Verify forest trust exists between your forest and target forest" -ForegroundColor Yellow
-        Write-Host "> Ensure your account has permissions in the target forest" -ForegroundColor Yellow
-        Write-Host "> Try specifying a domain controller: -Server dc01.targetforest.com" -ForegroundColor Yellow
-        Write-Host "> Check network connectivity to target forest domain controllers" -ForegroundColor Yellow
-    }
-    elseif (-not $Server) {
-        Write-Host ">> TIP: Try specifying a domain controller with -Server parameter" -ForegroundColor Yellow
-        Write-Host "Example: .\RC4_AD_SCAN.ps1 -Server dc01.contoso.com" -ForegroundColor Yellow
-    }
-    exit 1
-}
-
-# Initialize domain GPO results tracking (used whether GPO checking is enabled or not)
-$domainGPOResults = @{}
-
-# Check GPO settings for each domain
-if (-not $SkipGPOCheck) {
-    Write-Host ">> Checking Group Policy settings..." -ForegroundColor Magenta
-    
-    # Track GPO analysis results for post-November 2022 summary
-    $forestGPOAnalysis = @{
-        DomainsWithOptimalGPO    = @()
-        DomainsWithSecureGPO     = @()
-        DomainsWithSuboptimalGPO = @()
-        DomainsWithNoGPO         = @()
-        TotalDomainsAnalyzed     = 0
-    }
-    
-    foreach ($domain in $forest.Domains) {
-        $gpoResults = Test-KerberosGPOSettings -Domain $domain -Scope $GPOScope -DebugMode:$DebugMode -Server $Server -TargetForest $TargetForest
-        $forestGPOAnalysis.TotalDomainsAnalyzed++
-        
-        # Store domain-specific GPO results for later use
-        $domainGPOResults[$domain] = $gpoResults
-        
-        # Categorize domain based on GPO configuration quality
-        if ($gpoResults -and $gpoResults.Count -gt 0) {
-            $bestGPO = $gpoResults | Sort-Object { $_.IsOptimal }, { $_.IsSecure } -Descending | Select-Object -First 1
-            
-            if ($DebugMode) {
-                Write-Host "    >> DEBUG: Forest analysis for domain $domain" -ForegroundColor Gray
-                Write-Host "      > Found $($gpoResults.Count) GPO(s)" -ForegroundColor Gray
-                foreach ($gpo in $gpoResults) {
-                    Write-Host "      > GPO '$($gpo.Name)': IsOptimal=$($gpo.IsOptimal), IsSecure=$($gpo.IsSecure)" -ForegroundColor Gray
-                }
-                Write-Host "      > Best GPO '$($bestGPO.Name)': IsOptimal=$($bestGPO.IsOptimal), IsSecure=$($bestGPO.IsSecure)" -ForegroundColor Gray
-            }
-            
-            if ($bestGPO.IsOptimal) {
-                $forestGPOAnalysis.DomainsWithOptimalGPO += $domain
-                if ($DebugMode) { Write-Host "      > Categorized as: OPTIMAL" -ForegroundColor Green }
-            }
-            elseif ($bestGPO.IsSecure) {
-                $forestGPOAnalysis.DomainsWithSecureGPO += $domain
-                if ($DebugMode) { Write-Host "      > Categorized as: SECURE" -ForegroundColor Green }
-            }
-            else {
-                $forestGPOAnalysis.DomainsWithSuboptimalGPO += $domain
-                if ($DebugMode) { Write-Host "      > Categorized as: SUBOPTIMAL" -ForegroundColor Yellow }
-            }
-        }
-        else {
-            $forestGPOAnalysis.DomainsWithNoGPO += $domain
-            if ($DebugMode) { Write-Host "    >> DEBUG: Domain $domain categorized as: NO GPO" -ForegroundColor Red }
-        }
-    }
-    
-    # Show recommendations once after all domains are checked
-    Write-Host ""
-    Write-Host (">" * 80) -ForegroundColor Cyan
-    Write-Host ">> GPO CONFIGURATION RECOMMENDATIONS" -ForegroundColor Cyan
-    Write-Host (">" * 80) -ForegroundColor Cyan
-    
-    $headerMessages = @("💡 GPO ENCRYPTION SETTINGS RECOMMENDATIONS")
-    $contentMessages = @(
-        "OPTIMAL CONFIGURATION (Recommended):",
-        "• AES128-CTS-HMAC-SHA1-96: ✅ Enabled",
-        "• AES256-CTS-HMAC-SHA1-96: ✅ Enabled", 
-        "• RC4-HMAC: ❌ Disabled (uncheck in GPO)",
-        "• DES-CBC-CRC: ❌ Disabled (uncheck in GPO)",
-        "• DES-CBC-MD5: ❌ Disabled (uncheck in GPO)",
-        "",
-        "ENCRYPTION VALUE EXAMPLES:",
-        "• Value 24 (0x18): AES128+AES256 only - EXCELLENT",
-        "• Value 28 (0x1C): AES+RC4 mixed - NEEDS IMPROVEMENT",
-        "• Value 31 (0x1F): All types enabled - SECURITY RISK",
-        "",
-        "LINKING BEST PRACTICES:",
-        "• Domain Level: Organization-wide policy",
-        "• Domain Controllers OU: DC-specific requirements",
-        "• Both Levels: Comprehensive coverage"
-    )
-    Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $contentMessages -Color "Cyan"
-    
-    Write-Host ""
-    $headerMessages = @("⚠️  CRITICAL: GPO LIMITATIONS FOR TRUST OBJECTS")
-    $contentMessages = @(
-        "IMPORTANT: GPO settings DO NOT apply to trust objects!",
-        "",
-        "✅ What GPO Controls:",
-        "• Domain Controllers (computer accounts)",
-        "• Member computers and servers", 
-        "• What encryption types DCs accept/request",
-        "",
-        "❌ What GPO Does NOT Control:",
-        "• Trust objects (forest/domain trusts)",
-        "• Trust encryption type offerings",
-        "• Inter-domain authentication preferences",
-        "",
-        "🔧 Trust Remediation Methods (this script uses):",
-        "• Primary: ksetup command (Microsoft Method 3 - AES only)",
-        "• Equivalent to GUI checkbox: 'AES Encryption' in domain.msc",
-        "• Command: ksetup /setenctypeattr <domain> AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96",
-        "• Fallback: PowerShell Set-ADObject for manual remediation",
-        "",
-        "⚠️  CRITICAL: ksetup Domain Context Requirements:",
-        "• Can ONLY configure encryption for the OTHER domain in trust",
-        "• Must run from correct domain controller context",
-        "• Script provides automatic domain context detection",
-        "",
-        ">> Complete Security Strategy:",
-        "1. Deploy GPO for computers and DCs",
-        "2. Use this script with -ApplyFixes for trust objects",
-        "3. Monitor Event IDs 4768/4769 for verification"
-    )
-    Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $contentMessages -Color "Red"
-
-    Write-Host ""
-    Write-Host (">" * 80) -ForegroundColor Cyan
-    Write-Host ">> ONGOING MONITORING RECOMMENDATIONS" -ForegroundColor Cyan
-    Write-Host (">" * 80) -ForegroundColor Cyan
-    
-    $monitoringMessages = @(
-        "📊 EVENT LOG MONITORING (Critical for Validation):",
-        "",
-        "4768 Events - TGT Requests:",
-        "• Use to identify devices dependent on RC4",
-        "• Filter for RC4-HMAC encryption types",
-        "• Monitor after remediation to verify AES usage",
-        "",
-        "4769 Events - Service Ticket Requests:",
-        "• Analyze to determine if RC4 tickets still being issued",
-        "• Central log collection recommended for analysis",
-        "• Focus on service accounts with SPNs",
-        "",
-        "🔍 PowerShell Event Analysis Examples:",
-        "Get-WinEvent -LogName Security | Where-Object {",
-        "  `$_.Id -eq 4768 -and `$_.Message -match 'RC4'",
-        "}",
-        "",
-        "⚠️  KEYTAB FILE REMINDER:",
-        "• Service accounts with KeyTab files need regeneration after AES enablement",
-        "• Inventory existing KeyTab files before remediation",
-        "• Test KeyTab compatibility after encryption changes",
-        "",
-        "🖥️  Client Validation with klist:",
-        "• Run 'klist' from elevated prompt to view tickets",
-        "• Check for AES encryption types in ticket cache",
-        "• Use 'klist -li 0x3e7' for system account tickets",
-        "• Verify session key encryption types"
-    )
-    Write-BoxedMessage -Messages $monitoringMessages -Color "Cyan"
-}
-
-# Exit early if only GPO check was requested
-if ($GPOCheckOnly) {
-    Write-Host ""
-    Write-Host (">" * 80) -ForegroundColor Magenta
-    Write-Host ">> GPO ANALYSIS COMPLETE" -ForegroundColor Magenta
-    Write-Host (">" * 80) -ForegroundColor Magenta
-    
-    # Provide post-November 2022 analysis based on GPO configuration
-    Write-Host ""
-    Write-Host ">> POST-NOVEMBER 2022 ENVIRONMENT ANALYSIS" -ForegroundColor Green
-    Write-Host (">" * 80) -ForegroundColor Green
-    
-    $totalDomains = $forestGPOAnalysis.TotalDomainsAnalyzed
-    $optimalDomains = $forestGPOAnalysis.DomainsWithOptimalGPO.Count
-    $secureDomains = $forestGPOAnalysis.DomainsWithSecureGPO.Count
-    $suboptimalDomains = $forestGPOAnalysis.DomainsWithSuboptimalGPO.Count
-    $noGPODomains = $forestGPOAnalysis.DomainsWithNoGPO.Count
-    
-    Write-Host ">> Forest: $($forest.Name)" -ForegroundColor Cyan
-    Write-Host ">> Total domains analyzed: $totalDomains" -ForegroundColor White
-    Write-Host ""
-    
-    # Determine overall security posture
-    $isEnvironmentSecure = ($optimalDomains + $secureDomains) -eq $totalDomains -and $totalDomains -gt 0
-    $hasPartialSecurity = ($optimalDomains + $secureDomains) -gt 0
-    
-    if ($isEnvironmentSecure) {
-        Write-Host "> ENVIRONMENT SECURITY STATUS: EXCELLENT" -ForegroundColor Green
-        Write-Host ""
-        
-        $messages = @(
-            "All domains have secure or optimal GPO configuration!",
-            "Post-November 2022 Analysis: Environment supports secure defaults",
-            "• Trust objects: Will default to AES when encryption types undefined (secure by default)",
-            "• Computer objects: Will inherit secure DC policies from proper GPO configuration",
-            "• Object scanning would likely show minimal issues due to proper GPO foundation"
-        )
-        Write-BoxedMessage -Messages $messages -Color "Green"
-        
-        Write-Host ""
-        Write-Host ">> SECURE ENVIRONMENT BREAKDOWN:" -ForegroundColor Green
-        if ($optimalDomains -gt 0) {
-            Write-Host "  ✅ Domains with OPTIMAL settings: $optimalDomains" -ForegroundColor Green
-            foreach ($domain in $forestGPOAnalysis.DomainsWithOptimalGPO) {
-                Write-Host "     • $domain" -ForegroundColor White
-            }
-        }
-        if ($secureDomains -gt 0) {
-            Write-Host "  ✅ Domains with SECURE settings: $secureDomains" -ForegroundColor Green
-            foreach ($domain in $forestGPOAnalysis.DomainsWithSecureGPO) {
-                Write-Host "     • $domain" -ForegroundColor White
-            }
-        }
-    }
-    elseif ($hasPartialSecurity) {
-        Write-Host "> ENVIRONMENT SECURITY STATUS: MIXED" -ForegroundColor Yellow
-        Write-Host ""
-        
-        $messages = @(
-            "Mixed GPO configuration detected across domains",
-            "Post-November 2022 Analysis: Partial security benefits available",
-            "• Some domains support secure defaults, others may have vulnerabilities",
-            "• Object scanning recommended to identify specific risks",
-            "• Consider standardizing GPO configuration across all domains"
-        )
-        Write-BoxedMessage -Messages $messages -Color "Yellow"
-        
-        Write-Host ""
-        Write-Host ">> MIXED ENVIRONMENT BREAKDOWN:" -ForegroundColor Yellow
-        if ($optimalDomains -gt 0) {
-            Write-Host "  ✅ Domains with OPTIMAL settings: $optimalDomains" -ForegroundColor Green
-            foreach ($domain in $forestGPOAnalysis.DomainsWithOptimalGPO) {
-                Write-Host "     • $domain" -ForegroundColor White
-            }
-        }
-        if ($secureDomains -gt 0) {
-            Write-Host "  ✅ Domains with SECURE settings: $secureDomains" -ForegroundColor Green
-            foreach ($domain in $forestGPOAnalysis.DomainsWithSecureGPO) {
-                Write-Host "     • $domain" -ForegroundColor White
-            }
-        }
-        if ($suboptimalDomains -gt 0) {
-            Write-Host "  ⚠️  Domains with SUBOPTIMAL settings: $suboptimalDomains" -ForegroundColor Yellow
-            foreach ($domain in $forestGPOAnalysis.DomainsWithSuboptimalGPO) {
-                Write-Host "     • $domain" -ForegroundColor Yellow
-            }
-        }
-        if ($noGPODomains -gt 0) {
-            Write-Host "  ❌ Domains with NO Kerberos GPO: $noGPODomains" -ForegroundColor Red
-            foreach ($domain in $forestGPOAnalysis.DomainsWithNoGPO) {
-                Write-Host "     • $domain" -ForegroundColor Red
-            }
-        }
-    }
-    else {
-        Write-Host "> ENVIRONMENT SECURITY STATUS: NEEDS IMPROVEMENT" -ForegroundColor Red
-        Write-Host ""
-        
-        $messages = @(
-            "No domains have adequate GPO configuration!",
-            "Post-November 2022 Analysis: Environment vulnerable to RC4 fallback",
-            "• Trust objects may fall back to RC4 in some scenarios",
-            "• Computer objects likely lack proper AES enforcement",
-            "• Object scanning will likely reveal multiple security issues",
-            "• Immediate GPO remediation recommended before object-level fixes"
-        )
-        Write-BoxedMessage -Messages $messages -Color "Red"
-        
-        Write-Host ""
-        Write-Host ">> SECURITY GAPS DETECTED:" -ForegroundColor Red
-        if ($suboptimalDomains -gt 0) {
-            Write-Host "  ⚠️  Domains with SUBOPTIMAL settings: $suboptimalDomains" -ForegroundColor Yellow
-            foreach ($domain in $forestGPOAnalysis.DomainsWithSuboptimalGPO) {
-                Write-Host "     • $domain" -ForegroundColor Yellow
-            }
-        }
-        if ($noGPODomains -gt 0) {
-            Write-Host "  ❌ Domains with NO Kerberos GPO: $noGPODomains" -ForegroundColor Red
-            foreach ($domain in $forestGPOAnalysis.DomainsWithNoGPO) {
-                Write-Host "     • $domain" -ForegroundColor Red
-            }
-        }
-    }
-    
-    Write-Host ""
-    Write-Host ">> NEXT STEPS:" -ForegroundColor Cyan
-    if ($isEnvironmentSecure) {
-        Write-Host "  1. Run full object scan to verify: .\RC4_AD_SCAN.ps1" -ForegroundColor White
-        Write-Host "  2. Focus on trust objects (GPO doesn't apply to trusts)" -ForegroundColor White
-        Write-Host "  3. Monitor authentication logs for any remaining RC4 usage" -ForegroundColor White
-    }
-    else {
-        Write-Host "  1. Fix GPO configuration in domains with issues" -ForegroundColor White
-        Write-Host "  2. Ensure proper GPO linking (Domain + Domain Controllers OU)" -ForegroundColor White
-        Write-Host "  3. Run full object scan: .\RC4_AD_SCAN.ps1" -ForegroundColor White
-        Write-Host "  4. Apply fixes with: .\RC4_AD_SCAN.ps1 -ApplyFixes" -ForegroundColor White
-    }
-    
-    Write-Host ""
-    Write-Host ">> GPO-only mode: Object scanning was skipped as requested." -ForegroundColor Cyan
-    Write-Host ">> To scan objects as well, run the script without -GPOCheckOnly parameter." -ForegroundColor Gray
-    exit 0
-}
-
-Write-Host ""
-Write-Host ">> SCANNING FOR OBJECTS WITH WEAK ENCRYPTION..." -ForegroundColor Magenta
-Write-Host (">" * 80) -ForegroundColor Magenta
-
-if ($ApplyFixes -and $Force) {
-    Write-Host ""
-    Write-Host "⚠️  FORCE MODE ENABLED: All flagged objects will be automatically remediated without prompts" -ForegroundColor Yellow
-    Write-Host ">> This will modify ALL computer and trust objects with weak encryption settings" -ForegroundColor Yellow
-    Write-Host ">> Press Ctrl+C within 5 seconds to cancel..." -ForegroundColor Red
-    Start-Sleep -Seconds 5
-    Write-Host ">> Proceeding with automatic remediation..." -ForegroundColor Green
-    Write-Host ""
-}
-elseif ($ApplyFixes) {
-    Write-Host ""
-    Write-Host ">> Interactive remediation mode: You will be prompted for each object" -ForegroundColor Cyan
-    Write-Host ""
-}
-
-$computerTotal = 0
-$computerRC4Count = 0
-$trustTotal = 0
-$trustRC4Count = 0
-
-foreach ($domain in $forest.Domains) {
-    Write-Host ""
-    Write-Host (">" * 80) -ForegroundColor DarkYellow
-    Write-Host ">> SCANNING DOMAIN: $($domain.ToUpper())" -ForegroundColor Yellow
-    Write-Host (">" * 80) -ForegroundColor DarkYellow
-
-    # Set up AD command parameters for target forest context
-    $domainParams = @{}
-    if ($Server) {
-        $domainParams['Server'] = $Server
-    }
-    else {
-        # Use the domain itself as server when no specific server is provided
-        $domainParams['Server'] = $domain
-    }
-    
-    if ($TargetForest -and $DebugMode) {
-        Write-Host "  >> Scanning in target forest context: $TargetForest" -ForegroundColor Gray
-    }
-
-    # Analyze Domain Controller encryption configuration for context-aware analysis
-    Write-Host "  >> Analyzing Domain Controller encryption status..." -ForegroundColor Cyan
-    $dcStatus = Get-DomainControllerEncryptionStatus -Domain $domain -Server $domainParams['Server'] -DebugMode:$DebugMode
-    
-    # Check if this domain has GPO configuration (if GPO check was not skipped)
-    $domainHasSecureGPO = $false
-    if (-not $SkipGPOCheck -and $domainGPOResults.ContainsKey($domain)) {
-        $gpoResults = $domainGPOResults[$domain]
-        if ($gpoResults -and $gpoResults.Count -gt 0) {
-            $bestGPO = $gpoResults | Sort-Object { $_.IsOptimal }, { $_.IsSecure } -Descending | Select-Object -First 1
-            $domainHasSecureGPO = $bestGPO.IsOptimal -or $bestGPO.IsSecure
-        }
-    }
-    
-    $domainContext = @{
-        DCsHaveAESSettings = $dcStatus.DCsHaveAESSettings
-        DCAnalysis         = $dcStatus
-        HasSecureGPO       = $domainHasSecureGPO
-    }
-    
-    # Enhanced DC analysis output that considers both DC settings AND GPO configuration
-    if ($dcStatus.DCsHaveAESSettings) {
-        Write-Host "  >> DC Analysis: Domain Controllers have adequate AES settings" -ForegroundColor Green
-        Write-Host "     Post-Nov 2022: Computer objects with undefined encryption inherit secure DC policy" -ForegroundColor Gray
-    }
-    elseif ($domainHasSecureGPO) {
-        Write-Host "  >> DC Analysis: Domain Controllers use GPO-based AES configuration" -ForegroundColor Green
-        Write-Host "     Post-Nov 2022: Computer objects inherit secure GPO policy (no RC4 fallback)" -ForegroundColor Gray
-    }
-    else {
-        Write-Host "  >> DC Analysis: Domain Controllers may lack proper AES configuration" -ForegroundColor Yellow
-        Write-Host "     WARNING: Undefined computer encryption types may fall back to RC4" -ForegroundColor Yellow
-        if (-not $SkipGPOCheck) {
-            Write-Host "     RECOMMENDATION: Configure GPO 'Network security: Configure encryption types allowed for Kerberos'" -ForegroundColor Yellow
-        }
-    }
-
-    # Note: Users are not scanned as msDS-SupportedEncryptionTypes is a computer-based setting only
-    # User Kerberos encryption is controlled by the computer they authenticate from and domain GPO settings
-
-    Write-Host "  >> Scanning Computer Objects..." -ForegroundColor Cyan
-    $domainComputerCount = 0
-    $domainComputerRC4Count = 0
-    
-    # Computers
-    Get-ADComputer -Filter * -Properties msDS-SupportedEncryptionTypes @domainParams |
-    ForEach-Object {
-        $domainComputerCount++
-        $computerTotal++
-        
-        $enc = $_."msDS-SupportedEncryptionTypes"
-        
-        # Modern analysis: Only flag computers as problematic if they pose actual risk
-        $isComputerWeak = $false
-        if (-not $enc) {
-            # Post-November 2022: Computer with undefined encryption only problematic if:
-            # 1. DCs lack AES settings AND 
-            # 2. No secure GPO configuration is in place
-            $isComputerWeak = (-not $domainContext.DCsHaveAESSettings) -and (-not $domainContext.HasSecureGPO)
-        }
-        else {
-            # Computer has defined encryption, check if it includes RC4 without AES
-            $hasAES = ($enc -band 0x18) -gt 0  # AES128 (0x8) or AES256 (0x10)
-            $hasRC4 = ($enc -band 0x4) -gt 0   # RC4 (0x4)
-            # Flag as weak if it has RC4 but no AES
-            $isComputerWeak = ($hasRC4 -and -not $hasAES)
-        }
-        
-        if ($isComputerWeak) {
-            $domainComputerRC4Count++
-            $computerRC4Count++
-            
-            $obj = [PSCustomObject]@{
-                Domain     = $domain
-                ObjectType = "Computer"
-                Name       = $_.SamAccountName
-                DN         = $_.DistinguishedName
-                EncTypes   = Get-EncryptionTypes -EncValue $enc -ObjectType "Computer" -DomainContext $domainContext
-            }
-            $results += $obj
-
-            if ($ApplyFixes) {
-                if ($Force) {
-                    Write-Host "    >> Auto-remediating Computer $($_.SamAccountName) in $domain (Force mode)" -ForegroundColor Cyan
-                    $answer = "Y"
-                }
-                else {
-                    $answer = Read-Host "    >> Remediate Computer $($_.SamAccountName) in $domain> (Y/N)"
-                }
-                
-                if ($answer -match '^[Yy]') {
-                    try {
-                        Set-ADComputer -Identity $_ -Replace @{"msDS-SupportedEncryptionTypes" = 24 } @domainParams -ErrorAction Stop
-                        Write-Host "    > Fixed" -ForegroundColor Green
-                    }
-                    catch {
-                        Write-Host "    > FAILED: $($_.Exception.Message)" -ForegroundColor Red
-                        
-                        # Get current user context for better troubleshooting
-                        $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-                        $currentDomain = [System.DirectoryServices.ActiveDirectory.Domain]::GetCurrentDomain().Name
-                        
-                        Write-Host "    >> CONTEXT INFORMATION:" -ForegroundColor Cyan
-                        Write-Host "       Current User: $currentUser" -ForegroundColor Gray
-                        Write-Host "       Current Domain: $currentDomain" -ForegroundColor Gray
-                        Write-Host "       Target Domain: $domain" -ForegroundColor Gray
-                        Write-Host "       Target Computer: $($_.SamAccountName) ($($_.DistinguishedName))" -ForegroundColor Gray
-                        
-                        if ($_.Exception.Message -match "Insufficient access rights") {
-                            Write-Host "    >> PERMISSION ERROR ANALYSIS:" -ForegroundColor Yellow
-                            
-                            if ($currentDomain -ne $domain) {
-                                Write-Host "    >> CROSS-DOMAIN PERMISSION ISSUE DETECTED!" -ForegroundColor Red
-                                Write-Host "       You're authenticated to '$currentDomain' but trying to modify '$domain'" -ForegroundColor Yellow
-                                Write-Host "       Domain Admins have permissions only within their own domain" -ForegroundColor Yellow
-                                Write-Host "" -ForegroundColor Yellow
-                                Write-Host "    >> SOLUTIONS:" -ForegroundColor Cyan
-                                Write-Host "       1. Use Enterprise Administrator account (has cross-domain rights)" -ForegroundColor Green
-                                Write-Host "       2. Run from a Domain Controller in the target domain ($domain)" -ForegroundColor Green
-                                Write-Host "       3. Use domain-specific credentials:" -ForegroundColor Green
-                                Write-Host "          RunAs: runas /netonly /user:$domain\\administrator powershell" -ForegroundColor Gray
-                                Write-Host "       4. Manually run command in target domain context:" -ForegroundColor Green
-                                Write-Host "          Set-ADComputer -Identity '$($_.SamAccountName)' -Replace @{msDS-SupportedEncryptionTypes=24} -Server $domain" -ForegroundColor Gray
+                                if ($DebugMode) {
+                                    Write-Host "    >> DEBUG: DC OU GPO encryption value: $encValue" -ForegroundColor Gray
+                                }
+                                break
                             }
                             else {
-                                Write-Host "       Need Domain Administrator rights in '$domain'" -ForegroundColor Yellow
-                                Write-Host "       This is especially common when modifying Domain Controller objects" -ForegroundColor Yellow
-                                Write-Host "       Try running as Enterprise Administrator" -ForegroundColor Yellow
+                                if ($DebugMode) {
+                                    Write-Host "    >> DEBUG: GPO $($gpo.DisplayName) found at DC OU but inherited from Domain - treating as Domain GPO" -ForegroundColor Gray
+                                }
+                            
+                                # This is actually a Domain GPO found through inheritance
+                                $domainKerberosGPO = $gpo
+                                $encValue = Get-GPOEncryptionValue -GPOReport $gpoReport -DebugMode:$DebugMode
+                            
+                                # Domain GPO applies to both DCs and member computers
+                                $gpoAnalysis.DomainControllers.Configured = $true
+                                $gpoAnalysis.DomainControllers.Value = $encValue
+                                $gpoAnalysis.DomainControllers.GPOName = $gpo.DisplayName
+                                $gpoAnalysis.DomainControllers.Source = "Domain"
+                            
+                                $gpoAnalysis.MemberComputers.Configured = $true
+                                $gpoAnalysis.MemberComputers.Value = $encValue
+                                $gpoAnalysis.MemberComputers.GPOName = $gpo.DisplayName
+                                $gpoAnalysis.MemberComputers.Scope = "Domain"
+                            
+                                $gpoAnalysis.SharedDomainGPO = $gpo.DisplayName
+                            
+                                if ($DebugMode) {
+                                    Write-Host "    >> DEBUG: Domain GPO encryption value: $encValue (applies to both DCs and members)" -ForegroundColor Gray
+                                }
+                                break
                             }
                         }
-                        elseif ($_.Exception.Message -match "server is not operational") {
-                            Write-Host "    >> CONNECTION ERROR: Cannot reach domain controller in '$domain'" -ForegroundColor Yellow
-                            Write-Host "    >> Try specifying a different server with -Server parameter" -ForegroundColor Yellow
-                        }
-                        else {
-                            Write-Host "    >> Manual remediation required:" -ForegroundColor Yellow
-                            Write-Host "       Set-ADComputer -Identity '$($_.SamAccountName)' -Replace @{msDS-SupportedEncryptionTypes=24} -Server $domain" -ForegroundColor Gray
-                        }
                     }
+                }
+            }
+        
+            $gpoAnalysis.CompletelyConfigured = $gpoAnalysis.DomainControllers.Configured -and $gpoAnalysis.MemberComputers.Configured
+            $assessment.GPOCoverage = $gpoAnalysis
+        
+            # Create boxed GPO analysis output
+            $gpoMessages = @()
+        
+            if ($gpoAnalysis.SharedDomainGPO) {
+                # Single Domain GPO covers both DCs and members
+                $domainValue = $gpoAnalysis.DomainControllers.Value
+                $domainTypes = if (($domainValue -band 0x18) -gt 0) { "AES ✓" } else { "RC4 ⚠" }
+                $gpoMessages += "Domain GPO: ✓ Configured ($domainTypes) - $($gpoAnalysis.SharedDomainGPO)"
+                $gpoMessages += "  ├─ Applies to: Domain Controllers ✓"
+                $gpoMessages += "  └─ Applies to: Member Computers ✓"
+            }
+            else {
+                # Separate GPO analysis for DCs and members
+                if ($gpoAnalysis.DomainControllers.Configured) {
+                    $dcValue = $gpoAnalysis.DomainControllers.Value
+                    $dcTypes = if (($dcValue -band 0x18) -gt 0) { "AES ✓" } else { "RC4 ⚠" }
+                    $dcSource = $gpoAnalysis.DomainControllers.Source
+                    $gpoMessages += "DC GPO ($dcSource): ✓ Configured ($dcTypes) - $($gpoAnalysis.DomainControllers.GPOName)"
+                }
+                else {
+                    $gpoMessages += "DC GPO: ❌ Not Configured"
+                }
+            
+                # Member Computer GPO status
+                if ($gpoAnalysis.MemberComputers.Configured) {
+                    $memberValue = $gpoAnalysis.MemberComputers.Value
+                    $memberTypes = if (($memberValue -band 0x18) -gt 0) { "AES ✓" } else { "RC4 ⚠" }
+                    $gpoMessages += "Member Computer GPO: ✓ Configured ($memberTypes) - $($gpoAnalysis.MemberComputers.GPOName)"
+                }
+                else {
+                    $gpoMessages += "Member Computer GPO: ❌ Not Configured"
+                }
+            }
+        
+            $headerMessages = @("🛡️ Phase 2: GPO Coverage Analysis")
+            $boxColor = if ($gpoAnalysis.CompletelyConfigured) { "Green" } else { "Yellow" }
+            Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $gpoMessages -Color $boxColor
+        
+        }
+        catch {
+            Write-Host "  ❌ Error analyzing GPOs: $($_.Exception.Message)" -ForegroundColor Red
+        }
+    
+        Write-Host "`n🔐 Phase 3: Service Account Analysis" -ForegroundColor Yellow
+        Write-Host ("=" * 50) -ForegroundColor Yellow
+    
+        $serviceAccountAnalysis = @{
+            TotalServiceAccounts  = 0
+            ConfiguredAccounts    = 0
+            AESAccounts           = 0
+            RC4Accounts           = 0
+            NotConfiguredAccounts = 0
+            RiskyAccounts         = @()
+        }
+    
+        try {
+            # Find service accounts (accounts with SPNs)
+            $serviceAccounts = Get-ADUser -Filter 'ServicePrincipalName -like "*"' -Properties ServicePrincipalName, msDS-SupportedEncryptionTypes, pwdLastSet, AdminCount @serverParams
+            $serviceAccountAnalysis.TotalServiceAccounts = $serviceAccounts.Count
+        
+            # Get AES threshold date (Read-only Domain Controllers group creation = first 2008+ DC)
+            $aesThresholdDate = $null
+            try {
+                $rodcGroup = Get-ADGroup "Read-only Domain Controllers" -Properties Created @serverParams -ErrorAction SilentlyContinue
+                if ($rodcGroup) {
+                    $aesThresholdDate = $rodcGroup.Created
+                    Write-Host "    >> AES Threshold Date: $($aesThresholdDate.ToString('yyyy-MM-dd')) (First 2008+ DC promotion)" -ForegroundColor Cyan
+                }
+            }
+            catch {
+                Write-Host "    >> WARNING: Could not determine AES threshold date" -ForegroundColor Yellow
+            }
+        
+            foreach ($account in $serviceAccounts) {
+                $encValue = $account.'msDS-SupportedEncryptionTypes'
+                $pwdLastSet = if ($account.pwdLastSet) { [DateTime]::FromFileTime($account.pwdLastSet) } else { $null }
+                $isPrivileged = $account.AdminCount -eq 1
+            
+                if ($encValue) {
+                    $serviceAccountAnalysis.ConfiguredAccounts++
+                    if (($encValue -band 0x18) -gt 0) {
+                        # AES
+                        $serviceAccountAnalysis.AESAccounts++
+                    }
+                    elseif (($encValue -band 0x4) -gt 0) {
+                        # RC4
+                        $serviceAccountAnalysis.RC4Accounts++
+                        $serviceAccountAnalysis.RiskyAccounts += $account.SamAccountName
+                    }
+                }
+                else {
+                    $serviceAccountAnalysis.NotConfiguredAccounts++
+                    # Post-2022: Not configured can be risky if no proper GPO coverage
+                    if (-not $gpoAnalysis.MemberComputers.Configured) {
+                        $serviceAccountAnalysis.RiskyAccounts += $account.SamAccountName
+                    }
+                }
+            }
+        
+            # Check KRBTGT password age (critical for TGT encryption)
+            Write-Host "    >> Analyzing KRBTGT account..." -ForegroundColor Cyan
+            try {
+                $krbtgtAccount = Get-ADUser "krbtgt" -Properties pwdLastSet @serverParams
+                $krbtgtPwdDate = if ($krbtgtAccount.pwdLastSet) { [DateTime]::FromFileTime($krbtgtAccount.pwdLastSet) } else { $null }
+            
+                if ($krbtgtPwdDate -and $aesThresholdDate) {
+                    if ($krbtgtPwdDate -lt $aesThresholdDate) {
+                        Write-Host "    >> ⚠️  CRITICAL: KRBTGT password predates AES support!" -ForegroundColor Red
+                        Write-Host "       Password last set: $($krbtgtPwdDate.ToString('yyyy-MM-dd'))" -ForegroundColor Red
+                        Write-Host "       AES threshold: $($aesThresholdDate.ToString('yyyy-MM-dd'))" -ForegroundColor Red
+                        Write-Host "       TGTs may still be issued with RC4 encryption!" -ForegroundColor Red
+                        Write-Host "" -ForegroundColor Red
+                        Write-Host "    >> 🔧 MICROSOFT KRBTGT PASSWORD ROTATION GUIDANCE:" -ForegroundColor Yellow
+                        Write-Host "       Step 1: Reset KRBTGT password TWICE (Microsoft recommendation)" -ForegroundColor Yellow
+                        Write-Host "       Step 2: Wait for replication between resets (minimum 10 hours)" -ForegroundColor Yellow
+                        Write-Host "       Step 3: Monitor for authentication issues during rotation" -ForegroundColor Yellow
+                        Write-Host "" -ForegroundColor Yellow
+                        Write-Host "    >> 📋 DETAILED ROTATION PROCEDURE:" -ForegroundColor Cyan
+                        Write-Host "       1. Run: 'kerberos-kdc-password-reset krbtgt' on PDC Emulator" -ForegroundColor White
+                        Write-Host "       2. Wait 10+ hours for domain-wide replication" -ForegroundColor White
+                        Write-Host "       3. Run second reset: 'kerberos-kdc-password-reset krbtgt' again" -ForegroundColor White
+                        Write-Host "       4. Monitor Event Logs: 4768 (TGT requests) for AES encryption" -ForegroundColor White
+                        Write-Host "       5. Verify TGT encryption with 'klist' on domain members" -ForegroundColor White
+                        Write-Host "" -ForegroundColor White
+                        Write-Host "    >> ⚠️  CRITICAL POST-2022 CONSIDERATIONS:" -ForegroundColor Red
+                        Write-Host "       • Old KRBTGT passwords prevent AES TGT issuance" -ForegroundColor Red
+                        Write-Host "       • Force authentication failures until password is current" -ForegroundColor Red
+                        Write-Host "       • Impact ALL domain authentication (users and computers)" -ForegroundColor Red
+                        Write-Host "       • Schedule during maintenance window" -ForegroundColor Red
+                        Write-Host "" -ForegroundColor Red
+                        Write-Host "    >> 📚 MICROSOFT REFERENCES:" -ForegroundColor Gray
+                        Write-Host "       • KB5021131: Managing Kerberos protocol changes (CVE-2022-37966)" -ForegroundColor Gray
+                        Write-Host "       • Windows Security blog: KRBTGT account password rotation" -ForegroundColor Gray
+                        Write-Host "       • AD best practices: Kerberos Key Distribution Center hardening" -ForegroundColor Gray
+                    }
+                    else {
+                        Write-Host "    >> ✅ KRBTGT password supports AES (set: $($krbtgtPwdDate.ToString('yyyy-MM-dd')))" -ForegroundColor Green
+                        Write-Host "       TGT encryption: Compatible with post-2022 AES requirements" -ForegroundColor Green
+                    }
+                }
+                else {
+                    Write-Host "    >> ⚠️  Could not verify KRBTGT password age" -ForegroundColor Yellow
+                }
+            }
+            catch {
+                Write-Host "    >> ⚠️  Could not analyze KRBTGT account: $($_.Exception.Message)" -ForegroundColor Yellow
+            }
+        
+            $assessment.ServiceAccounts = $serviceAccountAnalysis
+        
+            # Create boxed service account analysis output
+            $serviceMessages = @(
+                "Service Accounts Found: $($serviceAccountAnalysis.TotalServiceAccounts)",
+                "Explicitly AES: $($serviceAccountAnalysis.AESAccounts)"
+            )
+            if ($serviceAccountAnalysis.RC4Accounts -gt 0) {
+                $serviceMessages += "⚠ Explicitly RC4: $($serviceAccountAnalysis.RC4Accounts)"
+            }
+            if ($serviceAccountAnalysis.NotConfiguredAccounts -gt 0) {
+                $serviceMessages += "ℹ Not Configured: $($serviceAccountAnalysis.NotConfiguredAccounts) (depends on GPO)"
+            }
+        
+            $headerMessages = @("🔐 Phase 3: Service Account Analysis")
+            $boxColor = if ($serviceAccountAnalysis.RC4Accounts -eq 0) { "Green" } else { "Yellow" }
+            Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $serviceMessages -Color $boxColor
+        
+        }
+        catch {
+            Write-Host "  ❌ Error analyzing service accounts: $($_.Exception.Message)" -ForegroundColor Red
+        }
+    
+        Write-Host "`n📈 Phase 4: Security Posture Assessment" -ForegroundColor Yellow
+        Write-Host ("=" * 50) -ForegroundColor Yellow
+    
+        # Determine overall security level
+        $securityLevel = "UNKNOWN"
+        $riskFactors = @()
+        $improvements = @()
+    
+        # Assess current security posture
+        if ($dcAnalysis.AESPercentage -eq 100 -and $gpoAnalysis.DomainControllers.Configured) {
+            if ($gpoAnalysis.MemberComputers.Configured -and ($gpoAnalysis.MemberComputers.Value -band 0x18) -gt 0) {
+                if ($serviceAccountAnalysis.RC4Accounts -eq 0) {
+                    $securityLevel = "MAXIMUM"
+                }
+                else {
+                    $securityLevel = "RECOMMENDED+"  
+                    $riskFactors += "Some service accounts explicitly configured for RC4"
+                }
+            }
+            else {
+                $securityLevel = "MINIMUM+"
+                $riskFactors += "Member computers not enforcing AES-only via GPO"
+                $improvements += "Apply AES-only GPO to member computers/OUs"
+            }
+        }
+        else {
+            $securityLevel = "NEEDS_IMPROVEMENT"
+            if ($dcAnalysis.AESPercentage -lt 100) {
+                $riskFactors += "Not all DCs configured for AES"
+                $improvements += "Configure all DCs for AES encryption"
+            }
+            if (-not $gpoAnalysis.DomainControllers.Configured) {
+                $riskFactors += "No GPO enforcing AES on Domain Controllers OU"
+                $improvements += "Apply AES-only GPO to Domain Controllers OU"
+            }
+        }
+    
+        $assessment.SecurityPosture.Level = $securityLevel
+        $assessment.SecurityPosture.RiskFactors = $riskFactors
+        $assessment.Recommendations.Improvements = $improvements
+    
+        # Create boxed security posture assessment
+        $postureMessages = @("🎯 Overall Security Level: $securityLevel")
+        if ($riskFactors.Count -gt 0) {
+            $postureMessages += ""
+            $postureMessages += "⚠ Risk Factors:"
+            foreach ($risk in $riskFactors) {
+                $postureMessages += "  • $risk"
+            }
+        }
+    
+        $headerMessages = @("📈 Phase 4: Security Posture Assessment")
+        $levelColor = switch ($securityLevel) {
+            "MAXIMUM" { "Green" }
+            "RECOMMENDED+" { "Green" }
+            "MINIMUM+" { "Yellow" }
+            "NEEDS_IMPROVEMENT" { "Red" }
+            default { "Gray" }
+        }
+        Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $postureMessages -Color $levelColor
+    
+        Write-Host "`n💡 Phase 5: Tiered Recommendations" -ForegroundColor Yellow
+        Write-Host ("=" * 50) -ForegroundColor Yellow
+    
+        # Generate tiered recommendations
+        $recommendations = @{
+            Current     = "Analysis of your current configuration"
+            Minimum     = @()
+            Recommended = @()
+            Maximum     = @()
+        }
+    
+        # Minimum Security (Essential)
+        if (-not $gpoAnalysis.DomainControllers.Configured) {
+            $recommendations.Minimum += "✅ CRITICAL: Apply AES-only GPO to Domain Controllers OU"
+        }
+        if ($dcAnalysis.DCsWithRC4Only -gt 0 -or $dcAnalysis.DCsNotConfigured -gt 0) {
+            $recommendations.Minimum += "✅ CRITICAL: Configure all DCs with AES encryption types"
+        }
+    
+        # Add Microsoft-recommended minimum security measures
+        if ($serviceAccountAnalysis.RiskyAccounts.Count -gt 0) {
+            $recommendations.Minimum += "✅ CRITICAL: Reset passwords for high-privilege service accounts with pre-AES passwords"
+        }
+    
+        # Always include KRBTGT recommendation if password is old
+        try {
+            $krbtgtAccount = Get-ADUser "krbtgt" -Properties pwdLastSet @serverParams -ErrorAction SilentlyContinue
+            if ($krbtgtAccount -and $aesThresholdDate) {
+                $krbtgtPwdAge = if ($krbtgtAccount.pwdLastSet) { [DateTime]::FromFileTime($krbtgtAccount.pwdLastSet) } else { [DateTime]::MinValue }
+                if ($krbtgtPwdAge -lt $aesThresholdDate) {
+                    $recommendations.Minimum += "✅ CRITICAL: Reset KRBTGT password TWICE with 10+ hour replication wait"
+                    $recommendations.Minimum += "✅ CRITICAL: Monitor TGT encryption post-reset (Event IDs 4768/4769)"
+                }
+            }
+        }
+        catch {
+            # Silently handle KRBTGT query errors
+        }
+    
+        # Recommended Security (Best Practice)  
+        if (-not $gpoAnalysis.MemberComputers.Configured) {
+            $recommendations.Recommended += "🔶 Create dedicated Kerberos GPO and link to domain root (NOT Default Domain Policy)"
+            $recommendations.Recommended += "🔶 Configure 'Network security: Configure encryption types allowed for Kerberos' = AES only"
+        }
+        if ($serviceAccountAnalysis.NotConfiguredAccounts -gt 0) {
+            $recommendations.Recommended += "🔶 Audit service accounts and set explicit AES encryption types"
+        }
+    
+        # Maximum Security (Defense in Depth)
+        if ($serviceAccountAnalysis.RC4Accounts -gt 0) {
+            $recommendations.Maximum += "🔥 Update service accounts with explicit RC4 to use AES"
+        }
+        $recommendations.Maximum += "🔥 Implement regular Kerberos encryption auditing"
+        $recommendations.Maximum += "🔥 Monitor for RC4 usage in security logs (Event IDs 4768/4769)"
+        $recommendations.Maximum += "🔥 Test GPO application with 'gpupdate /force' and validate"
+        $recommendations.Maximum += "🔥 Plan for Windows Server 2025 compatibility (RC4 fallback disabled)"
+        $recommendations.Maximum += "🔥 Establish quarterly KRBTGT password rotation schedule"
+        $recommendations.Maximum += "🔥 Implement automated KRBTGT password age monitoring"
+    
+        $assessment.Recommendations = $recommendations
+    
+        # Create comprehensive tiered recommendations box
+        $recMessages = @()
+    
+        # Minimum Security
+        $recMessages += "📋 MINIMUM Security (Essential):"
+        if ($recommendations.Minimum.Count -eq 0) {
+            $recMessages += "  ✓ All essential security measures are in place"
+        }
+        else {
+            foreach ($rec in $recommendations.Minimum) {
+                $recMessages += "  $rec"
+            }
+        }
+    
+        $recMessages += ""
+    
+        # Recommended Security
+        $recMessages += "📋 RECOMMENDED Security (Best Practice):"
+        if ($recommendations.Recommended.Count -eq 0) {
+            $recMessages += "  ✓ All recommended security measures are in place"
+        }
+        else {
+            foreach ($rec in $recommendations.Recommended) {
+                $recMessages += "  $rec"
+            }
+        }
+    
+        $recMessages += ""
+    
+        # Maximum Security
+        $recMessages += "📋 MAXIMUM Security (Defense in Depth):"
+        foreach ($rec in $recommendations.Maximum) {
+            $recMessages += "  $rec"
+        }
+    
+        $headerMessages = @("💡 Phase 5: Tiered Recommendations")
+        Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $recMessages -Color "Cyan"
+    
+        Write-Host "`n🔄 Phase 6: Kerberos Negotiation Scenarios" -ForegroundColor Yellow
+        Write-Host ("=" * 50) -ForegroundColor Yellow
+    
+        # Analyze what happens in different scenarios
+        $scenarios = @{
+            CurrentConfig = @{
+                DCPolicy        = if ($gpoAnalysis.DomainControllers.Configured) { "AES-only" } else { "Default" }
+                ClientPolicy    = if ($gpoAnalysis.MemberComputers.Configured) { "AES-only" } else { "Default" }
+                ServiceAccounts = if ($serviceAccountAnalysis.RC4Accounts -gt 0) { "Mixed" } else { "AES/Default" }
+                Result          = ""
+            }
+        }
+    
+        # Determine current scenario result
+        $currentResult = "AES (secure)"
+        if (-not $gpoAnalysis.DomainControllers.Configured) {
+            $currentResult = "RC4 possible (insecure)"
+        }
+        elseif (-not $gpoAnalysis.MemberComputers.Configured -and $serviceAccountAnalysis.RC4Accounts -gt 0) {
+            $currentResult = "AES preferred, RC4 fallback possible"
+        }
+        elseif (-not $gpoAnalysis.MemberComputers.Configured) {
+            $currentResult = "AES preferred, RC4 possible in edge cases"
+        }
+    
+        $scenarios.CurrentConfig.Result = $currentResult
+        $assessment.NegotiationScenarios = $scenarios
+    
+        # Create boxed negotiation scenario analysis
+        $scenarioMessages = @(
+            "📊 Current Configuration Analysis:",
+            "",
+            "DC Policy: $($scenarios.CurrentConfig.DCPolicy)",
+            "Client Policy: $($scenarios.CurrentConfig.ClientPolicy)",
+            "Service Accounts: $($scenarios.CurrentConfig.ServiceAccounts)",
+            "",
+            "🔄 Kerberos Negotiation Result: $currentResult"
+        )
+    
+        $headerMessages = @("🔄 Phase 6: Kerberos Negotiation Scenarios")
+        $resultColor = if ($currentResult -eq "AES (secure)") { "Green" } 
+        elseif ($currentResult -like "*RC4 possible*") { "Red" }
+        else { "Yellow" }
+        Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $scenarioMessages -Color $resultColor
+    
+        # Create final summary box
+        $nextSteps = @()
+        if ($recommendations.Minimum.Count -gt 0) {
+            $nextSteps += "1. Address MINIMUM security requirements immediately"
+        }
+        if ($recommendations.Recommended.Count -gt 0) {
+            $nextSteps += "2. Implement RECOMMENDED practices for comprehensive coverage"
+        }
+        $nextSteps += "3. Consider MAXIMUM security measures for high-security environments"
+        $nextSteps += "4. Schedule regular re-assessment (quarterly recommended)"
+    
+        $headerMessages = @("📋 Summary & Next Steps")
+        Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $nextSteps -Color "White"
+    
+        # Export results if requested
+        if ($ExportResults) {
+            $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+            $exportPath = "KerberosHardeningAssessment_$($Domain)_$timestamp.json"
+            $assessment | ConvertTo-Json -Depth 10 | Out-File -FilePath $exportPath -Encoding UTF8
+            Write-Host "`n💾 Assessment exported to: $exportPath" -ForegroundColor Green
+        }
+    
+        return $assessment
+    }
+
+    # Handle Kerberos Hardening Assessment mode (after functions are defined)
+    if ($KerberosHardeningAssessment) {
+        Write-Host "RC4 Active Directory Audit Tool - Kerberos Hardening Assessment Mode" -ForegroundColor Cyan
+        Write-Host ("=" * 80) -ForegroundColor Cyan
+    
+        try {
+            # Determine target domain based on parameters
+            $targetDomain = if ($Domain) {
+                # Use explicitly specified domain
+                $Domain
+            }
+            elseif ($Server) {
+                # Extract domain from server if specified
+                try {
+                    $serverInfo = Get-ADDomainController -Identity $Server
+                    $serverInfo.Domain
+                }
+                catch {
+                    # Fallback to current domain
+                    (Get-ADDomain).DNSRoot
+                }
+            }
+            else {
+                # Use current domain
+                (Get-ADDomain).DNSRoot
+            }
+        
+            # Validate target domain if explicitly specified
+            if ($Domain) {
+                Write-Host "Validating access to target domain: $Domain" -ForegroundColor Yellow
+                try {
+                    $testDomain = Get-ADDomain -Identity $Domain -ErrorAction Stop
+                    Write-Host "✅ Successfully connected to domain: $($testDomain.DNSRoot)" -ForegroundColor Green
+                    if ($testDomain.DNSRoot -ne $Domain) {
+                        Write-Host "   Note: Domain resolved to: $($testDomain.DNSRoot)" -ForegroundColor Cyan
+                        $targetDomain = $testDomain.DNSRoot
+                    }
+                }
+                catch {
+                    Write-Host "❌ ERROR: Cannot access domain '$Domain'" -ForegroundColor Red
+                    Write-Host "   $($_.Exception.Message)" -ForegroundColor Red
+                    Write-Host "`n💡 TROUBLESHOOTING:" -ForegroundColor Yellow
+                    Write-Host "   • Verify domain name is correct" -ForegroundColor White
+                    Write-Host "   • Ensure you have permissions to read the target domain" -ForegroundColor White
+                    Write-Host "   • Check network connectivity to domain controllers" -ForegroundColor White
+                    Write-Host "   • Try specifying -Server parameter with a DC in the target domain" -ForegroundColor White
+                    return
+                }
+            }
+        
+            # Display execution context
+            $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+            $currentDomain = try { (Get-ADDomain).DNSRoot } catch { "Unknown" }
+        
+            Write-Host "`n🔍 EXECUTION CONTEXT:" -ForegroundColor Cyan
+            Write-Host "   Current User: $currentUser" -ForegroundColor White
+            Write-Host "   Current Domain: $currentDomain" -ForegroundColor White
+            Write-Host "   Target Domain: $targetDomain" -ForegroundColor White
+            if ($targetDomain -ne $currentDomain) {
+                Write-Host "   Cross-Domain Assessment: Yes" -ForegroundColor Yellow
+            }
+            else {
+                Write-Host "   Cross-Domain Assessment: No" -ForegroundColor Green
+            }
+        
+            # Run comprehensive assessment
+            $assessmentResults = Invoke-KerberosHardeningAssessment -Domain $targetDomain -Server $Server -ExportResults:$ExportResults -DebugMode:$DebugMode
+        
+            Write-Host "`n✅ Kerberos Hardening Assessment completed successfully!" -ForegroundColor Green
+            Write-Host "Domain analyzed: $targetDomain" -ForegroundColor Cyan
+            Write-Host "Security Level: $($assessmentResults.SecurityPosture.Level)" -ForegroundColor $(
+                switch ($assessmentResults.SecurityPosture.Level) {
+                    "MAXIMUM" { "Green" }
+                    "RECOMMENDED+" { "Green" } 
+                    "MINIMUM+" { "Yellow" }
+                    "NEEDS_IMPROVEMENT" { "Red" }
+                    default { "Gray" }
+                }
+            )
+        
+        }
+        catch {
+            Write-Host "❌ Error during Kerberos Hardening Assessment: $($_.Exception.Message)" -ForegroundColor Red
+            exit 1
+        }
+    
+        exit 0
+    }
+
+    $results = @()
+    $secureObjects = @()  # Track objects that already have secure settings
+
+    # Set up server parameter for AD commands
+    $adParams = @{}
+    if ($Server) {
+        $adParams['Server'] = $Server
+        Write-Host ">> Connecting to specified server: $Server" -ForegroundColor Cyan
+    }
+
+    # Handle target forest specification
+    $forestParams = @{}
+    if ($TargetForest) {
+        $forestParams['Identity'] = $TargetForest
+        Write-Host ">> Targeting forest: $TargetForest" -ForegroundColor Cyan
+    
+        # If TargetForest is specified but no specific server, try to find a DC in the target forest
+        if (-not $Server) {
+            try {
+                Write-Host ">> Attempting to discover domain controller in target forest..." -ForegroundColor Gray
+                $targetForestInfo = Get-ADForest -Identity $TargetForest
+                $rootDomain = $targetForestInfo.RootDomain
+            
+                # Try to get a DC from the root domain of the target forest
+                $targetDC = Get-ADDomainController -DomainName $rootDomain -Discover -ErrorAction SilentlyContinue
+                if ($targetDC) {
+                    $adParams['Server'] = $targetDC.HostName[0]
+                    Write-Host "> Found target domain controller: $($targetDC.HostName[0])" -ForegroundColor Green
+                }
+            }
+            catch {
+                Write-Host ">>  Could not auto-discover DC in target forest. Consider using -Server parameter." -ForegroundColor Yellow
+            }
+        }
+    }
+
+    try {
+        if ($TargetForest) {
+            $forest = Get-ADForest @forestParams @adParams
+            Write-Host "> Successfully connected to target forest: $($forest.Name)" -ForegroundColor Green
+            Write-Host ">> Forest contains domains: $($forest.Domains -join ', ')" -ForegroundColor Cyan
+        }
+        else {
+            $forest = Get-ADForest @adParams
+        }
+    }
+    catch {
+        Write-Host "> ERROR: Could not connect to Active Directory forest" -ForegroundColor Red
+        Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
+        if ($TargetForest) {
+            Write-Host ">> FOREST TRUST TROUBLESHOOTING:" -ForegroundColor Yellow
+            Write-Host "> Verify forest trust exists between your forest and target forest" -ForegroundColor Yellow
+            Write-Host "> Ensure your account has permissions in the target forest" -ForegroundColor Yellow
+            Write-Host "> Try specifying a domain controller: -Server dc01.targetforest.com" -ForegroundColor Yellow
+            Write-Host "> Check network connectivity to target forest domain controllers" -ForegroundColor Yellow
+        }
+        elseif (-not $Server) {
+            Write-Host ">> TIP: Try specifying a domain controller with -Server parameter" -ForegroundColor Yellow
+            Write-Host "Example: .\RC4_AD_SCAN.ps1 -Server dc01.contoso.com" -ForegroundColor Yellow
+        }
+        exit 1
+    }
+
+    # Initialize domain GPO results tracking (used whether GPO checking is enabled or not)
+    $domainGPOResults = @{}
+
+    # Check GPO settings for each domain
+    if (-not $SkipGPOCheck) {
+        Write-Host ">> Checking Group Policy settings..." -ForegroundColor Magenta
+    
+        # Track GPO analysis results for post-November 2022 summary
+        $forestGPOAnalysis = @{
+            DomainsWithOptimalGPO    = @()
+            DomainsWithSecureGPO     = @()
+            DomainsWithSuboptimalGPO = @()
+            DomainsWithNoGPO         = @()
+            TotalDomainsAnalyzed     = 0
+        }
+    
+        foreach ($domain in $forest.Domains) {
+            $gpoResults = Test-KerberosGPOSettings -Domain $domain -Scope $GPOScope -DebugMode:$DebugMode -Server $Server -TargetForest $TargetForest
+            $forestGPOAnalysis.TotalDomainsAnalyzed++
+        
+            # Store domain-specific GPO results for later use
+            $domainGPOResults[$domain] = $gpoResults
+        
+            # Categorize domain based on GPO configuration quality
+            if ($gpoResults -and $gpoResults.Count -gt 0) {
+                $bestGPO = $gpoResults | Sort-Object { $_.IsOptimal }, { $_.IsSecure } -Descending | Select-Object -First 1
+            
+                if ($DebugMode) {
+                    Write-Host "    >> DEBUG: Forest analysis for domain $domain" -ForegroundColor Gray
+                    Write-Host "      > Found $($gpoResults.Count) GPO(s)" -ForegroundColor Gray
+                    foreach ($gpo in $gpoResults) {
+                        Write-Host "      > GPO '$($gpo.Name)': IsOptimal=$($gpo.IsOptimal), IsSecure=$($gpo.IsSecure)" -ForegroundColor Gray
+                    }
+                    Write-Host "      > Best GPO '$($bestGPO.Name)': IsOptimal=$($bestGPO.IsOptimal), IsSecure=$($bestGPO.IsSecure)" -ForegroundColor Gray
+                }
+            
+                if ($bestGPO.IsOptimal) {
+                    $forestGPOAnalysis.DomainsWithOptimalGPO += $domain
+                    if ($DebugMode) { Write-Host "      > Categorized as: OPTIMAL" -ForegroundColor Green }
+                }
+                elseif ($bestGPO.IsSecure) {
+                    $forestGPOAnalysis.DomainsWithSecureGPO += $domain
+                    if ($DebugMode) { Write-Host "      > Categorized as: SECURE" -ForegroundColor Green }
+                }
+                else {
+                    $forestGPOAnalysis.DomainsWithSuboptimalGPO += $domain
+                    if ($DebugMode) { Write-Host "      > Categorized as: SUBOPTIMAL" -ForegroundColor Yellow }
+                }
+            }
+            else {
+                $forestGPOAnalysis.DomainsWithNoGPO += $domain
+                if ($DebugMode) { Write-Host "    >> DEBUG: Domain $domain categorized as: NO GPO" -ForegroundColor Red }
+            }
+        }
+    
+        # Show recommendations once after all domains are checked
+        Write-Host ""
+        Write-Host (">" * 80) -ForegroundColor Cyan
+        Write-Host ">> GPO CONFIGURATION RECOMMENDATIONS" -ForegroundColor Cyan
+        Write-Host (">" * 80) -ForegroundColor Cyan
+    
+        $headerMessages = @("💡 GPO ENCRYPTION SETTINGS RECOMMENDATIONS")
+        $contentMessages = @(
+            "OPTIMAL CONFIGURATION (Recommended):",
+            "• AES128-CTS-HMAC-SHA1-96: ✅ Enabled",
+            "• AES256-CTS-HMAC-SHA1-96: ✅ Enabled", 
+            "• RC4-HMAC: ❌ Disabled (uncheck in GPO)",
+            "• DES-CBC-CRC: ❌ Disabled (uncheck in GPO)",
+            "• DES-CBC-MD5: ❌ Disabled (uncheck in GPO)",
+            "",
+            "ENCRYPTION VALUE EXAMPLES:",
+            "• Value 24 (0x18): AES128+AES256 only - EXCELLENT",
+            "• Value 28 (0x1C): AES+RC4 mixed - NEEDS IMPROVEMENT",
+            "• Value 31 (0x1F): All types enabled - SECURITY RISK",
+            "",
+            "LINKING BEST PRACTICES:",
+            "• Domain Level: Organization-wide policy",
+            "• Domain Controllers OU: DC-specific requirements",
+            "• Both Levels: Comprehensive coverage"
+        )
+        Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $contentMessages -Color "Cyan"
+    
+        Write-Host ""
+        $headerMessages = @("⚠️  CRITICAL: GPO LIMITATIONS FOR TRUST OBJECTS")
+        $contentMessages = @(
+            "IMPORTANT: GPO settings DO NOT apply to trust objects!",
+            "",
+            "✅ What GPO Controls:",
+            "• Domain Controllers (computer accounts)",
+            "• Member computers and servers", 
+            "• What encryption types DCs accept/request",
+            "",
+            "❌ What GPO Does NOT Control:",
+            "• Trust objects (forest/domain trusts)",
+            "• Trust encryption type offerings",
+            "• Inter-domain authentication preferences",
+            "",
+            "🔧 Trust Remediation Methods (this script uses):",
+            "• Primary: ksetup command (Microsoft Method 3 - AES only)",
+            "• Equivalent to GUI checkbox: 'AES Encryption' in domain.msc",
+            "• Command: ksetup /setenctypeattr <domain> AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96",
+            "• Fallback: PowerShell Set-ADObject for manual remediation",
+            "",
+            "⚠️  CRITICAL: ksetup Domain Context Requirements:",
+            "• Can ONLY configure encryption for the OTHER domain in trust",
+            "• Must run from correct domain controller context",
+            "• Script provides automatic domain context detection",
+            "",
+            ">> Complete Security Strategy:",
+            "1. Deploy GPO for computers and DCs",
+            "2. Use this script with -ApplyFixes for trust objects",
+            "3. Monitor Event IDs 4768/4769 for verification"
+        )
+        Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $contentMessages -Color "Red"
+
+        Write-Host ""
+        Write-Host (">" * 80) -ForegroundColor Cyan
+        Write-Host ">> ONGOING MONITORING RECOMMENDATIONS" -ForegroundColor Cyan
+        Write-Host (">" * 80) -ForegroundColor Cyan
+    
+        $monitoringMessages = @(
+            "📊 EVENT LOG MONITORING (Critical for Validation):",
+            "",
+            "4768 Events - TGT Requests:",
+            "• Use to identify devices dependent on RC4",
+            "• Filter for RC4-HMAC encryption types",
+            "• Monitor after remediation to verify AES usage",
+            "",
+            "4769 Events - Service Ticket Requests:",
+            "• Analyze to determine if RC4 tickets still being issued",
+            "• Central log collection recommended for analysis",
+            "• Focus on service accounts with SPNs",
+            "",
+            "🔍 PowerShell Event Analysis Examples:",
+            "Get-WinEvent -LogName Security | Where-Object {",
+            "  `$_.Id -eq 4768 -and `$_.Message -match 'RC4'",
+            "}",
+            "",
+            "⚠️  KEYTAB FILE REMINDER:",
+            "• Service accounts with KeyTab files need regeneration after AES enablement",
+            "• Inventory existing KeyTab files before remediation",
+            "• Test KeyTab compatibility after encryption changes",
+            "",
+            "🖥️  Client Validation with klist:",
+            "• Run 'klist' from elevated prompt to view tickets",
+            "• Check for AES encryption types in ticket cache",
+            "• Use 'klist -li 0x3e7' for system account tickets",
+            "• Verify session key encryption types"
+        )
+        Write-BoxedMessage -Messages $monitoringMessages -Color "Cyan"
+    }
+
+    # Exit early if only GPO check was requested
+    if ($GPOCheckOnly) {
+        Write-Host ""
+        Write-Host (">" * 80) -ForegroundColor Magenta
+        Write-Host ">> GPO ANALYSIS COMPLETE" -ForegroundColor Magenta
+        Write-Host (">" * 80) -ForegroundColor Magenta
+    
+        # Provide post-November 2022 analysis based on GPO configuration
+        Write-Host ""
+        Write-Host ">> POST-NOVEMBER 2022 ENVIRONMENT ANALYSIS" -ForegroundColor Green
+        Write-Host (">" * 80) -ForegroundColor Green
+    
+        $totalDomains = $forestGPOAnalysis.TotalDomainsAnalyzed
+        $optimalDomains = $forestGPOAnalysis.DomainsWithOptimalGPO.Count
+        $secureDomains = $forestGPOAnalysis.DomainsWithSecureGPO.Count
+        $suboptimalDomains = $forestGPOAnalysis.DomainsWithSuboptimalGPO.Count
+        $noGPODomains = $forestGPOAnalysis.DomainsWithNoGPO.Count
+    
+        Write-Host ">> Forest: $($forest.Name)" -ForegroundColor Cyan
+        Write-Host ">> Total domains analyzed: $totalDomains" -ForegroundColor White
+        Write-Host ""
+    
+        # Determine overall security posture
+        $isEnvironmentSecure = ($optimalDomains + $secureDomains) -eq $totalDomains -and $totalDomains -gt 0
+        $hasPartialSecurity = ($optimalDomains + $secureDomains) -gt 0
+    
+        if ($isEnvironmentSecure) {
+            Write-Host "> ENVIRONMENT SECURITY STATUS: EXCELLENT" -ForegroundColor Green
+            Write-Host ""
+        
+            $messages = @(
+                "All domains have secure or optimal GPO configuration!",
+                "Post-November 2022 Analysis: Environment supports secure defaults",
+                "• Trust objects: Will default to AES when encryption types undefined (secure by default)",
+                "• Computer objects: Will inherit secure DC policies from proper GPO configuration",
+                "• Object scanning would likely show minimal issues due to proper GPO foundation"
+            )
+            Write-BoxedMessage -Messages $messages -Color "Green"
+        
+            Write-Host ""
+            Write-Host ">> SECURE ENVIRONMENT BREAKDOWN:" -ForegroundColor Green
+            if ($optimalDomains -gt 0) {
+                Write-Host "  ✅ Domains with OPTIMAL settings: $optimalDomains" -ForegroundColor Green
+                foreach ($domain in $forestGPOAnalysis.DomainsWithOptimalGPO) {
+                    Write-Host "     • $domain" -ForegroundColor White
+                }
+            }
+            if ($secureDomains -gt 0) {
+                Write-Host "  ✅ Domains with SECURE settings: $secureDomains" -ForegroundColor Green
+                foreach ($domain in $forestGPOAnalysis.DomainsWithSecureGPO) {
+                    Write-Host "     • $domain" -ForegroundColor White
+                }
+            }
+        }
+        elseif ($hasPartialSecurity) {
+            Write-Host "> ENVIRONMENT SECURITY STATUS: MIXED" -ForegroundColor Yellow
+            Write-Host ""
+        
+            $messages = @(
+                "Mixed GPO configuration detected across domains",
+                "Post-November 2022 Analysis: Partial security benefits available",
+                "• Some domains support secure defaults, others may have vulnerabilities",
+                "• Object scanning recommended to identify specific risks",
+                "• Consider standardizing GPO configuration across all domains"
+            )
+            Write-BoxedMessage -Messages $messages -Color "Yellow"
+        
+            Write-Host ""
+            Write-Host ">> MIXED ENVIRONMENT BREAKDOWN:" -ForegroundColor Yellow
+            if ($optimalDomains -gt 0) {
+                Write-Host "  ✅ Domains with OPTIMAL settings: $optimalDomains" -ForegroundColor Green
+                foreach ($domain in $forestGPOAnalysis.DomainsWithOptimalGPO) {
+                    Write-Host "     • $domain" -ForegroundColor White
+                }
+            }
+            if ($secureDomains -gt 0) {
+                Write-Host "  ✅ Domains with SECURE settings: $secureDomains" -ForegroundColor Green
+                foreach ($domain in $forestGPOAnalysis.DomainsWithSecureGPO) {
+                    Write-Host "     • $domain" -ForegroundColor White
+                }
+            }
+            if ($suboptimalDomains -gt 0) {
+                Write-Host "  ⚠️  Domains with SUBOPTIMAL settings: $suboptimalDomains" -ForegroundColor Yellow
+                foreach ($domain in $forestGPOAnalysis.DomainsWithSuboptimalGPO) {
+                    Write-Host "     • $domain" -ForegroundColor Yellow
+                }
+            }
+            if ($noGPODomains -gt 0) {
+                Write-Host "  ❌ Domains with NO Kerberos GPO: $noGPODomains" -ForegroundColor Red
+                foreach ($domain in $forestGPOAnalysis.DomainsWithNoGPO) {
+                    Write-Host "     • $domain" -ForegroundColor Red
                 }
             }
         }
         else {
-            # Determine if this computer should be considered secure
-            $isComputerSecure = $false
-            $secureReason = ""
-            
-            if ($enc -and ($enc -band 0x18) -gt 0) {
-                # Computer has explicit AES settings
-                $isComputerSecure = $true
-                $secureReason = "explicit AES configuration"
-            }
-            elseif (-not $enc -or $enc -eq 0) {
-                # Computer has undefined encryption - check if environment is safe for DC policy inheritance
-                if (-not $SkipGPOCheck -and $domainContext.DCsHaveAESSettings) {
-                    # GPO check was performed AND DC configuration is safe
-                    $isComputerSecure = $true
-                    $secureReason = "secure by default (inherits safe DC policy, post-Nov 2022)"
-                }
-                else {
-                    # Either GPO check was skipped OR DC configuration isn't confirmed safe
-                    # Don't add to secure list in this case
-                    if ($DebugMode) {
-                        $skipReason = if ($SkipGPOCheck) { "GPO check skipped" } else { "DC configuration uncertain" }
-                        Write-Host "    > Computer '$($_.SamAccountName)' has undefined encryption but not categorized as secure: $skipReason" -ForegroundColor Gray
-                    }
+            Write-Host "> ENVIRONMENT SECURITY STATUS: NEEDS IMPROVEMENT" -ForegroundColor Red
+            Write-Host ""
+        
+            $messages = @(
+                "No domains have adequate GPO configuration!",
+                "Post-November 2022 Analysis: Environment vulnerable to RC4 fallback",
+                "• Trust objects may fall back to RC4 in some scenarios",
+                "• Computer objects likely lack proper AES enforcement",
+                "• Object scanning will likely reveal multiple security issues",
+                "• Immediate GPO remediation recommended before object-level fixes"
+            )
+            Write-BoxedMessage -Messages $messages -Color "Red"
+        
+            Write-Host ""
+            Write-Host ">> SECURITY GAPS DETECTED:" -ForegroundColor Red
+            if ($suboptimalDomains -gt 0) {
+                Write-Host "  ⚠️  Domains with SUBOPTIMAL settings: $suboptimalDomains" -ForegroundColor Yellow
+                foreach ($domain in $forestGPOAnalysis.DomainsWithSuboptimalGPO) {
+                    Write-Host "     • $domain" -ForegroundColor Yellow
                 }
             }
+            if ($noGPODomains -gt 0) {
+                Write-Host "  ❌ Domains with NO Kerberos GPO: $noGPODomains" -ForegroundColor Red
+                foreach ($domain in $forestGPOAnalysis.DomainsWithNoGPO) {
+                    Write-Host "     • $domain" -ForegroundColor Red
+                }
+            }
+        }
+    
+        Write-Host ""
+        Write-Host ">> NEXT STEPS:" -ForegroundColor Cyan
+        if ($isEnvironmentSecure) {
+            Write-Host "  1. Run full object scan to verify: .\RC4_AD_SCAN.ps1" -ForegroundColor White
+            Write-Host "  2. Focus on trust objects (GPO doesn't apply to trusts)" -ForegroundColor White
+            Write-Host "  3. Monitor authentication logs for any remaining RC4 usage" -ForegroundColor White
+        }
+        else {
+            Write-Host "  1. Fix GPO configuration in domains with issues" -ForegroundColor White
+            Write-Host "  2. Ensure proper GPO linking (Domain + Domain Controllers OU)" -ForegroundColor White
+            Write-Host "  3. Run full object scan: .\RC4_AD_SCAN.ps1" -ForegroundColor White
+            Write-Host "  4. Apply fixes with: .\RC4_AD_SCAN.ps1 -ApplyFixes" -ForegroundColor White
+        }
+    
+        Write-Host ""
+        Write-Host ">> GPO-only mode: Object scanning was skipped as requested." -ForegroundColor Cyan
+        Write-Host ">> To scan objects as well, run the script without -GPOCheckOnly parameter." -ForegroundColor Gray
+        exit 0
+    }
+
+    Write-Host ""
+    Write-Host ">> SCANNING FOR OBJECTS WITH WEAK ENCRYPTION..." -ForegroundColor Magenta
+    Write-Host (">" * 80) -ForegroundColor Magenta
+
+    if ($ApplyFixes -and $Force) {
+        Write-Host ""
+        Write-Host "⚠️  FORCE MODE ENABLED: All flagged objects will be automatically remediated without prompts" -ForegroundColor Yellow
+        Write-Host ">> This will modify ALL computer and trust objects with weak encryption settings" -ForegroundColor Yellow
+        Write-Host ">> Press Ctrl+C within 5 seconds to cancel..." -ForegroundColor Red
+        Start-Sleep -Seconds 5
+        Write-Host ">> Proceeding with automatic remediation..." -ForegroundColor Green
+        Write-Host ""
+    }
+    elseif ($ApplyFixes) {
+        Write-Host ""
+        Write-Host ">> Interactive remediation mode: You will be prompted for each object" -ForegroundColor Cyan
+        Write-Host ""
+    }
+
+    $computerTotal = 0
+    $computerRC4Count = 0
+    $trustTotal = 0
+    $trustRC4Count = 0
+
+    foreach ($domain in $forest.Domains) {
+        Write-Host ""
+        Write-Host (">" * 80) -ForegroundColor DarkYellow
+        Write-Host ">> SCANNING DOMAIN: $($domain.ToUpper())" -ForegroundColor Yellow
+        Write-Host (">" * 80) -ForegroundColor DarkYellow
+
+        # Set up AD command parameters for target forest context
+        $domainParams = @{}
+        if ($Server) {
+            $domainParams['Server'] = $Server
+        }
+        else {
+            # Use the domain itself as server when no specific server is provided
+            $domainParams['Server'] = $domain
+        }
+    
+        if ($TargetForest -and $DebugMode) {
+            Write-Host "  >> Scanning in target forest context: $TargetForest" -ForegroundColor Gray
+        }
+
+        # Analyze Domain Controller encryption configuration for context-aware analysis
+        Write-Host "  >> Analyzing Domain Controller encryption status..." -ForegroundColor Cyan
+        $dcStatus = Get-DomainControllerEncryptionStatus -Domain $domain -Server $domainParams['Server'] -DebugMode:$DebugMode
+    
+        # Check if this domain has GPO configuration (if GPO check was not skipped)
+        $domainHasSecureGPO = $false
+        if (-not $SkipGPOCheck -and $domainGPOResults.ContainsKey($domain)) {
+            $gpoResults = $domainGPOResults[$domain]
+            if ($gpoResults -and $gpoResults.Count -gt 0) {
+                $bestGPO = $gpoResults | Sort-Object { $_.IsOptimal }, { $_.IsSecure } -Descending | Select-Object -First 1
+                $domainHasSecureGPO = $bestGPO.IsOptimal -or $bestGPO.IsSecure
+            }
+        }
+    
+        $domainContext = @{
+            DCsHaveAESSettings = $dcStatus.DCsHaveAESSettings
+            DCAnalysis         = $dcStatus
+            HasSecureGPO       = $domainHasSecureGPO
+        }
+    
+        # Enhanced DC analysis output that considers both DC settings AND GPO configuration
+        if ($dcStatus.DCsHaveAESSettings) {
+            Write-Host "  >> DC Analysis: Domain Controllers have adequate AES settings" -ForegroundColor Green
+            Write-Host "     Post-Nov 2022: Computer objects with undefined encryption inherit secure DC policy" -ForegroundColor Gray
+        }
+        elseif ($domainHasSecureGPO) {
+            Write-Host "  >> DC Analysis: Domain Controllers use GPO-based AES configuration" -ForegroundColor Green
+            Write-Host "     Post-Nov 2022: Computer objects inherit secure GPO policy (no RC4 fallback)" -ForegroundColor Gray
+        }
+        else {
+            Write-Host "  >> DC Analysis: Domain Controllers may lack proper AES configuration" -ForegroundColor Yellow
+            Write-Host "     WARNING: Undefined computer encryption types may fall back to RC4" -ForegroundColor Yellow
+            if (-not $SkipGPOCheck) {
+                Write-Host "     RECOMMENDATION: Configure GPO 'Network security: Configure encryption types allowed for Kerberos'" -ForegroundColor Yellow
+            }
+        }
+
+        # Note: Users are not scanned as msDS-SupportedEncryptionTypes is a computer-based setting only
+        # User Kerberos encryption is controlled by the computer they authenticate from and domain GPO settings
+
+        Write-Host "  >> Scanning Computer Objects..." -ForegroundColor Cyan
+        $domainComputerCount = 0
+        $domainComputerRC4Count = 0
+    
+        # Computers
+        Get-ADComputer -Filter * -Properties msDS-SupportedEncryptionTypes @domainParams |
+        ForEach-Object {
+            $domainComputerCount++
+            $computerTotal++
+        
+            $enc = $_."msDS-SupportedEncryptionTypes"
+        
+            # Modern analysis: Only flag computers as problematic if they pose actual risk
+            $isComputerWeak = $false
+            if (-not $enc) {
+                # Post-November 2022: Computer with undefined encryption only problematic if:
+                # 1. DCs lack AES settings AND 
+                # 2. No secure GPO configuration is in place
+                $isComputerWeak = (-not $domainContext.DCsHaveAESSettings) -and (-not $domainContext.HasSecureGPO)
+            }
+            else {
+                # Computer has defined encryption, check if it includes RC4 without AES
+                $hasAES = ($enc -band 0x18) -gt 0  # AES128 (0x8) or AES256 (0x10)
+                $hasRC4 = ($enc -band 0x4) -gt 0   # RC4 (0x4)
+                # Flag as weak if it has RC4 but no AES
+                $isComputerWeak = ($hasRC4 -and -not $hasAES)
+            }
+        
+            if ($isComputerWeak) {
+                $domainComputerRC4Count++
+                $computerRC4Count++
             
-            if ($isComputerSecure) {
-                # Track computers with secure encryption settings
-                $secureObj = [PSCustomObject]@{
+                $obj = [PSCustomObject]@{
                     Domain     = $domain
                     ObjectType = "Computer"
                     Name       = $_.SamAccountName
                     DN         = $_.DistinguishedName
                     EncTypes   = Get-EncryptionTypes -EncValue $enc -ObjectType "Computer" -DomainContext $domainContext
                 }
-                $secureObjects += $secureObj
-                
-                if ($DebugMode) {
-                    Write-Host "    > Computer '$($_.SamAccountName)' has secure encryption: $(Get-EncryptionTypes -EncValue $enc -ObjectType "Computer" -DomainContext $domainContext) ($secureReason)" -ForegroundColor Green
-                }
-            }
-        }
-    }
-    
-    Write-Host "  >> Computer scan complete: $domainComputerCount total, $domainComputerRC4Count with RC4/weak encryption" -ForegroundColor Gray
+                $results += $obj
 
-    Write-Host "  >> Scanning Trust Objects..." -ForegroundColor Cyan
-    $domainTrustCount = 0
-    $domainTrustRC4Count = 0
-    
-    # Trusts
-    Get-ADTrust -Filter * -Properties msDS-SupportedEncryptionTypes, Direction, TrustType @domainParams |
-    ForEach-Object {
-        $domainTrustCount++
-        $trustTotal++
-        
-        if ($DebugMode) {
-            Write-Host "    >> Found trust: $($_.Name) | Type: $($_.TrustType) | Direction: $($_.Direction) | DN: $($_.DistinguishedName)" -ForegroundColor Gray
-        }
-        
-        $enc = $_."msDS-SupportedEncryptionTypes"
-        
-        # Post-November 2022 logic: Only flag trusts that are explicitly RC4-only
-        # Undefined trusts now default to AES, so they're secure
-        $isTrustWeak = $false
-        if ($enc) {
-            # Only flag if explicitly set to RC4-only (value 4) or DES/RC4 combinations without AES
-            $hasAES = ($enc -band 0x18) -gt 0  # AES128 (0x8) or AES256 (0x10)
-            $hasRC4 = ($enc -band 0x4) -gt 0   # RC4 (0x4)
-            
-            # Flag as weak if it has RC4 but no AES (explicitly configured to be weak)
-            $isTrustWeak = ($hasRC4 -and -not $hasAES)
-        }
-        # Note: Undefined encryption ($enc = $null or 0) is now considered secure (defaults to AES post-Nov 2022)
-        
-        if ($isTrustWeak) {
-            $domainTrustRC4Count++
-            $trustRC4Count++
-            
-            Write-Host "    >>  Trust '$($_.Name)' has weak encryption: $(Get-EncryptionTypes -EncValue $enc -ObjectType "Trust" -DomainContext $domainContext)" -ForegroundColor Yellow
-            Write-Host "       Type: $($_.TrustType) | Direction: $($_.Direction)" -ForegroundColor Gray
-            
-            $obj = [PSCustomObject]@{
-                Domain     = $domain
-                ObjectType = "Trust"
-                Name       = $_.Name
-                DN         = $_.DistinguishedName
-                EncTypes   = Get-EncryptionTypes -EncValue $enc -ObjectType "Trust" -DomainContext $domainContext
-                TrustType  = $_.TrustType
-                Direction  = $_.Direction
-            }
-            $results += $obj
-
-            if ($ApplyFixes) {
-                if ($Force) {
-                    Write-Host "    >> Auto-remediating Trust $($_.Name) in $domain (Force mode)" -ForegroundColor Cyan
-                    $answer = "Y"
-                }
-                else {
-                    $answer = Read-Host "    >> Remediate Trust $($_.Name) in $domain> (Y/N)"
-                }
-                
-                if ($answer -match '^[Yy]') {
-                    $trustName = $_.Name
-                    $trustType = $_.TrustType
-                    $trustDirection = $_.Direction
-                    
-                    # Check for self-referential trust (domain trusting itself)
-                    if ($trustName -eq $domain) {
-                        Write-Host "`n    >> SKIPPING SELF-REFERENTIAL TRUST" -ForegroundColor Yellow
-                        Write-Host "    >> Trust: $trustName" -ForegroundColor White
-                        Write-Host "    >> Current Domain: $domain" -ForegroundColor White
-                        Write-Host "    >> Cannot configure a domain's trust to itself using ksetup" -ForegroundColor Yellow
-                        Write-Host "    >> This may be a misconfigured trust object or forest artifact" -ForegroundColor Gray
-                        Write-Host "    >> RECOMMENDATION: Verify trust configuration via GUI (domain.msc)" -ForegroundColor Cyan
+                if ($ApplyFixes) {
+                    if ($Force) {
+                        Write-Host "    >> Auto-remediating Computer $($_.SamAccountName) in $domain (Force mode)" -ForegroundColor Cyan
+                        $answer = "Y"
                     }
                     else {
-                        Write-Host "`n    >> TRUST AES ENCRYPTION REMEDIATION" -ForegroundColor Cyan
-                        Write-Host "    >> Trust: $trustName (Type: $trustType, Direction: $trustDirection)" -ForegroundColor White
-                        Write-Host "    >> Domain: $domain" -ForegroundColor White
-                    
-                        # Method 1: Use ksetup command (most reliable programmatic method)
-                        $remediated = $false
+                        $answer = Read-Host "    >> Remediate Computer $($_.SamAccountName) in $domain> (Y/N)"
+                    }
+                
+                    if ($answer -match '^[Yy]') {
                         try {
-                            Write-Host "`n    >> Attempting ksetup method (MICROSOFT METHOD 3 - AES ONLY)..." -ForegroundColor Green
-                        
-                            # Microsoft Method 3: AES-only configuration (matches GUI checkbox behavior)
-                            # This is equivalent to checking "The other domain supports Kerberos AES Encryption"
-                            $ksetupCmd = "ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96"
-                            Write-Host "    >> Command: $ksetupCmd" -ForegroundColor Gray
-                            Write-Host "    >> Note: AES-only mode (same as GUI checkbox in Domains and Trusts)" -ForegroundColor Gray
-                        
-                            # Execute ksetup command with AES-only (Microsoft Method 3)
-                            $ksetupResult = & ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96 2>&1
-                        
-                            # Check for success - ksetup often returns 0 even on failure, so parse output
-                            $ksetupSuccess = $true
-                            $errorCode = $null
-                        
-                            # Convert result to string for analysis
-                            $ksetupOutput = $ksetupResult -join " "
-                        
-                            # Check for common error patterns in ksetup output
-                            if ($ksetupOutput -match "failed with (0x[0-9a-fA-F]+)" -or 
-                                $ksetupOutput -match "Failed.*: (0x[0-9a-fA-F]+)" -or
-                                $ksetupOutput -match "error" -or
-                                $ksetupOutput -match "Error") {
-                                $ksetupSuccess = $false
-                                if ($matches -and $matches[1]) {
-                                    $errorCode = $matches[1]
-                                }
-                            }
-                        
-                            # Additional check: if output contains the word "failed" it's likely an error
-                            if ($ksetupOutput -match "failed" -and $ksetupOutput -notmatch "Setting enctypes") {
-                                $ksetupSuccess = $false
-                            }
-                        
-                            if ($ksetupSuccess -and $LASTEXITCODE -eq 0) {
-                                Write-Host "    > SUCCESS: Trust configured with AES-only encryption (Microsoft Method 3)" -ForegroundColor Green
-                                Write-Host "    >> $ksetupResult" -ForegroundColor Green
-                                Write-Host "    >> This matches the 'AES Encryption' checkbox in AD Domains and Trusts" -ForegroundColor Green
-                                $remediated = $true
-                            
-                                # Verify the setting
-                                Write-Host "    >> Verifying setting..." -ForegroundColor Gray
-                                $verifyResult = & ksetup /getenctypeattr $trustName 2>&1
-                                $verifyOutput = $verifyResult -join " "
-                            
-                                # Check if verification also failed
-                                if ($verifyOutput -match "failed with (0x[0-9a-fA-F]+)" -or 
-                                    $verifyOutput -match "Failed.*: (0x[0-9a-fA-F]+)") {
-                                    Write-Host "    >> Verification failed: $verifyResult" -ForegroundColor Red
-                                    Write-Host "    >> Note: Trust setting may not have been applied successfully" -ForegroundColor Yellow
-                                    $remediated = $false
-                                }
-                                elseif ($LASTEXITCODE -eq 0) {
-                                    Write-Host "    >> Verification result: $verifyResult" -ForegroundColor Green
-                                }
-                                else {
-                                    Write-Host "    >> Verification exit code: $LASTEXITCODE" -ForegroundColor Yellow
-                                }
-                            }
-                            else {
-                                Write-Host "    > ksetup method failed" -ForegroundColor Red
-                                Write-Host "    >> Output: $ksetupResult" -ForegroundColor Red
-                                if ($errorCode) {
-                                    Write-Host "    >> Error code: $errorCode" -ForegroundColor Red
-                                
-                                    # Provide specific guidance for common error codes
-                                    switch ($errorCode) {
-                                        "0xc0000034" {
-                                            Write-Host "    >> Error 0xc0000034: STATUS_OBJECT_NAME_NOT_FOUND" -ForegroundColor Yellow
-                                            Write-Host "       CRITICAL: ksetup domain context requirement not met!" -ForegroundColor Yellow
-                                            Write-Host "       - You can ONLY set encryption types for the OTHER domain in the trust" -ForegroundColor Yellow
-                                            Write-Host "       - Currently on domain: $domain" -ForegroundColor Yellow
-                                            Write-Host "       - Trying to configure: $trustName" -ForegroundColor Yellow
-                                            Write-Host "       - Trust direction: $trustDirection" -ForegroundColor Yellow
-                                            Write-Host "" -ForegroundColor Yellow
-                                            Write-Host "       >> SOLUTION: Run ksetup from the OTHER domain's DC:" -ForegroundColor Cyan
-                                            if ($trustDirection -eq "Outbound") {
-                                                Write-Host "         From DC in '$trustName': ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Cyan
-                                            }
-                                            elseif ($trustDirection -eq "Inbound") {
-                                                Write-Host "         From DC in '$domain': ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Cyan
-                                            }
-                                            elseif ($trustDirection -eq "BiDirectional") {
-                                                if ($trustName -ne $domain) {
-                                                    Write-Host "         Step 1 - From DC in '$trustName': ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Cyan
-                                                    Write-Host "         Step 2 - From DC in '$domain': ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Cyan
-                                                }
-                                                else {
-                                                    Write-Host "         ERROR: Self-referential trust detected ($domain -> $domain)" -ForegroundColor Red
-                                                    Write-Host "         This trust configuration should not exist. Use GUI to verify." -ForegroundColor Yellow
-                                                }
-                                            }
-                                            Write-Host "       >> ALTERNATIVE: Use GUI method (domain.msc) which handles context automatically" -ForegroundColor Green
-                                        }
-                                        "0xc0000022" {
-                                            Write-Host "    >> Error 0xc0000022: STATUS_ACCESS_DENIED" -ForegroundColor Yellow
-                                            Write-Host "       - Need Domain/Enterprise Admin privileges" -ForegroundColor Yellow
-                                            Write-Host "       - Run as administrator" -ForegroundColor Yellow
-                                        }
-                                        default {
-                                            Write-Host "    >> Unknown error code. Check Microsoft documentation." -ForegroundColor Yellow
-                                        }
-                                    }
-                                }
-                            }
+                            Set-ADComputer -Identity $_ -Replace @{"msDS-SupportedEncryptionTypes" = 24 } @domainParams -ErrorAction Stop
+                            Write-Host "    > Fixed" -ForegroundColor Green
                         }
                         catch {
-                            Write-Host "    > ksetup method failed: $($_.Exception.Message)" -ForegroundColor Red
-                        }
-                    
-                        # If ksetup failed, provide manual guidance
-                        if (-not $remediated) {
-                            Write-Host "`n    >>  KSETUP METHOD FAILED - MANUAL REMEDIATION REQUIRED" -ForegroundColor Red
-                            Write-Host "    >> Trust: $trustName" -ForegroundColor Yellow
+                            Write-Host "    > FAILED: $($_.Exception.Message)" -ForegroundColor Red
                         
-                            Write-Host "`n    >> MICROSOFT OFFICIAL REMEDIATION METHODS:" -ForegroundColor Cyan
-                            Write-Host "    >> Reference: https://learn.microsoft.com/en-us/troubleshoot/windows-server/windows-security/unsupported-etype-error-accessing-trusted-domain" -ForegroundColor Gray
+                            # Get current user context for better troubleshooting
+                            $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+                            $currentDomain = [System.DirectoryServices.ActiveDirectory.Domain]::GetCurrentDomain().Name
                         
-                            Write-Host "`n    >> Method 1 - GUI (RECOMMENDED - matches checkbox behavior):" -ForegroundColor White
-                            Write-Host "       1. Open 'Active Directory Domains and Trusts' (domain.msc)" -ForegroundColor Gray
-                            Write-Host "       2. Right-click '$domain' > Properties > Trusts tab" -ForegroundColor Gray
-                            Write-Host "       3. Select trust '$trustName' > Properties" -ForegroundColor Gray
-                            Write-Host "       4. Check 'The other domain supports Kerberos AES Encryption'" -ForegroundColor Gray
-                            Write-Host "       5. Click OK" -ForegroundColor Gray
-                            Write-Host "       >> This checkbox sets AES-only mode (same as Method 2 below)" -ForegroundColor Green
-                            if ($trustDirection -eq "BiDirectional") {
-                                Write-Host "       6. IMPORTANT: Repeat on the OTHER domain ($trustName) for bidirectional trust" -ForegroundColor Yellow
-                            }
+                            Write-Host "    >> CONTEXT INFORMATION:" -ForegroundColor Cyan
+                            Write-Host "       Current User: $currentUser" -ForegroundColor Gray
+                            Write-Host "       Current Domain: $currentDomain" -ForegroundColor Gray
+                            Write-Host "       Target Domain: $domain" -ForegroundColor Gray
+                            Write-Host "       Target Computer: $($_.SamAccountName) ($($_.DistinguishedName))" -ForegroundColor Gray
                         
-                            Write-Host "`n    >> Method 2 - ksetup AES-only (equivalent to GUI checkbox):" -ForegroundColor White
-                            Write-Host "       >> CRITICAL: ksetup DOMAIN CONTEXT REQUIREMENTS" -ForegroundColor Red
-                            Write-Host "       >> You can ONLY configure encryption types for the OTHER domain in trust" -ForegroundColor Red
-                            Write-Host "       >> Current domain: $domain | Target trust: $trustName | Direction: $trustDirection" -ForegroundColor Yellow
-                            Write-Host "" -ForegroundColor White
-                            if ($trustDirection -eq "Outbound") {
-                                Write-Host "       >> For OUTBOUND trust - Run from target domain DC:" -ForegroundColor Cyan
-                                Write-Host "       From domain controller in '$trustName':" -ForegroundColor Gray
-                                Write-Host "       ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
-                            }
-                            elseif ($trustDirection -eq "Inbound") {
-                                Write-Host "       >> For INBOUND trust - Run from current domain DC:" -ForegroundColor Cyan
-                                Write-Host "       From domain controller in '$domain':" -ForegroundColor Gray
-                                Write-Host "       ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
-                            }
-                            elseif ($trustDirection -eq "BiDirectional") {
-                                if ($trustName -ne $domain) {
-                                    Write-Host "       >> For BIDIRECTIONAL trust - Run from BOTH domain DCs:" -ForegroundColor Cyan
-                                    Write-Host "       Step 1 - From domain controller in '$trustName':" -ForegroundColor Gray
-                                    Write-Host "       ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
-                                    Write-Host "       Step 2 - From domain controller in '$domain':" -ForegroundColor Gray
-                                    Write-Host "       ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
+                            if ($_.Exception.Message -match "Insufficient access rights") {
+                                Write-Host "    >> PERMISSION ERROR ANALYSIS:" -ForegroundColor Yellow
+                            
+                                if ($currentDomain -ne $domain) {
+                                    Write-Host "    >> CROSS-DOMAIN PERMISSION ISSUE DETECTED!" -ForegroundColor Red
+                                    Write-Host "       You're authenticated to '$currentDomain' but trying to modify '$domain'" -ForegroundColor Yellow
+                                    Write-Host "       Domain Admins have permissions only within their own domain" -ForegroundColor Yellow
+                                    Write-Host "" -ForegroundColor Yellow
+                                    Write-Host "    >> SOLUTIONS:" -ForegroundColor Cyan
+                                    Write-Host "       1. Use Enterprise Administrator account (has cross-domain rights)" -ForegroundColor Green
+                                    Write-Host "       2. Run from a Domain Controller in the target domain ($domain)" -ForegroundColor Green
+                                    Write-Host "       3. Use domain-specific credentials:" -ForegroundColor Green
+                                    Write-Host "          RunAs: runas /netonly /user:$domain\\administrator powershell" -ForegroundColor Gray
+                                    Write-Host "       4. Manually run command in target domain context:" -ForegroundColor Green
+                                    Write-Host "          Set-ADComputer -Identity '$($_.SamAccountName)' -Replace @{msDS-SupportedEncryptionTypes=24} -Server $domain" -ForegroundColor Gray
                                 }
                                 else {
-                                    Write-Host "       >> SELF-REFERENTIAL TRUST DETECTED:" -ForegroundColor Yellow
-                                    Write-Host "       Domain '$domain' has a trust to itself - this is likely misconfigured" -ForegroundColor Yellow
-                                    Write-Host "       Use GUI (domain.msc) to verify and potentially remove this trust object" -ForegroundColor Cyan
+                                    Write-Host "       Need Domain Administrator rights in '$domain'" -ForegroundColor Yellow
+                                    Write-Host "       This is especially common when modifying Domain Controller objects" -ForegroundColor Yellow
+                                    Write-Host "       Try running as Enterprise Administrator" -ForegroundColor Yellow
                                 }
                             }
-                            Write-Host "       >> This is exactly what the GUI checkbox does programmatically" -ForegroundColor Green
-                        
-                            Write-Host "`n    >> Method 3 - ksetup with RC4+AES (for compatibility issues only):" -ForegroundColor White
-                            Write-Host "       Use only if AES-only mode causes authentication problems:" -ForegroundColor Yellow
-                            Write-Host "       ksetup /setenctypeattr $trustName RC4-HMAC-MD5 AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
-                            Write-Host "       >> This maintains RC4 fallback for legacy systems" -ForegroundColor Yellow
-                        
-                            Write-Host "`n    >> Method 3 - Verification commands:" -ForegroundColor White
-                            Write-Host "       ksetup /getenctypeattr $trustName" -ForegroundColor Gray
-                            Write-Host "       Get-ADTrust -Filter \"Name -eq '$trustName'\" -Properties msDS-SupportedEncryptionTypes" -ForegroundColor Gray
-                        
-                            Write-Host "`n    >> IMPORTANT NOTES ABOUT TRUST AES SETTINGS:" -ForegroundColor Yellow
-                            Write-Host "       - Trust encryption settings are DIFFERENT from computer/user settings" -ForegroundColor Gray
-                            Write-Host "       - Each side of the trust must be configured separately" -ForegroundColor Gray
-                            Write-Host "       - CRITICAL: ksetup must be run from the correct domain controller:" -ForegroundColor Red
-                            Write-Host "         * You can ONLY configure encryption for the OTHER domain in the trust" -ForegroundColor Red
-                            Write-Host "         * Example: From child.contoso.com DC, configure contoso.com trust" -ForegroundColor Red
-                            Write-Host "         * Example: From contoso.com DC, configure child.contoso.com trust" -ForegroundColor Red
-                            Write-Host "       - GUI method (domain.msc) handles domain context automatically" -ForegroundColor Green
-                            Write-Host "       - Settings control inter-domain authentication encryption" -ForegroundColor Gray
-                            Write-Host "       - GPO settings do NOT apply to trust objects" -ForegroundColor Gray
-                        
-                            Write-Host "`n    >> COMMON ksetup ERROR CODES:" -ForegroundColor Yellow
-                            Write-Host "       - 0xc0000034: Must run from correct domain/context" -ForegroundColor Gray
-                            Write-Host "       - Access denied: Need Domain/Enterprise Admin rights" -ForegroundColor Gray
-                            Write-Host "       - Target not found: Trust name or direction issue" -ForegroundColor Gray
-                        
-                            Write-Host "`n    >> REFERENCE:" -ForegroundColor Cyan
-                            Write-Host "       https://serverfault.com/questions/1099053/" -ForegroundColor Gray
-                            Write-Host "       Microsoft Docs: ksetup /setenctypeattr command" -ForegroundColor Gray
-                        }
-                        else {
-                            Write-Host "`n    >>  SUCCESS: Trust AES encryption configured!" -ForegroundColor Green
-                            if ($trustDirection -eq "BiDirectional") {
-                                Write-Host "    >> REMINDER: For bidirectional trusts, also configure the other side:" -ForegroundColor Yellow
-                                Write-Host "       Run from domain controller in '$trustName':" -ForegroundColor Yellow
-                                Write-Host "       ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Yellow
+                            elseif ($_.Exception.Message -match "server is not operational") {
+                                Write-Host "    >> CONNECTION ERROR: Cannot reach domain controller in '$domain'" -ForegroundColor Yellow
+                                Write-Host "    >> Try specifying a different server with -Server parameter" -ForegroundColor Yellow
+                            }
+                            else {
+                                Write-Host "    >> Manual remediation required:" -ForegroundColor Yellow
+                                Write-Host "       Set-ADComputer -Identity '$($_.SamAccountName)' -Replace @{msDS-SupportedEncryptionTypes=24} -Server $domain" -ForegroundColor Gray
                             }
                         }
                     }
                 }
-            } # Close the else block for non-self-referential trusts
+            }
             else {
-                Write-Host "    > ERROR: Could not determine trust object identity" -ForegroundColor Red
-                Write-Host "    >> Trust name: $($_.Name)" -ForegroundColor Yellow
-                Write-Host "    >> DistinguishedName property: '$($_.DistinguishedName)'" -ForegroundColor Yellow
-                Write-Host "    >> Manual remediation required:" -ForegroundColor Yellow
-                Write-Host "       1. Find trust DN: Get-ADObject -Filter \"ObjectClass -eq 'trustedDomain' -and Name -eq '$($_.Name)'\"" -ForegroundColor Yellow
-                Write-Host "       2. Apply fix: Set-ADObject -Identity '<TrustDN>' -Replace @{msDS-SupportedEncryptionTypes=24}" -ForegroundColor Yellow
-            }
-        }
-        else {
-            # Determine if this trust should be considered secure
-            $isTrustSecure = $false
-            $secureReason = ""
+                # Determine if this computer should be considered secure
+                $isComputerSecure = $false
+                $secureReason = ""
             
-            if ($enc -and ($enc -band 0x18) -gt 0) {
-                # Trust has explicit AES settings
-                $isTrustSecure = $true
-                $secureReason = "explicit AES configuration"
-            }
-            elseif (-not $enc -or $enc -eq 0) {
-                # Trust has undefined encryption - check if environment is safe for post-Nov 2022 defaults
-                if (-not $SkipGPOCheck -and $domainContext.DCsHaveAESSettings) {
-                    # GPO check was performed AND DC configuration is safe
-                    $isTrustSecure = $true
-                    $secureReason = "secure by default (post-Nov 2022, DC analysis confirms safe environment)"
+                if ($enc -and ($enc -band 0x18) -gt 0) {
+                    # Computer has explicit AES settings
+                    $isComputerSecure = $true
+                    $secureReason = "explicit AES configuration"
                 }
-                else {
-                    # Either GPO check was skipped OR DC configuration isn't confirmed safe
-                    # Don't flag as weak (post-Nov 2022 logic) but don't add to secure list either
+                elseif (-not $enc -or $enc -eq 0) {
+                    # Computer has undefined encryption - check if environment is safe for DC policy inheritance
+                    if (-not $SkipGPOCheck -and $domainContext.DCsHaveAESSettings) {
+                        # GPO check was performed AND DC configuration is safe
+                        $isComputerSecure = $true
+                        $secureReason = "secure by default (inherits safe DC policy, post-Nov 2022)"
+                    }
+                    else {
+                        # Either GPO check was skipped OR DC configuration isn't confirmed safe
+                        # Don't add to secure list in this case
+                        if ($DebugMode) {
+                            $skipReason = if ($SkipGPOCheck) { "GPO check skipped" } else { "DC configuration uncertain" }
+                            Write-Host "    > Computer '$($_.SamAccountName)' has undefined encryption but not categorized as secure: $skipReason" -ForegroundColor Gray
+                        }
+                    }
+                }
+            
+                if ($isComputerSecure) {
+                    # Track computers with secure encryption settings
+                    $secureObj = [PSCustomObject]@{
+                        Domain     = $domain
+                        ObjectType = "Computer"
+                        Name       = $_.SamAccountName
+                        DN         = $_.DistinguishedName
+                        EncTypes   = Get-EncryptionTypes -EncValue $enc -ObjectType "Computer" -DomainContext $domainContext
+                    }
+                    $secureObjects += $secureObj
+                
                     if ($DebugMode) {
-                        $skipReason = if ($SkipGPOCheck) { "GPO check skipped" } else { "DC configuration uncertain" }
-                        Write-Host "    > Trust '$($_.Name)' has undefined encryption but not categorized as secure: $skipReason" -ForegroundColor Gray
+                        Write-Host "    > Computer '$($_.SamAccountName)' has secure encryption: $(Get-EncryptionTypes -EncValue $enc -ObjectType "Computer" -DomainContext $domainContext) ($secureReason)" -ForegroundColor Green
                     }
                 }
             }
+        }
+    
+        Write-Host "  >> Computer scan complete: $domainComputerCount total, $domainComputerRC4Count with RC4/weak encryption" -ForegroundColor Gray
+
+        Write-Host "  >> Scanning Trust Objects..." -ForegroundColor Cyan
+        $domainTrustCount = 0
+        $domainTrustRC4Count = 0
+    
+        # Trusts
+        Get-ADTrust -Filter * -Properties msDS-SupportedEncryptionTypes, Direction, TrustType @domainParams |
+        ForEach-Object {
+            $domainTrustCount++
+            $trustTotal++
+        
+            if ($DebugMode) {
+                Write-Host "    >> Found trust: $($_.Name) | Type: $($_.TrustType) | Direction: $($_.Direction) | DN: $($_.DistinguishedName)" -ForegroundColor Gray
+            }
+        
+            $enc = $_."msDS-SupportedEncryptionTypes"
+        
+            # Post-November 2022 logic: Only flag trusts that are explicitly RC4-only
+            # Undefined trusts now default to AES, so they're secure
+            $isTrustWeak = $false
+            if ($enc) {
+                # Only flag if explicitly set to RC4-only (value 4) or DES/RC4 combinations without AES
+                $hasAES = ($enc -band 0x18) -gt 0  # AES128 (0x8) or AES256 (0x10)
+                $hasRC4 = ($enc -band 0x4) -gt 0   # RC4 (0x4)
             
-            if ($isTrustSecure) {
-                # Track trusts with secure encryption settings
-                $secureObj = [PSCustomObject]@{
+                # Flag as weak if it has RC4 but no AES (explicitly configured to be weak)
+                $isTrustWeak = ($hasRC4 -and -not $hasAES)
+            }
+            # Note: Undefined encryption ($enc = $null or 0) is now considered secure (defaults to AES post-Nov 2022)
+        
+            if ($isTrustWeak) {
+                $domainTrustRC4Count++
+                $trustRC4Count++
+            
+                Write-Host "    >>  Trust '$($_.Name)' has weak encryption: $(Get-EncryptionTypes -EncValue $enc -ObjectType "Trust" -DomainContext $domainContext)" -ForegroundColor Yellow
+                Write-Host "       Type: $($_.TrustType) | Direction: $($_.Direction)" -ForegroundColor Gray
+            
+                $obj = [PSCustomObject]@{
                     Domain     = $domain
                     ObjectType = "Trust"
                     Name       = $_.Name
@@ -3447,208 +3171,488 @@ foreach ($domain in $forest.Domains) {
                     TrustType  = $_.TrustType
                     Direction  = $_.Direction
                 }
-                $secureObjects += $secureObj
+                $results += $obj
+
+                if ($ApplyFixes) {
+                    if ($Force) {
+                        Write-Host "    >> Auto-remediating Trust $($_.Name) in $domain (Force mode)" -ForegroundColor Cyan
+                        $answer = "Y"
+                    }
+                    else {
+                        $answer = Read-Host "    >> Remediate Trust $($_.Name) in $domain> (Y/N)"
+                    }
                 
-                if ($DebugMode) {
-                    Write-Host "    > Trust '$($_.Name)' has secure encryption: $(Get-EncryptionTypes -EncValue $enc -ObjectType "Trust" -DomainContext $domainContext) ($secureReason)" -ForegroundColor Green
+                    if ($answer -match '^[Yy]') {
+                        $trustName = $_.Name
+                        $trustType = $_.TrustType
+                        $trustDirection = $_.Direction
+                    
+                        # Check for self-referential trust (domain trusting itself)
+                        if ($trustName -eq $domain) {
+                            Write-Host "`n    >> SKIPPING SELF-REFERENTIAL TRUST" -ForegroundColor Yellow
+                            Write-Host "    >> Trust: $trustName" -ForegroundColor White
+                            Write-Host "    >> Current Domain: $domain" -ForegroundColor White
+                            Write-Host "    >> Cannot configure a domain's trust to itself using ksetup" -ForegroundColor Yellow
+                            Write-Host "    >> This may be a misconfigured trust object or forest artifact" -ForegroundColor Gray
+                            Write-Host "    >> RECOMMENDATION: Verify trust configuration via GUI (domain.msc)" -ForegroundColor Cyan
+                        }
+                        else {
+                            Write-Host "`n    >> TRUST AES ENCRYPTION REMEDIATION" -ForegroundColor Cyan
+                            Write-Host "    >> Trust: $trustName (Type: $trustType, Direction: $trustDirection)" -ForegroundColor White
+                            Write-Host "    >> Domain: $domain" -ForegroundColor White
+                    
+                            # Method 1: Use ksetup command (most reliable programmatic method)
+                            $remediated = $false
+                            try {
+                                Write-Host "`n    >> Attempting ksetup method (MICROSOFT METHOD 3 - AES ONLY)..." -ForegroundColor Green
+                        
+                                # Microsoft Method 3: AES-only configuration (matches GUI checkbox behavior)
+                                # This is equivalent to checking "The other domain supports Kerberos AES Encryption"
+                                $ksetupCmd = "ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96"
+                                Write-Host "    >> Command: $ksetupCmd" -ForegroundColor Gray
+                                Write-Host "    >> Note: AES-only mode (same as GUI checkbox in Domains and Trusts)" -ForegroundColor Gray
+                        
+                                # Execute ksetup command with AES-only (Microsoft Method 3)
+                                $ksetupResult = & ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96 2>&1
+                        
+                                # Check for success - ksetup often returns 0 even on failure, so parse output
+                                $ksetupSuccess = $true
+                                $errorCode = $null
+                        
+                                # Convert result to string for analysis
+                                $ksetupOutput = $ksetupResult -join " "
+                        
+                                # Check for common error patterns in ksetup output
+                                if ($ksetupOutput -match "failed with (0x[0-9a-fA-F]+)" -or 
+                                    $ksetupOutput -match "Failed.*: (0x[0-9a-fA-F]+)" -or
+                                    $ksetupOutput -match "error" -or
+                                    $ksetupOutput -match "Error") {
+                                    $ksetupSuccess = $false
+                                    if ($matches -and $matches[1]) {
+                                        $errorCode = $matches[1]
+                                    }
+                                }
+                        
+                                # Additional check: if output contains the word "failed" it's likely an error
+                                if ($ksetupOutput -match "failed" -and $ksetupOutput -notmatch "Setting enctypes") {
+                                    $ksetupSuccess = $false
+                                }
+                        
+                                if ($ksetupSuccess -and $LASTEXITCODE -eq 0) {
+                                    Write-Host "    > SUCCESS: Trust configured with AES-only encryption (Microsoft Method 3)" -ForegroundColor Green
+                                    Write-Host "    >> $ksetupResult" -ForegroundColor Green
+                                    Write-Host "    >> This matches the 'AES Encryption' checkbox in AD Domains and Trusts" -ForegroundColor Green
+                                    $remediated = $true
+                            
+                                    # Verify the setting
+                                    Write-Host "    >> Verifying setting..." -ForegroundColor Gray
+                                    $verifyResult = & ksetup /getenctypeattr $trustName 2>&1
+                                    $verifyOutput = $verifyResult -join " "
+                            
+                                    # Check if verification also failed
+                                    if ($verifyOutput -match "failed with (0x[0-9a-fA-F]+)" -or 
+                                        $verifyOutput -match "Failed.*: (0x[0-9a-fA-F]+)") {
+                                        Write-Host "    >> Verification failed: $verifyResult" -ForegroundColor Red
+                                        Write-Host "    >> Note: Trust setting may not have been applied successfully" -ForegroundColor Yellow
+                                        $remediated = $false
+                                    }
+                                    elseif ($LASTEXITCODE -eq 0) {
+                                        Write-Host "    >> Verification result: $verifyResult" -ForegroundColor Green
+                                    }
+                                    else {
+                                        Write-Host "    >> Verification exit code: $LASTEXITCODE" -ForegroundColor Yellow
+                                    }
+                                }
+                                else {
+                                    Write-Host "    > ksetup method failed" -ForegroundColor Red
+                                    Write-Host "    >> Output: $ksetupResult" -ForegroundColor Red
+                                    if ($errorCode) {
+                                        Write-Host "    >> Error code: $errorCode" -ForegroundColor Red
+                                
+                                        # Provide specific guidance for common error codes
+                                        switch ($errorCode) {
+                                            "0xc0000034" {
+                                                Write-Host "    >> Error 0xc0000034: STATUS_OBJECT_NAME_NOT_FOUND" -ForegroundColor Yellow
+                                                Write-Host "       CRITICAL: ksetup domain context requirement not met!" -ForegroundColor Yellow
+                                                Write-Host "       - You can ONLY set encryption types for the OTHER domain in the trust" -ForegroundColor Yellow
+                                                Write-Host "       - Currently on domain: $domain" -ForegroundColor Yellow
+                                                Write-Host "       - Trying to configure: $trustName" -ForegroundColor Yellow
+                                                Write-Host "       - Trust direction: $trustDirection" -ForegroundColor Yellow
+                                                Write-Host "" -ForegroundColor Yellow
+                                                Write-Host "       >> SOLUTION: Run ksetup from the OTHER domain's DC:" -ForegroundColor Cyan
+                                                if ($trustDirection -eq "Outbound") {
+                                                    Write-Host "         From DC in '$trustName': ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Cyan
+                                                }
+                                                elseif ($trustDirection -eq "Inbound") {
+                                                    Write-Host "         From DC in '$domain': ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Cyan
+                                                }
+                                                elseif ($trustDirection -eq "BiDirectional") {
+                                                    if ($trustName -ne $domain) {
+                                                        Write-Host "         Step 1 - From DC in '$trustName': ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Cyan
+                                                        Write-Host "         Step 2 - From DC in '$domain': ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Cyan
+                                                    }
+                                                    else {
+                                                        Write-Host "         ERROR: Self-referential trust detected ($domain -> $domain)" -ForegroundColor Red
+                                                        Write-Host "         This trust configuration should not exist. Use GUI to verify." -ForegroundColor Yellow
+                                                    }
+                                                }
+                                                Write-Host "       >> ALTERNATIVE: Use GUI method (domain.msc) which handles context automatically" -ForegroundColor Green
+                                            }
+                                            "0xc0000022" {
+                                                Write-Host "    >> Error 0xc0000022: STATUS_ACCESS_DENIED" -ForegroundColor Yellow
+                                                Write-Host "       - Need Domain/Enterprise Admin privileges" -ForegroundColor Yellow
+                                                Write-Host "       - Run as administrator" -ForegroundColor Yellow
+                                            }
+                                            default {
+                                                Write-Host "    >> Unknown error code. Check Microsoft documentation." -ForegroundColor Yellow
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            catch {
+                                Write-Host "    > ksetup method failed: $($_.Exception.Message)" -ForegroundColor Red
+                            }
+                    
+                            # If ksetup failed, provide manual guidance
+                            if (-not $remediated) {
+                                Write-Host "`n    >>  KSETUP METHOD FAILED - MANUAL REMEDIATION REQUIRED" -ForegroundColor Red
+                                Write-Host "    >> Trust: $trustName" -ForegroundColor Yellow
+                        
+                                Write-Host "`n    >> MICROSOFT OFFICIAL REMEDIATION METHODS:" -ForegroundColor Cyan
+                                Write-Host "    >> Reference: https://learn.microsoft.com/en-us/troubleshoot/windows-server/windows-security/unsupported-etype-error-accessing-trusted-domain" -ForegroundColor Gray
+                        
+                                Write-Host "`n    >> Method 1 - GUI (RECOMMENDED - matches checkbox behavior):" -ForegroundColor White
+                                Write-Host "       1. Open 'Active Directory Domains and Trusts' (domain.msc)" -ForegroundColor Gray
+                                Write-Host "       2. Right-click '$domain' > Properties > Trusts tab" -ForegroundColor Gray
+                                Write-Host "       3. Select trust '$trustName' > Properties" -ForegroundColor Gray
+                                Write-Host "       4. Check 'The other domain supports Kerberos AES Encryption'" -ForegroundColor Gray
+                                Write-Host "       5. Click OK" -ForegroundColor Gray
+                                Write-Host "       >> This checkbox sets AES-only mode (same as Method 2 below)" -ForegroundColor Green
+                                if ($trustDirection -eq "BiDirectional") {
+                                    Write-Host "       6. IMPORTANT: Repeat on the OTHER domain ($trustName) for bidirectional trust" -ForegroundColor Yellow
+                                }
+                        
+                                Write-Host "`n    >> Method 2 - ksetup AES-only (equivalent to GUI checkbox):" -ForegroundColor White
+                                Write-Host "       >> CRITICAL: ksetup DOMAIN CONTEXT REQUIREMENTS" -ForegroundColor Red
+                                Write-Host "       >> You can ONLY configure encryption types for the OTHER domain in trust" -ForegroundColor Red
+                                Write-Host "       >> Current domain: $domain | Target trust: $trustName | Direction: $trustDirection" -ForegroundColor Yellow
+                                Write-Host "" -ForegroundColor White
+                                if ($trustDirection -eq "Outbound") {
+                                    Write-Host "       >> For OUTBOUND trust - Run from target domain DC:" -ForegroundColor Cyan
+                                    Write-Host "       From domain controller in '$trustName':" -ForegroundColor Gray
+                                    Write-Host "       ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
+                                }
+                                elseif ($trustDirection -eq "Inbound") {
+                                    Write-Host "       >> For INBOUND trust - Run from current domain DC:" -ForegroundColor Cyan
+                                    Write-Host "       From domain controller in '$domain':" -ForegroundColor Gray
+                                    Write-Host "       ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
+                                }
+                                elseif ($trustDirection -eq "BiDirectional") {
+                                    if ($trustName -ne $domain) {
+                                        Write-Host "       >> For BIDIRECTIONAL trust - Run from BOTH domain DCs:" -ForegroundColor Cyan
+                                        Write-Host "       Step 1 - From domain controller in '$trustName':" -ForegroundColor Gray
+                                        Write-Host "       ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
+                                        Write-Host "       Step 2 - From domain controller in '$domain':" -ForegroundColor Gray
+                                        Write-Host "       ksetup /setenctypeattr $trustName AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
+                                    }
+                                    else {
+                                        Write-Host "       >> SELF-REFERENTIAL TRUST DETECTED:" -ForegroundColor Yellow
+                                        Write-Host "       Domain '$domain' has a trust to itself - this is likely misconfigured" -ForegroundColor Yellow
+                                        Write-Host "       Use GUI (domain.msc) to verify and potentially remove this trust object" -ForegroundColor Cyan
+                                    }
+                                }
+                                Write-Host "       >> This is exactly what the GUI checkbox does programmatically" -ForegroundColor Green
+                        
+                                Write-Host "`n    >> Method 3 - ksetup with RC4+AES (for compatibility issues only):" -ForegroundColor White
+                                Write-Host "       Use only if AES-only mode causes authentication problems:" -ForegroundColor Yellow
+                                Write-Host "       ksetup /setenctypeattr $trustName RC4-HMAC-MD5 AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Gray
+                                Write-Host "       >> This maintains RC4 fallback for legacy systems" -ForegroundColor Yellow
+                        
+                                Write-Host "`n    >> Method 3 - Verification commands:" -ForegroundColor White
+                                Write-Host "       ksetup /getenctypeattr $trustName" -ForegroundColor Gray
+                                Write-Host "       Get-ADTrust -Filter \"Name -eq '$trustName'\" -Properties msDS-SupportedEncryptionTypes" -ForegroundColor Gray
+                        
+                                Write-Host "`n    >> IMPORTANT NOTES ABOUT TRUST AES SETTINGS:" -ForegroundColor Yellow
+                                Write-Host "       - Trust encryption settings are DIFFERENT from computer/user settings" -ForegroundColor Gray
+                                Write-Host "       - Each side of the trust must be configured separately" -ForegroundColor Gray
+                                Write-Host "       - CRITICAL: ksetup must be run from the correct domain controller:" -ForegroundColor Red
+                                Write-Host "         * You can ONLY configure encryption for the OTHER domain in the trust" -ForegroundColor Red
+                                Write-Host "         * Example: From child.contoso.com DC, configure contoso.com trust" -ForegroundColor Red
+                                Write-Host "         * Example: From contoso.com DC, configure child.contoso.com trust" -ForegroundColor Red
+                                Write-Host "       - GUI method (domain.msc) handles domain context automatically" -ForegroundColor Green
+                                Write-Host "       - Settings control inter-domain authentication encryption" -ForegroundColor Gray
+                                Write-Host "       - GPO settings do NOT apply to trust objects" -ForegroundColor Gray
+                        
+                                Write-Host "`n    >> COMMON ksetup ERROR CODES:" -ForegroundColor Yellow
+                                Write-Host "       - 0xc0000034: Must run from correct domain/context" -ForegroundColor Gray
+                                Write-Host "       - Access denied: Need Domain/Enterprise Admin rights" -ForegroundColor Gray
+                                Write-Host "       - Target not found: Trust name or direction issue" -ForegroundColor Gray
+                        
+                                Write-Host "`n    >> REFERENCE:" -ForegroundColor Cyan
+                                Write-Host "       https://serverfault.com/questions/1099053/" -ForegroundColor Gray
+                                Write-Host "       Microsoft Docs: ksetup /setenctypeattr command" -ForegroundColor Gray
+                            }
+                            else {
+                                Write-Host "`n    >>  SUCCESS: Trust AES encryption configured!" -ForegroundColor Green
+                                if ($trustDirection -eq "BiDirectional") {
+                                    Write-Host "    >> REMINDER: For bidirectional trusts, also configure the other side:" -ForegroundColor Yellow
+                                    Write-Host "       Run from domain controller in '$trustName':" -ForegroundColor Yellow
+                                    Write-Host "       ksetup /setenctypeattr $domain AES128-CTS-HMAC-SHA1-96 AES256-CTS-HMAC-SHA1-96" -ForegroundColor Yellow
+                                }
+                            }
+                        }
+                    }
+                } # Close the else block for non-self-referential trusts
+                else {
+                    Write-Host "    > ERROR: Could not determine trust object identity" -ForegroundColor Red
+                    Write-Host "    >> Trust name: $($_.Name)" -ForegroundColor Yellow
+                    Write-Host "    >> DistinguishedName property: '$($_.DistinguishedName)'" -ForegroundColor Yellow
+                    Write-Host "    >> Manual remediation required:" -ForegroundColor Yellow
+                    Write-Host "       1. Find trust DN: Get-ADObject -Filter \"ObjectClass -eq 'trustedDomain' -and Name -eq '$($_.Name)'\"" -ForegroundColor Yellow
+                    Write-Host "       2. Apply fix: Set-ADObject -Identity '<TrustDN>' -Replace @{msDS-SupportedEncryptionTypes=24}" -ForegroundColor Yellow
+                }
+            }
+            else {
+                # Determine if this trust should be considered secure
+                $isTrustSecure = $false
+                $secureReason = ""
+            
+                if ($enc -and ($enc -band 0x18) -gt 0) {
+                    # Trust has explicit AES settings
+                    $isTrustSecure = $true
+                    $secureReason = "explicit AES configuration"
+                }
+                elseif (-not $enc -or $enc -eq 0) {
+                    # Trust has undefined encryption - check if environment is safe for post-Nov 2022 defaults
+                    if (-not $SkipGPOCheck -and $domainContext.DCsHaveAESSettings) {
+                        # GPO check was performed AND DC configuration is safe
+                        $isTrustSecure = $true
+                        $secureReason = "secure by default (post-Nov 2022, DC analysis confirms safe environment)"
+                    }
+                    else {
+                        # Either GPO check was skipped OR DC configuration isn't confirmed safe
+                        # Don't flag as weak (post-Nov 2022 logic) but don't add to secure list either
+                        if ($DebugMode) {
+                            $skipReason = if ($SkipGPOCheck) { "GPO check skipped" } else { "DC configuration uncertain" }
+                            Write-Host "    > Trust '$($_.Name)' has undefined encryption but not categorized as secure: $skipReason" -ForegroundColor Gray
+                        }
+                    }
+                }
+            
+                if ($isTrustSecure) {
+                    # Track trusts with secure encryption settings
+                    $secureObj = [PSCustomObject]@{
+                        Domain     = $domain
+                        ObjectType = "Trust"
+                        Name       = $_.Name
+                        DN         = $_.DistinguishedName
+                        EncTypes   = Get-EncryptionTypes -EncValue $enc -ObjectType "Trust" -DomainContext $domainContext
+                        TrustType  = $_.TrustType
+                        Direction  = $_.Direction
+                    }
+                    $secureObjects += $secureObj
+                
+                    if ($DebugMode) {
+                        Write-Host "    > Trust '$($_.Name)' has secure encryption: $(Get-EncryptionTypes -EncValue $enc -ObjectType "Trust" -DomainContext $domainContext) ($secureReason)" -ForegroundColor Green
+                    }
                 }
             }
         }
+    
+        Write-Host "  >> Trust scan complete: $domainTrustCount total, $domainTrustRC4Count with RC4/weak encryption" -ForegroundColor Gray
+    
+        Write-Host "`n  > Domain scan completed: $($domain.ToUpper())" -ForegroundColor Green
+        Write-Host "  >> Computers: $domainComputerCount scanned ($domainComputerRC4Count flagged)" -ForegroundColor White
+        Write-Host "  >> Trusts: $domainTrustCount scanned ($domainTrustRC4Count flagged)" -ForegroundColor White
     }
-    
-    Write-Host "  >> Trust scan complete: $domainTrustCount total, $domainTrustRC4Count with RC4/weak encryption" -ForegroundColor Gray
-    
-    Write-Host "`n  > Domain scan completed: $($domain.ToUpper())" -ForegroundColor Green
-    Write-Host "  >> Computers: $domainComputerCount scanned ($domainComputerRC4Count flagged)" -ForegroundColor White
-    Write-Host "  >> Trusts: $domainTrustCount scanned ($domainTrustRC4Count flagged)" -ForegroundColor White
-}
 
-# Output summary
-Write-Host ""
-Write-Host (">" * 80) -ForegroundColor Magenta
-Write-Host ">> FINAL AUDIT SUMMARY" -ForegroundColor Magenta
-Write-Host (">" * 80) -ForegroundColor Magenta
-
-Write-Host ">> Forest: $($forest.Name)" -ForegroundColor Cyan
-Write-Host ">> Total domains scanned: $($forest.Domains.Count)" -ForegroundColor Cyan
-Write-Host ">> Total computers scanned: $computerTotal" -ForegroundColor White
-Write-Host ">> Total trusts scanned: $trustTotal" -ForegroundColor White
-Write-Host ">>  User objects: Not scanned (msDS-SupportedEncryptionTypes is computer-based only)" -ForegroundColor Gray
-
-if ($results.Count -eq 0) {
-    Write-Host "`n> AUDIT RESULT: SUCCESS!" -ForegroundColor Green
-    
-    $gpoStatus = if ($SkipGPOCheck) { "GPO analysis skipped" } else { "GPO analysis completed" }
-    $dcStatus = if ($domainContext.DCsHaveAESSettings) { "DC configuration verified safe" } else { "DC configuration analysis completed" }
-    
-    $messages = @(
-        "No objects with weak encryption settings found!",
-        "Enhanced post-November 2022 analysis completed ($gpoStatus, $dcStatus).",
-        "Trust objects: Secure by default when undefined encryption + safe environment confirmed",
-        "Computer objects: Inherit secure DC policies when DCs properly configured",
-        "Objects with undefined encryption properly categorized based on environment safety"
-    )
-    Write-BoxedMessage -Messages $messages -Color "Green"
-}
-else {
-    Write-Host "`n>>  AUDIT RESULT: REVIEW NEEDED!" -ForegroundColor Yellow
-    
-    $headerMessages = @("Found $($results.Count) object(s) requiring review (modern analysis):")
-    $contentMessages = @(
-        "> Computers needing attention: $computerRC4Count out of $computerTotal total",
-        "> Trusts needing attention: $trustRC4Count out of $trustTotal total",
-        "> Note: Post-November 2022 analysis reduces false positives",
-        "> Only objects with actual weak encryption or missing DC policies are flagged"
-    )
-    Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $contentMessages -Color "Yellow"
-    
-    Write-Host "`nDETAILED RESULTS:" -ForegroundColor White
-    $results |
-    Sort-Object Domain, ObjectType, Name |
-    Format-Table Domain, ObjectType, Name, EncTypes, @{Name = "TrustType"; Expression = { if ($_.TrustType) { $_.TrustType }else { "N/A" } } }, @{Name = "Direction"; Expression = { if ($_.Direction) { $_.Direction }else { "N/A" } } } -AutoSize
-    
-    # Show trust type breakdown if trusts were found
-    $trustObjects = $results | Where-Object { $_.ObjectType -eq "Trust" }
-    if ($trustObjects.Count -gt 0) {
-        Write-Host "`n>> TRUST TYPE BREAKDOWN:" -ForegroundColor Cyan
-        $trustTypes = $trustObjects | Group-Object TrustType | Sort-Object Name
-        foreach ($trustType in $trustTypes) {
-            Write-Host "  > $($trustType.Name): $($trustType.Count) trust(s)" -ForegroundColor White
-            foreach ($trust in $trustType.Group) {
-                Write-Host "    - $($trust.Name) (Direction: $($trust.Direction))" -ForegroundColor Gray
-            }
-        }
-        Write-Host ""
-        Write-Host ">> TRUST TYPE EXPLANATIONS:" -ForegroundColor Yellow
-        Write-Host "  > TreeRoot: Root domain of forest tree" -ForegroundColor Gray
-        Write-Host "  > ParentChild: Child domain to parent domain" -ForegroundColor Gray
-        Write-Host "  > External: Trust to external domain/forest" -ForegroundColor Gray
-        Write-Host "  > Forest: Forest-level trust relationship" -ForegroundColor Gray
-        Write-Host "  > Shortcut: Shortcut trust for optimization" -ForegroundColor Gray
-        Write-Host "  > Unknown: Unrecognized trust type" -ForegroundColor Gray
-    }
-    
-    # Check for objects with actual RC4 fallback risk (November 2022+ logic)
-    $undefinedObjects = $results | Where-Object { $_.EncTypes -eq "Not Set (RC4 fallback risk)" }
-    $trustObjects = $results | Where-Object { $_.ObjectType -eq "Trust" }
-    
-    if ($undefinedObjects.Count -gt 0) {
-        Write-Host "`n>> WARNING - RC4 Fallback Risk Detected:" -ForegroundColor Red
-        Write-Host "Found $($undefinedObjects.Count) object(s) at risk of RC4 fallback (post-November 2022 analysis)." -ForegroundColor Red
-        Write-Host "These objects have undefined encryption AND Domain Controllers lack proper AES configuration." -ForegroundColor Red
-        Write-Host "Risk: Authentication may fall back to weak RC4 encryption." -ForegroundColor Red
-        Write-Host "`nRECOMMENDATION:" -ForegroundColor Yellow
-        Write-Host "- Configure Domain Controller encryption policy via GPO" -ForegroundColor Yellow
-        Write-Host "- Or run this script with -ApplyFixes to set explicit AES encryption (value 24)" -ForegroundColor Yellow
-        Write-Host "- Priority: Ensure DCs have proper AES settings for organization-wide security" -ForegroundColor Yellow
-    }
-    
-    # Enhanced secure-by-default analysis (post-November 2022)
-    $secureByDefaultObjects = $secureObjects | Where-Object { $_.EncTypes -match "AES default post-Nov2022|inherits.*policy|secure by default" }
-    $explicitlySecureObjects = $secureObjects | Where-Object { $_.EncTypes -match "AES.*96" -and $_.EncTypes -notmatch "default|inherits" }
-    
-    if ($secureByDefaultObjects.Count -gt 0) {
-        Write-Host "`n>> INFO - Enhanced Secure Analysis (Post-November 2022):" -ForegroundColor Green
-        Write-Host "Found $($secureByDefaultObjects.Count) object(s) that are secure by modern defaults:" -ForegroundColor Green
-        
-        $secureByDefaultComputers = $secureByDefaultObjects | Where-Object { $_.ObjectType -eq "Computer" }
-        $secureByDefaultTrusts = $secureByDefaultObjects | Where-Object { $_.ObjectType -eq "Trust" }
-        
-        if ($secureByDefaultComputers.Count -gt 0) {
-            Write-Host "  > $($secureByDefaultComputers.Count) computer(s): Inherit secure DC policy (undefined encryption + safe DC config)" -ForegroundColor White
-        }
-        if ($secureByDefaultTrusts.Count -gt 0) {
-            Write-Host "  > $($secureByDefaultTrusts.Count) trust(s): Default to AES when undefined (post-Nov 2022 + GPO analysis confirmed safe environment)" -ForegroundColor White
-        }
-        
-        Write-Host "These objects benefit from modern Kerberos security without explicit configuration." -ForegroundColor Green
-        
-        if ($SkipGPOCheck) {
-            Write-Host "`n>> NOTE: GPO check was skipped - some undefined objects may not be categorized optimally." -ForegroundColor Yellow
-            Write-Host "   Run without -SkipGPOCheck for complete secure-by-default analysis." -ForegroundColor Yellow
-        }
-    }
-    
-    if ($trustObjects.Count -gt 0) {
-        Write-Host "`n>>  TRUST OBJECT REMEDIATION NOTICE:" -ForegroundColor Red
-        Write-Host "Found $($trustObjects.Count) trust object(s) with weak encryption settings." -ForegroundColor Red
-        
-        $headerMessages = @(">> TRUST OBJECTS REQUIRE MANUAL REMEDIATION")
-        $contentMessages = @(
-            "> GPO Settings DO NOT Apply to Trust Objects",
-            "",
-            "Trust objects store their own msDS-SupportedEncryptionTypes",
-            "attribute and are not affected by computer GPO policies.",
-            "",
-            "> Required Actions for Trust Objects:",
-            "> GUI Method: AD Domains and Trusts > Trust Properties >",
-            "  Check 'The other domain supports Kerberos AES Encryption'",
-            "> Script Method: Use this script with -ApplyFixes parameter",
-            "> Manual PowerShell:",
-            "  Set-ADObject -Identity '<TrustDN>'",
-            "    -Add @{msDS-SupportedEncryptionTypes=24}",
-            "",
-            ">> Verification Commands:",
-            "> Get-ADObject -Filter 'ObjectClass -eq `"trustedDomain`"'",
-            "    -Properties msDS-SupportedEncryptionTypes",
-            "> Monitor Event IDs 4768/4769 for trust authentication",
-            "",
-            ">>  Without fixing trusts, RC4 will persist in inter-domain",
-            "   authentication even with optimal GPO settings!"
-        )
-        Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $contentMessages -Color "Red"
-    }
-}
-
-# Show secure objects summary
-if ($secureObjects.Count -gt 0) {
+    # Output summary
     Write-Host ""
-    Write-Host (">" * 80) -ForegroundColor Green
-    Write-Host "> OBJECTS WITH SECURE ENCRYPTION SETTINGS" -ForegroundColor Green
-    Write-Host (">" * 80) -ForegroundColor Green
+    Write-Host (">" * 80) -ForegroundColor Magenta
+    Write-Host ">> FINAL AUDIT SUMMARY" -ForegroundColor Magenta
+    Write-Host (">" * 80) -ForegroundColor Magenta
+
+    Write-Host ">> Forest: $($forest.Name)" -ForegroundColor Cyan
+    Write-Host ">> Total domains scanned: $($forest.Domains.Count)" -ForegroundColor Cyan
+    Write-Host ">> Total computers scanned: $computerTotal" -ForegroundColor White
+    Write-Host ">> Total trusts scanned: $trustTotal" -ForegroundColor White
+    Write-Host ">>  User objects: Not scanned (msDS-SupportedEncryptionTypes is computer-based only)" -ForegroundColor Gray
+
+    if ($results.Count -eq 0) {
+        Write-Host "`n> AUDIT RESULT: SUCCESS!" -ForegroundColor Green
     
-    $secureComputers = $secureObjects | Where-Object { $_.ObjectType -eq "Computer" }
-    $secureTrusts = $secureObjects | Where-Object { $_.ObjectType -eq "Trust" }
+        $gpoStatus = if ($SkipGPOCheck) { "GPO analysis skipped" } else { "GPO analysis completed" }
+        $dcStatus = if ($domainContext.DCsHaveAESSettings) { "DC configuration verified safe" } else { "DC configuration analysis completed" }
     
-    Write-Host ">> Summary: Found $($secureObjects.Count) object(s) with secure AES encryption" -ForegroundColor Green
-    Write-Host "  > Computers with secure encryption: $($secureComputers.Count)" -ForegroundColor White
-    Write-Host "  > Trusts with secure encryption: $($secureTrusts.Count)" -ForegroundColor White
-    
-    if ($secureObjects.Count -le 50) {
-        # Show detailed list if manageable number
-        Write-Host "`n>> DETAILED SECURE OBJECTS:" -ForegroundColor White
-        $secureObjects |
-        Sort-Object Domain, ObjectType, Name |
-        Format-Table Domain, ObjectType, Name, EncTypes, @{Name = "TrustType"; Expression = { if ($_.TrustType) { $_.TrustType }else { "N/A" } } }, @{Name = "Direction"; Expression = { if ($_.Direction) { $_.Direction }else { "N/A" } } } -AutoSize
+        $messages = @(
+            "No objects with weak encryption settings found!",
+            "Enhanced post-November 2022 analysis completed ($gpoStatus, $dcStatus).",
+            "Trust objects: Secure by default when undefined encryption + safe environment confirmed",
+            "Computer objects: Inherit secure DC policies when DCs properly configured",
+            "Objects with undefined encryption properly categorized based on environment safety"
+        )
+        Write-BoxedMessage -Messages $messages -Color "Green"
     }
     else {
-        # Show summary by domain if too many objects
-        Write-Host "`n>> SECURE OBJECTS BY DOMAIN:" -ForegroundColor White
-        $secureByDomain = $secureObjects | Group-Object Domain | Sort-Object Name
-        foreach ($domainGroup in $secureByDomain) {
-            $domainComputers = $domainGroup.Group | Where-Object { $_.ObjectType -eq "Computer" }
-            $domainTrusts = $domainGroup.Group | Where-Object { $_.ObjectType -eq "Trust" }
-            Write-Host "  >> $($domainGroup.Name): $($domainGroup.Count) total ($($domainComputers.Count) computers, $($domainTrusts.Count) trusts)" -ForegroundColor Cyan
-        }
-        Write-Host ""
-        Write-Host ">> Use -DebugMode parameter to see detailed secure object listings" -ForegroundColor Gray
-    }
+        Write-Host "`n>>  AUDIT RESULT: REVIEW NEEDED!" -ForegroundColor Yellow
     
-    # Show encryption type breakdown for secure objects
-    Write-Host "`n>> SECURE ENCRYPTION TYPES BREAKDOWN:" -ForegroundColor Cyan
-    $encryptionBreakdown = $secureObjects | Group-Object EncTypes | Sort-Object Name
-    foreach ($encGroup in $encryptionBreakdown) {
-        Write-Host "  > $($encGroup.Name): $($encGroup.Count) object(s)" -ForegroundColor White
+        $headerMessages = @("Found $($results.Count) object(s) requiring review (modern analysis):")
+        $contentMessages = @(
+            "> Computers needing attention: $computerRC4Count out of $computerTotal total",
+            "> Trusts needing attention: $trustRC4Count out of $trustTotal total",
+            "> Note: Post-November 2022 analysis reduces false positives",
+            "> Only objects with actual weak encryption or missing DC policies are flagged"
+        )
+        Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $contentMessages -Color "Yellow"
+    
+        Write-Host "`nDETAILED RESULTS:" -ForegroundColor White
+        $results |
+        Sort-Object Domain, ObjectType, Name |
+        Format-Table Domain, ObjectType, Name, EncTypes, @{Name = "TrustType"; Expression = { if ($_.TrustType) { $_.TrustType }else { "N/A" } } }, @{Name = "Direction"; Expression = { if ($_.Direction) { $_.Direction }else { "N/A" } } } -AutoSize
+    
+        # Show trust type breakdown if trusts were found
+        $trustObjects = $results | Where-Object { $_.ObjectType -eq "Trust" }
+        if ($trustObjects.Count -gt 0) {
+            Write-Host "`n>> TRUST TYPE BREAKDOWN:" -ForegroundColor Cyan
+            $trustTypes = $trustObjects | Group-Object TrustType | Sort-Object Name
+            foreach ($trustType in $trustTypes) {
+                Write-Host "  > $($trustType.Name): $($trustType.Count) trust(s)" -ForegroundColor White
+                foreach ($trust in $trustType.Group) {
+                    Write-Host "    - $($trust.Name) (Direction: $($trust.Direction))" -ForegroundColor Gray
+                }
+            }
+            Write-Host ""
+            Write-Host ">> TRUST TYPE EXPLANATIONS:" -ForegroundColor Yellow
+            Write-Host "  > TreeRoot: Root domain of forest tree" -ForegroundColor Gray
+            Write-Host "  > ParentChild: Child domain to parent domain" -ForegroundColor Gray
+            Write-Host "  > External: Trust to external domain/forest" -ForegroundColor Gray
+            Write-Host "  > Forest: Forest-level trust relationship" -ForegroundColor Gray
+            Write-Host "  > Shortcut: Shortcut trust for optimization" -ForegroundColor Gray
+            Write-Host "  > Unknown: Unrecognized trust type" -ForegroundColor Gray
+        }
+    
+        # Check for objects with actual RC4 fallback risk (November 2022+ logic)
+        $undefinedObjects = $results | Where-Object { $_.EncTypes -eq "Not Set (RC4 fallback risk)" }
+        $trustObjects = $results | Where-Object { $_.ObjectType -eq "Trust" }
+    
+        if ($undefinedObjects.Count -gt 0) {
+            Write-Host "`n>> WARNING - RC4 Fallback Risk Detected:" -ForegroundColor Red
+            Write-Host "Found $($undefinedObjects.Count) object(s) at risk of RC4 fallback (post-November 2022 analysis)." -ForegroundColor Red
+            Write-Host "These objects have undefined encryption AND Domain Controllers lack proper AES configuration." -ForegroundColor Red
+            Write-Host "Risk: Authentication may fall back to weak RC4 encryption." -ForegroundColor Red
+            Write-Host "`nRECOMMENDATION:" -ForegroundColor Yellow
+            Write-Host "- Configure Domain Controller encryption policy via GPO" -ForegroundColor Yellow
+            Write-Host "- Or run this script with -ApplyFixes to set explicit AES encryption (value 24)" -ForegroundColor Yellow
+            Write-Host "- Priority: Ensure DCs have proper AES settings for organization-wide security" -ForegroundColor Yellow
+        }
+    
+        # Enhanced secure-by-default analysis (post-November 2022)
+        $secureByDefaultObjects = $secureObjects | Where-Object { $_.EncTypes -match "AES default post-Nov2022|inherits.*policy|secure by default" }
+        $explicitlySecureObjects = $secureObjects | Where-Object { $_.EncTypes -match "AES.*96" -and $_.EncTypes -notmatch "default|inherits" }
+    
+        if ($secureByDefaultObjects.Count -gt 0) {
+            Write-Host "`n>> INFO - Enhanced Secure Analysis (Post-November 2022):" -ForegroundColor Green
+            Write-Host "Found $($secureByDefaultObjects.Count) object(s) that are secure by modern defaults:" -ForegroundColor Green
+        
+            $secureByDefaultComputers = $secureByDefaultObjects | Where-Object { $_.ObjectType -eq "Computer" }
+            $secureByDefaultTrusts = $secureByDefaultObjects | Where-Object { $_.ObjectType -eq "Trust" }
+        
+            if ($secureByDefaultComputers.Count -gt 0) {
+                Write-Host "  > $($secureByDefaultComputers.Count) computer(s): Inherit secure DC policy (undefined encryption + safe DC config)" -ForegroundColor White
+            }
+            if ($secureByDefaultTrusts.Count -gt 0) {
+                Write-Host "  > $($secureByDefaultTrusts.Count) trust(s): Default to AES when undefined (post-Nov 2022 + GPO analysis confirmed safe environment)" -ForegroundColor White
+            }
+        
+            Write-Host "These objects benefit from modern Kerberos security without explicit configuration." -ForegroundColor Green
+        
+            if ($SkipGPOCheck) {
+                Write-Host "`n>> NOTE: GPO check was skipped - some undefined objects may not be categorized optimally." -ForegroundColor Yellow
+                Write-Host "   Run without -SkipGPOCheck for complete secure-by-default analysis." -ForegroundColor Yellow
+            }
+        }
+    
+        if ($trustObjects.Count -gt 0) {
+            Write-Host "`n>>  TRUST OBJECT REMEDIATION NOTICE:" -ForegroundColor Red
+            Write-Host "Found $($trustObjects.Count) trust object(s) with weak encryption settings." -ForegroundColor Red
+        
+            $headerMessages = @(">> TRUST OBJECTS REQUIRE MANUAL REMEDIATION")
+            $contentMessages = @(
+                "> GPO Settings DO NOT Apply to Trust Objects",
+                "",
+                "Trust objects store their own msDS-SupportedEncryptionTypes",
+                "attribute and are not affected by computer GPO policies.",
+                "",
+                "> Required Actions for Trust Objects:",
+                "> GUI Method: AD Domains and Trusts > Trust Properties >",
+                "  Check 'The other domain supports Kerberos AES Encryption'",
+                "> Script Method: Use this script with -ApplyFixes parameter",
+                "> Manual PowerShell:",
+                "  Set-ADObject -Identity '<TrustDN>'",
+                "    -Add @{msDS-SupportedEncryptionTypes=24}",
+                "",
+                ">> Verification Commands:",
+                "> Get-ADObject -Filter 'ObjectClass -eq `"trustedDomain`"'",
+                "    -Properties msDS-SupportedEncryptionTypes",
+                "> Monitor Event IDs 4768/4769 for trust authentication",
+                "",
+                ">>  Without fixing trusts, RC4 will persist in inter-domain",
+                "   authentication even with optimal GPO settings!"
+            )
+            Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $contentMessages -Color "Red"
+        }
     }
-}
 
-# Export results if requested
-if ($ExportResults) {
-    $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-    $exportPath = ".\RC4_Audit_Results_$timestamp.csv"
-    $results | Export-Csv $exportPath -NoTypeInformation -Encoding UTF8
-    Write-Host "`n>> Results exported to: $exportPath" -ForegroundColor Cyan
-}
+    # Show secure objects summary
+    if ($secureObjects.Count -gt 0) {
+        Write-Host ""
+        Write-Host (">" * 80) -ForegroundColor Green
+        Write-Host "> OBJECTS WITH SECURE ENCRYPTION SETTINGS" -ForegroundColor Green
+        Write-Host (">" * 80) -ForegroundColor Green
+    
+        $secureComputers = $secureObjects | Where-Object { $_.ObjectType -eq "Computer" }
+        $secureTrusts = $secureObjects | Where-Object { $_.ObjectType -eq "Trust" }
+    
+        Write-Host ">> Summary: Found $($secureObjects.Count) object(s) with secure AES encryption" -ForegroundColor Green
+        Write-Host "  > Computers with secure encryption: $($secureComputers.Count)" -ForegroundColor White
+        Write-Host "  > Trusts with secure encryption: $($secureTrusts.Count)" -ForegroundColor White
+    
+        if ($secureObjects.Count -le 50) {
+            # Show detailed list if manageable number
+            Write-Host "`n>> DETAILED SECURE OBJECTS:" -ForegroundColor White
+            $secureObjects |
+            Sort-Object Domain, ObjectType, Name |
+            Format-Table Domain, ObjectType, Name, EncTypes, @{Name = "TrustType"; Expression = { if ($_.TrustType) { $_.TrustType }else { "N/A" } } }, @{Name = "Direction"; Expression = { if ($_.Direction) { $_.Direction }else { "N/A" } } } -AutoSize
+        }
+        else {
+            # Show summary by domain if too many objects
+            Write-Host "`n>> SECURE OBJECTS BY DOMAIN:" -ForegroundColor White
+            $secureByDomain = $secureObjects | Group-Object Domain | Sort-Object Name
+            foreach ($domainGroup in $secureByDomain) {
+                $domainComputers = $domainGroup.Group | Where-Object { $_.ObjectType -eq "Computer" }
+                $domainTrusts = $domainGroup.Group | Where-Object { $_.ObjectType -eq "Trust" }
+                Write-Host "  >> $($domainGroup.Name): $($domainGroup.Count) total ($($domainComputers.Count) computers, $($domainTrusts.Count) trusts)" -ForegroundColor Cyan
+            }
+            Write-Host ""
+            Write-Host ">> Use -DebugMode parameter to see detailed secure object listings" -ForegroundColor Gray
+        }
+    
+        # Show encryption type breakdown for secure objects
+        Write-Host "`n>> SECURE ENCRYPTION TYPES BREAKDOWN:" -ForegroundColor Cyan
+        $encryptionBreakdown = $secureObjects | Group-Object EncTypes | Sort-Object Name
+        foreach ($encGroup in $encryptionBreakdown) {
+            Write-Host "  > $($encGroup.Name): $($encGroup.Count) object(s)" -ForegroundColor White
+        }
+    }
 
-# Optional export
-# $results | Export-Csv ".\\RC4_Audit_Results.csv" -NoTypeInformation -Encoding UTF8
+    # Export results if requested
+    if ($ExportResults) {
+        $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+        $exportPath = ".\RC4_Audit_Results_$timestamp.csv"
+        $results | Export-Csv $exportPath -NoTypeInformation -Encoding UTF8
+        Write-Host "`n>> Results exported to: $exportPath" -ForegroundColor Cyan
+    }
+
+    # Optional export
+    # $results | Export-Csv ".\\RC4_Audit_Results.csv" -NoTypeInformation -Encoding UTF8

@@ -1552,13 +1552,15 @@ function Invoke-KerberosHardeningAssessment {
             # Handle null/empty results properly
             $dcCount = if ($domainControllers) { 
                 if ($domainControllers -is [array]) { $domainControllers.Count } else { 1 }
-            } else { 0 }
+            }
+            else { 0 }
             
             if ($DebugMode) {
                 Write-Host "    >> DEBUG: Found $dcCount domain controllers" -ForegroundColor Gray
                 if ($dcCount -gt 0) {
                     Write-Host "    >> DEBUG: DC Names: $($domainControllers.Name -join ', ')" -ForegroundColor Gray
-                } else {
+                }
+                else {
                     Write-Host "    >> DEBUG: No domain controllers found in search base" -ForegroundColor Yellow
                 }
             }

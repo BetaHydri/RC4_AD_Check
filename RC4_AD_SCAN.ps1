@@ -1624,9 +1624,11 @@ function Invoke-KerberosHardeningAssessment {
                     $encValue = 0
                     if ($gpoReport -match 'SupportedEncryptionTypes.*>(\d+)<' -or $gpoReport -match 'msDS-SupportedEncryptionTypes.*>(\d+)<') {
                         $encValue = [int]$matches[1]
-                    } elseif ($gpoReport -match "AES256.*true" -and $gpoReport -match "AES128.*true") {
+                    }
+                    elseif ($gpoReport -match "AES256.*true" -and $gpoReport -match "AES128.*true") {
                         $encValue = 24  # AES128 + AES256
-                    } elseif ($gpoReport -match "AES.*true") {
+                    }
+                    elseif ($gpoReport -match "AES.*true") {
                         $encValue = 8   # At least some AES
                     }
                     
@@ -1661,9 +1663,11 @@ function Invoke-KerberosHardeningAssessment {
                     $encValue = 0
                     if ($gpoReport -match 'SupportedEncryptionTypes.*>(\d+)<' -or $gpoReport -match 'msDS-SupportedEncryptionTypes.*>(\d+)<') {
                         $encValue = [int]$matches[1]
-                    } elseif ($gpoReport -match "AES256.*true" -and $gpoReport -match "AES128.*true") {
+                    }
+                    elseif ($gpoReport -match "AES256.*true" -and $gpoReport -match "AES128.*true") {
                         $encValue = 24  # AES128 + AES256
-                    } elseif ($gpoReport -match "AES.*true") {
+                    }
+                    elseif ($gpoReport -match "AES.*true") {
                         $encValue = 8   # At least some AES
                     }
                     

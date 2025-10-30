@@ -194,15 +194,111 @@ This mode provides comprehensive post-November 2022 environment security analysi
 Run comprehensive Kerberos security posture evaluation:
 
 ```powershell
+# Basic Kerberos hardening assessment
 .\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment
+
+# Assessment with detailed debug output and results export
+.\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -DebugMode -ExportResults
+
+# Cross-forest Kerberos assessment
+.\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -TargetForest partner.com -ExportResults
+
+# Assessment targeting specific domain controller
+.\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -Server dc01.contoso.com -DebugMode
+```
+
+#### Sample Assessment Output
+
+```powershell
+================================================================================
+🛡️  KERBEROS HARDENING ASSESSMENT - Domain: contoso.com
+================================================================================
+
+📅 AES Enforcement Threshold: November 15, 2022
+   (Detected via Read-only Domain Controllers group creation)
+
+🔐 PHASE 3: SERVICE ACCOUNT ANALYSIS
+   High-privilege accounts (AdminCount=1): 8 found
+   ✅ Accounts with passwords after AES threshold: 6
+   ⚠️  Accounts needing password reset: 2
+
+   📋 DETAILED ANALYSIS:
+   ┌─────────────────┬─────────────┬────────────────┬──────────────────┐
+   │ Account Name    │ Password Age│ Last Set       │ AES Compliance   │
+   ├─────────────────┼─────────────┼────────────────┼──────────────────┤
+   │ SQL-SERVICE$    │ 45 days     │ Sep 15, 2025   │ ✅ COMPLIANT     │
+   │ BACKUP-SVC$     │ 120 days    │ Jun 30, 2025   │ ✅ COMPLIANT     │
+   │ LEGACY-APP$     │ 850 days    │ Jan 10, 2023   │ ⚠️  NON-COMPLIANT│
+   │ OLD-SERVICE$    │ 920 days    │ Dec 1, 2022    │ ⚠️  NON-COMPLIANT│
+   └─────────────────┴─────────────┴────────────────┴──────────────────┘
+
+🏛️  KRBTGT ANALYSIS:
+   KRBTGT password age: 180 days (Last reset: Apr 3, 2025)
+   ✅ SECURE: Password reset after AES threshold date
+   
+   💡 KRBTGT PASSWORD ROTATION GUIDANCE:
+   
+   🔄 RECOMMENDED ROTATION SCHEDULE:
+   • Minimum: Every 180 days (current: compliant)
+   • Maximum: Every 365 days (avoid exceeding)
+   • Best Practice: Quarterly rotation (90 days)
+   
+   ⚠️  CRITICAL: Post-2022 AES KDC Requirements
+   KRBTGT passwords older than November 2022 can prevent proper AES TGT issuance.
+   Old passwords may cause authentication issues in modern environments.
+
+📊 SECURITY LEVEL ASSESSMENT: RECOMMENDED
+   Current Score: 75/100
+   
+   📈 MINIMUM SECURITY (✅ MET):
+   • AES-only GPO configured
+   • KRBTGT password compliant
+   • Basic monitoring enabled
+   
+   📊 RECOMMENDED SECURITY (⚠️  2 ITEMS NEEDED):
+   • Service account password rotation required (2 accounts)
+   • Enhanced event monitoring setup needed
+   
+   🔒 MAXIMUM SECURITY (3 ITEMS NEEDED):
+   • Zero-tolerance RC4 policy
+   • Automated monitoring with SIEM
+   • Quarterly KRBTGT rotation schedule
+
+📋 IMMEDIATE ACTION ITEMS:
+   1. Reset passwords for 2 non-compliant service accounts
+   2. Enable Event ID 4768/4769 monitoring
+   3. Schedule quarterly KRBTGT password rotation
+   4. Implement automated RC4 detection alerts
+```
+
+#### Advanced Assessment Scenarios
+
+```powershell
+# Comprehensive enterprise assessment workflow
+.\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -ExportResults
+# Review exported CSV for detailed service account analysis
+# Plan remediation based on assessment recommendations
+
+# Multi-forest assessment for complex environments
+.\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -TargetForest child.contoso.com -Server dc01.child.contoso.com
+.\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -TargetForest partner.com -ExportResults
+
+# Debug assessment for troubleshooting AES threshold detection
+.\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -DebugMode
+# Shows detailed AES threshold detection logic and service account discovery
+
+# Assessment focused on specific domain controller
+.\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -Server primary-dc.contoso.com -DebugMode
+# Useful when testing specific DC configurations or connectivity
 ```
 
 This mode provides:
-- **Service Account Analysis**: High-privilege account password age verification
-- **KRBTGT Password Monitoring**: Critical domain security assessment
-- **Event Log Monitoring Setup**: Security monitoring recommendations
-- **Tiered Security Recommendations**: Minimum, Recommended, and Maximum security levels
-- **AES Threshold Detection**: Automatic detection via Read-only Domain Controllers group
+- **Service Account Analysis**: High-privilege account password age verification against AES threshold
+- **KRBTGT Password Monitoring**: Critical domain security assessment with rotation guidance
+- **Event Log Monitoring Setup**: Comprehensive 4768/4769 event analysis recommendations
+- **Tiered Security Recommendations**: Minimum, Recommended, and Maximum security level analysis
+- **AES Threshold Detection**: Automatic detection via Read-only Domain Controllers group creation
+- **Actionable Remediation Plans**: Specific steps for improving Kerberos security posture
 
 ### GPO Scope Selection
 

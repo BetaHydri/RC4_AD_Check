@@ -153,7 +153,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 6.9
+  Version: 6.10
   Created: October 2025
   Updated: October 2025
   
@@ -1726,12 +1726,20 @@ function Invoke-KerberosHardeningAssessment {
     
     try {
         # First check Domain level GPO (applies to both DCs and member computers)
-        $domainGPOs = Get-GPInheritance -Target $domainInfo.DistinguishedName @serverParams
+        $domainGPOs = Get-GPInheritance -Target $domainInfo.DistinguishedName -Domain $Domain @serverParams
         $domainKerberosGPO = $null
+        
+        if ($DebugMode) {
+            Write-Host "    >> DEBUG: Checking Domain level for Kerberos GPOs" -ForegroundColor Gray
+            Write-Host "    >> DEBUG: Domain DN: $($domainInfo.DistinguishedName)" -ForegroundColor Gray
+            if ($domainGPOs -and $domainGPOs.InheritedGpoLinks) {
+                Write-Host "    >> DEBUG: Found $($domainGPOs.InheritedGpoLinks.Count) inherited GPO links at Domain level" -ForegroundColor Gray
+            }
+        }
         
         foreach ($gpo in $domainGPOs.InheritedGpoLinks) {
             if ($gpo.Enabled) {
-                $gpoReport = Get-GPOReport -Guid $gpo.GpoId -ReportType Xml @serverParams
+                $gpoReport = Get-GPOReport -Guid $gpo.GpoId -ReportType Xml -Domain $Domain @serverParams
                 if ($DebugMode) {
                     Write-Host "    >> DEBUG: Checking Domain GPO: $($gpo.DisplayName)" -ForegroundColor Gray
                 }
@@ -1773,32 +1781,88 @@ function Invoke-KerberosHardeningAssessment {
                 Write-Host "    >> DEBUG: No Domain-level Kerberos GPO found, checking DC OU specifically" -ForegroundColor Gray
             }
             
-            $dcGPOs = Get-GPInheritance -Target $dcOU @serverParams
+            $dcGPOs = Get-GPInheritance -Target $dcOU -Domain $Domain @serverParams
+            $dcSpecificGPO = $null
+            
+            if ($DebugMode) {
+                Write-Host "    >> DEBUG: DC OU DN: $dcOU" -ForegroundColor Gray
+                if ($dcGPOs -and $dcGPOs.InheritedGpoLinks) {
+                    Write-Host "    >> DEBUG: Found $($dcGPOs.InheritedGpoLinks.Count) inherited GPO links at DC OU level" -ForegroundColor Gray
+                }
+            }
+            
             foreach ($gpo in $dcGPOs.InheritedGpoLinks) {
                 if ($gpo.Enabled) {
-                    $gpoReport = Get-GPOReport -Guid $gpo.GpoId -ReportType Xml @serverParams
+                    $gpoReport = Get-GPOReport -Guid $gpo.GpoId -ReportType Xml -Domain $Domain @serverParams
                     if ($DebugMode) {
                         Write-Host "    >> DEBUG: Checking DC OU GPO: $($gpo.DisplayName)" -ForegroundColor Gray
                     }
                     
                     # Use the same detection logic as the main GPO function
                     if ($gpoReport -and $gpoReport -match "Configure encryption types allowed for Kerberos") {
-                        if ($DebugMode) {
-                            Write-Host "    >> DEBUG: Found Kerberos encryption GPO in DC OU: $($gpo.DisplayName)" -ForegroundColor Gray
+                        # Check if this GPO is directly linked to DC OU or inherited from Domain
+                        $directlyLinked = $false
+                        try {
+                            $dcInheritance = Get-GPInheritance -Target $dcOU -Domain $Domain @serverParams
+                            $directLinks = $dcInheritance.GpoLinks | Where-Object { $_.GpoId -eq $gpo.GpoId }
+                            $directlyLinked = $directLinks.Count -gt 0
+                            
+                            if ($DebugMode) {
+                                Write-Host "    >> DEBUG: GPO $($gpo.DisplayName) directly linked to DC OU: $directlyLinked" -ForegroundColor Gray
+                            }
+                        }
+                        catch {
+                            if ($DebugMode) {
+                                Write-Host "    >> DEBUG: Could not determine GPO link status: $($_.Exception.Message)" -ForegroundColor Gray
+                            }
                         }
                         
-                        # Enhanced encryption value detection for GPO content
-                        $encValue = Get-GPOEncryptionValue -GPOReport $gpoReport -DebugMode:$DebugMode
-                        
-                        $gpoAnalysis.DomainControllers.Configured = $true
-                        $gpoAnalysis.DomainControllers.Value = $encValue
-                        $gpoAnalysis.DomainControllers.GPOName = $gpo.DisplayName
-                        $gpoAnalysis.DomainControllers.Source = "DC OU"
-                        
-                        if ($DebugMode) {
-                            Write-Host "    >> DEBUG: DC OU GPO encryption value: $encValue" -ForegroundColor Gray
+                        if ($directlyLinked) {
+                            $dcSpecificGPO = $gpo
+                            if ($DebugMode) {
+                                Write-Host "    >> DEBUG: Found DC OU-specific Kerberos encryption GPO: $($gpo.DisplayName)" -ForegroundColor Gray
+                            }
+                            
+                            # Enhanced encryption value detection for GPO content
+                            $encValue = Get-GPOEncryptionValue -GPOReport $gpoReport -DebugMode:$DebugMode
+                            
+                            $gpoAnalysis.DomainControllers.Configured = $true
+                            $gpoAnalysis.DomainControllers.Value = $encValue
+                            $gpoAnalysis.DomainControllers.GPOName = $gpo.DisplayName
+                            $gpoAnalysis.DomainControllers.Source = "DC OU"
+                            
+                            if ($DebugMode) {
+                                Write-Host "    >> DEBUG: DC OU GPO encryption value: $encValue" -ForegroundColor Gray
+                            }
+                            break
                         }
-                        break
+                        else {
+                            if ($DebugMode) {
+                                Write-Host "    >> DEBUG: GPO $($gpo.DisplayName) found at DC OU but inherited from Domain - treating as Domain GPO" -ForegroundColor Gray
+                            }
+                            
+                            # This is actually a Domain GPO found through inheritance
+                            $domainKerberosGPO = $gpo
+                            $encValue = Get-GPOEncryptionValue -GPOReport $gpoReport -DebugMode:$DebugMode
+                            
+                            # Domain GPO applies to both DCs and member computers
+                            $gpoAnalysis.DomainControllers.Configured = $true
+                            $gpoAnalysis.DomainControllers.Value = $encValue
+                            $gpoAnalysis.DomainControllers.GPOName = $gpo.DisplayName
+                            $gpoAnalysis.DomainControllers.Source = "Domain"
+                            
+                            $gpoAnalysis.MemberComputers.Configured = $true
+                            $gpoAnalysis.MemberComputers.Value = $encValue
+                            $gpoAnalysis.MemberComputers.GPOName = $gpo.DisplayName
+                            $gpoAnalysis.MemberComputers.Scope = "Domain"
+                            
+                            $gpoAnalysis.SharedDomainGPO = $gpo.DisplayName
+                            
+                            if ($DebugMode) {
+                                Write-Host "    >> DEBUG: Domain GPO encryption value: $encValue (applies to both DCs and members)" -ForegroundColor Gray
+                            }
+                            break
+                        }
                     }
                 }
             }

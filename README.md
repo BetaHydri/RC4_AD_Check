@@ -1,6 +1,6 @@
 # Kerberos RC4/DES Active Directory Security Scanning Tool
 
-**Version**: 6.9  
+**Version**: 6.10  
 **Author**: Jan Tiedemann  
 **Created**: October 2025  
 **Updated**: October 2025

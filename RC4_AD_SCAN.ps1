@@ -144,7 +144,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 6.5
+  Version: 6.7
   Created: October 2025
   Updated: October 2025
   
@@ -1896,10 +1896,33 @@ function Invoke-KerberosHardeningAssessment {
                     Write-Host "       Password last set: $($krbtgtPwdDate.ToString('yyyy-MM-dd'))" -ForegroundColor Red
                     Write-Host "       AES threshold: $($aesThresholdDate.ToString('yyyy-MM-dd'))" -ForegroundColor Red
                     Write-Host "       TGTs may still be issued with RC4 encryption!" -ForegroundColor Red
-                    Write-Host "       RECOMMENDATION: Reset KRBTGT password using Microsoft guidance" -ForegroundColor Yellow
+                    Write-Host "" -ForegroundColor Red
+                    Write-Host "    >> 🔧 MICROSOFT KRBTGT PASSWORD ROTATION GUIDANCE:" -ForegroundColor Yellow
+                    Write-Host "       Step 1: Reset KRBTGT password TWICE (Microsoft recommendation)" -ForegroundColor Yellow
+                    Write-Host "       Step 2: Wait for replication between resets (minimum 10 hours)" -ForegroundColor Yellow
+                    Write-Host "       Step 3: Monitor for authentication issues during rotation" -ForegroundColor Yellow
+                    Write-Host "" -ForegroundColor Yellow
+                    Write-Host "    >> 📋 DETAILED ROTATION PROCEDURE:" -ForegroundColor Cyan
+                    Write-Host "       1. Run: 'kerberos-kdc-password-reset krbtgt' on PDC Emulator" -ForegroundColor White
+                    Write-Host "       2. Wait 10+ hours for domain-wide replication" -ForegroundColor White
+                    Write-Host "       3. Run second reset: 'kerberos-kdc-password-reset krbtgt' again" -ForegroundColor White
+                    Write-Host "       4. Monitor Event Logs: 4768 (TGT requests) for AES encryption" -ForegroundColor White
+                    Write-Host "       5. Verify TGT encryption with 'klist' on domain members" -ForegroundColor White
+                    Write-Host "" -ForegroundColor White
+                    Write-Host "    >> ⚠️  CRITICAL POST-2022 CONSIDERATIONS:" -ForegroundColor Red
+                    Write-Host "       • Old KRBTGT passwords prevent AES TGT issuance" -ForegroundColor Red
+                    Write-Host "       • Force authentication failures until password is current" -ForegroundColor Red
+                    Write-Host "       • Impact ALL domain authentication (users and computers)" -ForegroundColor Red
+                    Write-Host "       • Schedule during maintenance window" -ForegroundColor Red
+                    Write-Host "" -ForegroundColor Red
+                    Write-Host "    >> 📚 MICROSOFT REFERENCES:" -ForegroundColor Gray
+                    Write-Host "       • KB5021131: Managing Kerberos protocol changes (CVE-2022-37966)" -ForegroundColor Gray
+                    Write-Host "       • Windows Security blog: KRBTGT account password rotation" -ForegroundColor Gray
+                    Write-Host "       • AD best practices: Kerberos Key Distribution Center hardening" -ForegroundColor Gray
                 }
                 else {
                     Write-Host "    >> ✅ KRBTGT password supports AES (set: $($krbtgtPwdDate.ToString('yyyy-MM-dd')))" -ForegroundColor Green
+                    Write-Host "       TGT encryption: Compatible with post-2022 AES requirements" -ForegroundColor Green
                 }
             }
             else {
@@ -2013,9 +2036,30 @@ function Invoke-KerberosHardeningAssessment {
         $recommendations.Minimum += "✅ CRITICAL: Configure all DCs with AES encryption types"
     }
     
+    # Add Microsoft-recommended minimum security measures
+    if ($serviceAccountAnalysis.RiskyAccounts.Count -gt 0) {
+        $recommendations.Minimum += "✅ CRITICAL: Reset passwords for high-privilege service accounts with pre-AES passwords"
+    }
+    
+    # Always include KRBTGT recommendation if password is old
+    try {
+        $krbtgtAccount = Get-ADUser "krbtgt" -Properties pwdLastSet @serverParams -ErrorAction SilentlyContinue
+        if ($krbtgtAccount -and $aesThresholdDate) {
+            $krbtgtPwdAge = if ($krbtgtAccount.pwdLastSet) { [DateTime]::FromFileTime($krbtgtAccount.pwdLastSet) } else { [DateTime]::MinValue }
+            if ($krbtgtPwdAge -lt $aesThresholdDate) {
+                $recommendations.Minimum += "✅ CRITICAL: Reset KRBTGT password TWICE with 10+ hour replication wait"
+                $recommendations.Minimum += "✅ CRITICAL: Monitor TGT encryption post-reset (Event IDs 4768/4769)"
+            }
+        }
+    }
+    catch {
+        # Silently handle KRBTGT query errors
+    }
+    
     # Recommended Security (Best Practice)  
     if (-not $gpoAnalysis.MemberComputers.Configured) {
-        $recommendations.Recommended += "🔶 Apply AES-only GPO to Default Domain Policy or Computer OUs"
+        $recommendations.Recommended += "🔶 Create dedicated Kerberos GPO and link to domain root (NOT Default Domain Policy)"
+        $recommendations.Recommended += "🔶 Configure 'Network security: Configure encryption types allowed for Kerberos' = AES only"
     }
     if ($serviceAccountAnalysis.NotConfiguredAccounts -gt 0) {
         $recommendations.Recommended += "🔶 Audit service accounts and set explicit AES encryption types"
@@ -2026,7 +2070,11 @@ function Invoke-KerberosHardeningAssessment {
         $recommendations.Maximum += "🔥 Update service accounts with explicit RC4 to use AES"
     }
     $recommendations.Maximum += "🔥 Implement regular Kerberos encryption auditing"
-    $recommendations.Maximum += "🔥 Monitor for RC4 usage in security logs"
+    $recommendations.Maximum += "🔥 Monitor for RC4 usage in security logs (Event IDs 4768/4769)"
+    $recommendations.Maximum += "🔥 Test GPO application with 'gpupdate /force' and validate"
+    $recommendations.Maximum += "🔥 Plan for Windows Server 2025 compatibility (RC4 fallback disabled)"
+    $recommendations.Maximum += "🔥 Establish quarterly KRBTGT password rotation schedule"
+    $recommendations.Maximum += "🔥 Implement automated KRBTGT password age monitoring"
     
     $assessment.Recommendations = $recommendations
     

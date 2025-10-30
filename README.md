@@ -1,6 +1,6 @@
 # Kerberos RC4/DES Active Directory Security Scanning Tool
 
-**Version**: 6.5  
+**Version**: 6.7  
 **Author**: Jan Tiedemann  
 **Created**: October 2025  
 **Updated**: October 2025
@@ -1837,6 +1837,16 @@ Debug output includes:
 - Consider gradual rollout with proper monitoring
 
 ## Changelog
+
+### Version 6.6 (October 2025) - **MICROSOFT-COMPLIANT SECURITY RECOMMENDATIONS**
+- **🔧 [CRITICAL CORRECTION]** Fixed Phase 5 recommendations to align with Microsoft's official RC4 mitigation guidance
+- **❌ [REMOVED INCORRECT GUIDANCE]** Eliminated recommendation to apply Kerberos encryption settings to Default Domain Policy
+- **✅ [MICROSOFT-COMPLIANT]** Updated to recommend creating dedicated Kerberos GPO linked to domain root (NOT Default Domain Policy)
+- **📋 [ENHANCED MINIMUM SECURITY]** Added critical KRBTGT password age verification and reset recommendations
+- **🛡️ [SERVICE ACCOUNT FOCUS]** Enhanced minimum security to include high-privilege service account password reset requirements
+- **📊 [COMPREHENSIVE MAXIMUM SECURITY]** Added specific Event ID monitoring (4768/4769), GPO validation testing, and Windows Server 2025 planning
+- **📖 [BEST PRACTICES ALIGNMENT]** All recommendations now follow Microsoft's official Do's and Don'ts for RC4 mitigation
+- **🎯 [ACCURATE GUIDANCE]** Removed potentially harmful recommendations that violate Microsoft security best practices
 
 ### Version 6.5 (October 2025) - **FIXED PARAMETER SET CONFLICTS**
 - **🔧 [CRITICAL FIX]** Fixed parameter set conflicts preventing `-KerberosHardeningAssessment` from working with `-Help` or `-QuickHelp`

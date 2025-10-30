@@ -910,6 +910,7 @@ The `msDS-SupportedEncryptionTypes` attribute is a **computer-based setting only
 | `SkipGPOCheck` | Switch | Skip Group Policy settings verification | False |
 | `GPOCheckOnly` | Switch | Perform only GPO analysis without object scanning | False |
 | `KerberosHardeningAssessment` | Switch | Run comprehensive Kerberos security posture evaluation | False |
+| `Domain` | String | Target domain to assess (only with KerberosHardeningAssessment) | Current domain |
 | `GPOScope` | String | Where to check GPO links: Domain, DomainControllers, Both, AllOUs, or OU=<DN> | Both |
 | `DebugMode` | Switch | Enable detailed troubleshooting output | False |
 | `Server` | String | Specify domain controller to connect to | Auto-discover |

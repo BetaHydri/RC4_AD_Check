@@ -2210,7 +2210,8 @@ if ($KerberosHardeningAssessment) {
         $targetDomain = if ($Domain) {
             # Use explicitly specified domain
             $Domain
-        } elseif ($Server) {
+        }
+        elseif ($Server) {
             # Extract domain from server if specified
             try {
                 $serverInfo = Get-ADDomainController -Identity $Server
@@ -2259,7 +2260,8 @@ if ($KerberosHardeningAssessment) {
         Write-Host "   Target Domain: $targetDomain" -ForegroundColor White
         if ($targetDomain -ne $currentDomain) {
             Write-Host "   Cross-Domain Assessment: Yes" -ForegroundColor Yellow
-        } else {
+        }
+        else {
             Write-Host "   Cross-Domain Assessment: No" -ForegroundColor Green
         }
         

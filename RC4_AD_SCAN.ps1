@@ -2037,6 +2037,7 @@ function Invoke-KerberosHardeningAssessment {
                                 break
                             }
                         }
+                        }
                     }
                 }
             }
@@ -2443,9 +2444,7 @@ function Invoke-KerberosHardeningAssessment {
         }
     
         return $assessment
-    }
-
-    # Handle Kerberos Hardening Assessment mode (after functions are defined)
+    }    # Handle Kerberos Hardening Assessment mode (after functions are defined)
     if ($KerberosHardeningAssessment) {
         Write-Host "RC4 Active Directory Audit Tool - Kerberos Hardening Assessment Mode" -ForegroundColor Cyan
         Write-Host ("=" * 80) -ForegroundColor Cyan

@@ -1656,11 +1656,27 @@ function Invoke-KerberosHardeningAssessment {
     
     try {
         # Find service accounts (accounts with SPNs)
-        $serviceAccounts = Get-ADUser -Filter 'ServicePrincipalName -like "*"' -Properties ServicePrincipalName, msDS-SupportedEncryptionTypes @serverParams
+        $serviceAccounts = Get-ADUser -Filter 'ServicePrincipalName -like "*"' -Properties ServicePrincipalName, msDS-SupportedEncryptionTypes, pwdLastSet, AdminCount @serverParams
         $serviceAccountAnalysis.TotalServiceAccounts = $serviceAccounts.Count
+        
+        # Get AES threshold date (Read-only Domain Controllers group creation = first 2008+ DC)
+        $aesThresholdDate = $null
+        try {
+            $rodcGroup = Get-ADGroup "Read-only Domain Controllers" -Properties Created @serverParams -ErrorAction SilentlyContinue
+            if ($rodcGroup) {
+                $aesThresholdDate = $rodcGroup.Created
+                Write-Host "    >> AES Threshold Date: $($aesThresholdDate.ToString('yyyy-MM-dd')) (First 2008+ DC promotion)" -ForegroundColor Cyan
+            }
+        }
+        catch {
+            Write-Host "    >> WARNING: Could not determine AES threshold date" -ForegroundColor Yellow
+        }
         
         foreach ($account in $serviceAccounts) {
             $encValue = $account.'msDS-SupportedEncryptionTypes'
+            $pwdLastSet = if ($account.pwdLastSet) { [DateTime]::FromFileTime($account.pwdLastSet) } else { $null }
+            $isPrivileged = $account.AdminCount -eq 1
+            
             if ($encValue) {
                 $serviceAccountAnalysis.ConfiguredAccounts++
                 if (($encValue -band 0x18) -gt 0) {
@@ -1680,6 +1696,32 @@ function Invoke-KerberosHardeningAssessment {
                     $serviceAccountAnalysis.RiskyAccounts += $account.SamAccountName
                 }
             }
+        }
+        
+        # Check KRBTGT password age (critical for TGT encryption)
+        Write-Host "    >> Analyzing KRBTGT account..." -ForegroundColor Cyan
+        try {
+            $krbtgtAccount = Get-ADUser "krbtgt" -Properties pwdLastSet @serverParams
+            $krbtgtPwdDate = if ($krbtgtAccount.pwdLastSet) { [DateTime]::FromFileTime($krbtgtAccount.pwdLastSet) } else { $null }
+            
+            if ($krbtgtPwdDate -and $aesThresholdDate) {
+                if ($krbtgtPwdDate -lt $aesThresholdDate) {
+                    Write-Host "    >> ⚠️  CRITICAL: KRBTGT password predates AES support!" -ForegroundColor Red
+                    Write-Host "       Password last set: $($krbtgtPwdDate.ToString('yyyy-MM-dd'))" -ForegroundColor Red
+                    Write-Host "       AES threshold: $($aesThresholdDate.ToString('yyyy-MM-dd'))" -ForegroundColor Red
+                    Write-Host "       TGTs may still be issued with RC4 encryption!" -ForegroundColor Red
+                    Write-Host "       RECOMMENDATION: Reset KRBTGT password using Microsoft guidance" -ForegroundColor Yellow
+                }
+                else {
+                    Write-Host "    >> ✅ KRBTGT password supports AES (set: $($krbtgtPwdDate.ToString('yyyy-MM-dd')))" -ForegroundColor Green
+                }
+            }
+            else {
+                Write-Host "    >> ⚠️  Could not verify KRBTGT password age" -ForegroundColor Yellow
+            }
+        }
+        catch {
+            Write-Host "    >> ⚠️  Could not analyze KRBTGT account: $($_.Exception.Message)" -ForegroundColor Yellow
         }
         
         $assessment.ServiceAccounts = $serviceAccountAnalysis
@@ -2133,6 +2175,42 @@ if (-not $SkipGPOCheck) {
         "3. Monitor Event IDs 4768/4769 for verification"
     )
     Write-BoxedMessageWithDivider -HeaderMessages $headerMessages -ContentMessages $contentMessages -Color "Red"
+
+    Write-Host ""
+    Write-Host (">" * 80) -ForegroundColor Cyan
+    Write-Host ">> ONGOING MONITORING RECOMMENDATIONS" -ForegroundColor Cyan
+    Write-Host (">" * 80) -ForegroundColor Cyan
+    
+    $monitoringMessages = @(
+        "📊 EVENT LOG MONITORING (Critical for Validation):",
+        "",
+        "4768 Events - TGT Requests:",
+        "• Use to identify devices dependent on RC4",
+        "• Filter for RC4-HMAC encryption types",
+        "• Monitor after remediation to verify AES usage",
+        "",
+        "4769 Events - Service Ticket Requests:",
+        "• Analyze to determine if RC4 tickets still being issued",
+        "• Central log collection recommended for analysis",
+        "• Focus on service accounts with SPNs",
+        "",
+        "🔍 PowerShell Event Analysis Examples:",
+        "Get-WinEvent -LogName Security | Where-Object {",
+        "  `$_.Id -eq 4768 -and `$_.Message -match 'RC4'",
+        "}",
+        "",
+        "⚠️  KEYTAB FILE REMINDER:",
+        "• Service accounts with KeyTab files need regeneration after AES enablement",
+        "• Inventory existing KeyTab files before remediation",
+        "• Test KeyTab compatibility after encryption changes",
+        "",
+        "🖥️  Client Validation with klist:",
+        "• Run 'klist' from elevated prompt to view tickets",
+        "• Check for AES encryption types in ticket cache",
+        "• Use 'klist -li 0x3e7' for system account tickets",
+        "• Verify session key encryption types"
+    )
+    Write-BoxedMessage -Messages $monitoringMessages -Color "Cyan"
 }
 
 # Exit early if only GPO check was requested

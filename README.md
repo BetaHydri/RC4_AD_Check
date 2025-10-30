@@ -289,6 +289,10 @@ Run comprehensive Kerberos security posture evaluation:
 .\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -TargetForest child.contoso.com -Server dc01.child.contoso.com
 .\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -TargetForest partner.com -ExportResults
 
+# Cross-domain assessment within same forest (NEW in v6.8)
+.\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -Domain mylabs.contoso.com -ExportResults
+.\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -Domain dev.contoso.com -Domain prod.contoso.com
+
 # Debug assessment for troubleshooting AES threshold detection
 .\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -DebugMode
 # Shows detailed AES threshold detection logic and service account discovery
@@ -296,6 +300,10 @@ Run comprehensive Kerberos security posture evaluation:
 # Assessment focused on specific domain controller
 .\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -Server primary-dc.contoso.com -DebugMode
 # Useful when testing specific DC configurations or connectivity
+
+# Cross-domain with validation (recommended workflow)
+.\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -Domain target.contoso.com -DebugMode -ExportResults
+# Validates domain access, shows execution context, and exports detailed results
 ```
 
 This mode provides:
@@ -1940,6 +1948,16 @@ Debug output includes:
 - Consider gradual rollout with proper monitoring
 
 ## Changelog
+
+### Version 6.8 (October 2025) - **CROSS-DOMAIN KERBEROS ASSESSMENT CAPABILITY**
+- **🌐 [NEW FEATURE]** Added `-Domain` parameter for KerberosHardeningAssessment mode to assess other domains in the forest
+- **🔍 [CROSS-DOMAIN SUPPORT]** Enables assessment of child domains, parent domains, or sibling domains from current domain context
+- **✅ [DOMAIN VALIDATION]** Automatic validation of target domain accessibility with detailed error messaging
+- **📊 [EXECUTION CONTEXT]** Clear display of current user, current domain, and target domain for cross-domain operations
+- **🎯 [USE CASE EXAMPLE]** From contoso.com DC, can now assess mylabs.contoso.com domain using `-Domain mylabs.contoso.com`
+- **🔧 [ENHANCED TROUBLESHOOTING]** Comprehensive guidance for cross-domain permission issues and connectivity problems
+- **📖 [PARAMETER DOCUMENTATION]** Complete documentation and examples for cross-domain assessment scenarios
+- **🛡️ [SECURITY CONTEXT]** Validates permissions and provides clear feedback for cross-domain access requirements
 
 ### Version 6.7 (October 2025) - **ENHANCED KRBTGT PASSWORD ROTATION GUIDANCE**
 - **🔧 [CRITICAL ENHANCEMENT]** Added comprehensive KRBTGT password rotation guidance for post-2022 AES KDC issues

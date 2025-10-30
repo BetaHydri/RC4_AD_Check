@@ -203,8 +203,14 @@ Run comprehensive Kerberos security posture evaluation:
 # Cross-forest Kerberos assessment
 .\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -TargetForest partner.com -ExportResults
 
+# Assessment targeting specific domain in current forest
+.\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -Domain mylabs.contoso.com
+
 # Assessment targeting specific domain controller
 .\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -Server dc01.contoso.com -DebugMode
+
+# Cross-domain assessment with specific domain and export
+.\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -Domain child.contoso.com -ExportResults -DebugMode
 ```
 
 #### Sample Assessment Output

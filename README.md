@@ -1838,6 +1838,17 @@ Debug output includes:
 
 ## Changelog
 
+### Version 6.7 (October 2025) - **ENHANCED KRBTGT PASSWORD ROTATION GUIDANCE**
+- **🔧 [CRITICAL ENHANCEMENT]** Added comprehensive KRBTGT password rotation guidance for post-2022 AES KDC issues
+- **📋 [MICROSOFT COMPLIANCE]** Detailed step-by-step KRBTGT password reset procedure following Microsoft recommendations
+- **⚠️ [POST-2022 AWARENESS]** Clear warnings about old KRBTGT passwords preventing AES TGT issuance
+- **🔧 [ROTATION PROCEDURE]** Complete dual-reset methodology with 10+ hour replication wait requirements
+- **📊 [MONITORING GUIDANCE]** Event log monitoring (4768/4769) for TGT encryption validation post-reset
+- **🎯 [CRITICAL CONSIDERATIONS]** Maintenance window planning and authentication impact warnings
+- **📚 [OFFICIAL REFERENCES]** Microsoft KB5021131 and Windows Security blog guidance integration
+- **🔥 [DEFENSE IN DEPTH]** Quarterly KRBTGT rotation schedule and automated monitoring recommendations
+- **✅ [ACTIONABLE STEPS]** Clear command examples and verification procedures for domain administrators
+
 ### Version 6.6 (October 2025) - **MICROSOFT-COMPLIANT SECURITY RECOMMENDATIONS**
 - **🔧 [CRITICAL CORRECTION]** Fixed Phase 5 recommendations to align with Microsoft's official RC4 mitigation guidance
 - **❌ [REMOVED INCORRECT GUIDANCE]** Eliminated recommendation to apply Kerberos encryption settings to Default Domain Policy

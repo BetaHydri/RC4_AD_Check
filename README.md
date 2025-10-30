@@ -1,6 +1,6 @@
 # Kerberos RC4/DES Active Directory Security Scanning Tool
 
-**Version**: 6.10  
+**Version**: 6.11  
 **Author**: Jan Tiedemann  
 **Created**: October 2025  
 **Updated**: October 2025
@@ -1948,6 +1948,16 @@ Debug output includes:
 - Consider gradual rollout with proper monitoring
 
 ## Changelog
+
+### Version 6.11 (October 2025) - **COMPREHENSIVE GPO DISCOVERY WITH ENHANCED DEBUGGING**
+- **🔧 [CRITICAL ENHANCEMENT]** Added comprehensive error handling and debugging for cross-domain GPO discovery
+- **🔍 [ENHANCED DEBUGGING]** Detailed GPO analysis showing inheritance issues, permissions problems, and content analysis
+- **📊 [ALTERNATIVE DISCOVERY]** Added fallback GPO discovery method using `Get-GPO -All` when inheritance approach fails
+- **✅ [ROBUST ERROR HANDLING]** Comprehensive try-catch blocks for each GPO operation with detailed error reporting
+- **🎯 [CONTENT VALIDATION]** Enhanced GPO content analysis showing exact Kerberos configuration detection
+- **🌐 [CROSS-DOMAIN RELIABILITY]** Improved cross-domain context handling with explicit domain parameters
+- **📋 [DIAGNOSTIC OUTPUT]** Detailed debugging showing GPO counts, names, links, and configuration content
+- **💡 [TROUBLESHOOTING]** Clear identification of permission issues, context problems, and configuration gaps
 
 ### Version 6.10 (October 2025) - **ENHANCED CROSS-DOMAIN GPO DETECTION WITH INHERITANCE ANALYSIS**
 - **🔧 [CRITICAL FIX]** Enhanced GPO detection logic to properly distinguish between Domain GPOs and DC OU-specific GPOs

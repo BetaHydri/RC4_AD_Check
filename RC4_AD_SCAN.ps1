@@ -153,7 +153,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 6.13
+  Version: 6.14
   Created: October 2025
   Updated: October 2025
   
@@ -2055,6 +2055,11 @@ function Invoke-KerberosHardeningAssessment {
             $gpoMessages += "Domain GPO: ✓ Configured ($domainTypes) - $($gpoAnalysis.SharedDomainGPO)"
             $gpoMessages += "  ├─ Applies to: Domain Controllers ✓"
             $gpoMessages += "  └─ Applies to: Member Computers ✓"
+            
+            if ($DebugMode) {
+                $gpoMessages += "  DEBUG: Encryption Value = $domainValue"
+                $gpoMessages += "  DEBUG: Both DC and Member coverage via single Domain GPO"
+            }
         }
         else {
             # Separate GPO analysis for DCs and members
@@ -2063,6 +2068,10 @@ function Invoke-KerberosHardeningAssessment {
                 $dcTypes = if (($dcValue -band 0x18) -gt 0) { "AES ✓" } else { "RC4 ⚠" }
                 $dcSource = $gpoAnalysis.DomainControllers.Source
                 $gpoMessages += "DC GPO ($dcSource): ✓ Configured ($dcTypes) - $($gpoAnalysis.DomainControllers.GPOName)"
+                
+                if ($DebugMode) {
+                    $gpoMessages += "  DEBUG: DC Encryption Value = $dcValue, Source = $dcSource"
+                }
             }
             else {
                 $gpoMessages += "DC GPO: ❌ Not Configured"
@@ -2072,10 +2081,19 @@ function Invoke-KerberosHardeningAssessment {
             if ($gpoAnalysis.MemberComputers.Configured) {
                 $memberValue = $gpoAnalysis.MemberComputers.Value
                 $memberTypes = if (($memberValue -band 0x18) -gt 0) { "AES ✓" } else { "RC4 ⚠" }
+                $memberScope = $gpoAnalysis.MemberComputers.Scope
                 $gpoMessages += "Member Computer GPO: ✓ Configured ($memberTypes) - $($gpoAnalysis.MemberComputers.GPOName)"
+                
+                if ($DebugMode) {
+                    $gpoMessages += "  DEBUG: Member Encryption Value = $memberValue, Scope = $memberScope"
+                }
             }
             else {
                 $gpoMessages += "Member Computer GPO: ❌ Not Configured"
+                if ($DebugMode) {
+                    $gpoMessages += "  DEBUG: No Member Computer GPO detected - check domain/OU links"
+                    $gpoMessages += "  DEBUG: Consider using -DebugMode to see detailed GPO discovery process"
+                }
             }
         }
         
@@ -2466,22 +2484,28 @@ function Invoke-KerberosHardeningAssessment {
     Write-Host "   Completely Configured: $($assessment.GPOCoverage.CompletelyConfigured)" -ForegroundColor White
     if ($assessment.GPOCoverage.SharedDomainGPO) {
         Write-Host "   Shared Domain GPO: $($assessment.GPOCoverage.SharedDomainGPO)" -ForegroundColor Green
+        Write-Host "   ├─ Covers Domain Controllers: ✓" -ForegroundColor Green
+        Write-Host "   └─ Covers Member Computers: ✓" -ForegroundColor Green
     }
-    
-    Write-Host "   Domain Controllers GPO:" -ForegroundColor White
-    Write-Host "     • Configured: $($assessment.GPOCoverage.DomainControllers.Configured)" -ForegroundColor White
-    if ($assessment.GPOCoverage.DomainControllers.Configured) {
-        Write-Host "     • GPO Name: $($assessment.GPOCoverage.DomainControllers.GPOName)" -ForegroundColor Green
-        Write-Host "     • Source: $($assessment.GPOCoverage.DomainControllers.Source)" -ForegroundColor Green
-        Write-Host "     • Encryption Value: $($assessment.GPOCoverage.DomainControllers.Value)" -ForegroundColor Green
-    }
-    
-    Write-Host "   Member Computers GPO:" -ForegroundColor White
-    Write-Host "     • Configured: $($assessment.GPOCoverage.MemberComputers.Configured)" -ForegroundColor White
-    if ($assessment.GPOCoverage.MemberComputers.Configured) {
-        Write-Host "     • GPO Name: $($assessment.GPOCoverage.MemberComputers.GPOName)" -ForegroundColor Green
-        Write-Host "     • Scope: $($assessment.GPOCoverage.MemberComputers.Scope)" -ForegroundColor Green
-        Write-Host "     • Encryption Value: $($assessment.GPOCoverage.MemberComputers.Value)" -ForegroundColor Green
+    else {
+        Write-Host "   Domain Controllers GPO:" -ForegroundColor White
+        Write-Host "     • Configured: $($assessment.GPOCoverage.DomainControllers.Configured)" -ForegroundColor White
+        if ($assessment.GPOCoverage.DomainControllers.Configured) {
+            Write-Host "     • GPO Name: $($assessment.GPOCoverage.DomainControllers.GPOName)" -ForegroundColor Green
+            Write-Host "     • Source: $($assessment.GPOCoverage.DomainControllers.Source)" -ForegroundColor Green
+            Write-Host "     • Encryption Value: $($assessment.GPOCoverage.DomainControllers.Value)" -ForegroundColor Green
+        }
+        
+        Write-Host "   Member Computers GPO:" -ForegroundColor White
+        Write-Host "     • Configured: $($assessment.GPOCoverage.MemberComputers.Configured)" -ForegroundColor White
+        if ($assessment.GPOCoverage.MemberComputers.Configured) {
+            Write-Host "     • GPO Name: $($assessment.GPOCoverage.MemberComputers.GPOName)" -ForegroundColor Green
+            Write-Host "     • Scope: $($assessment.GPOCoverage.MemberComputers.Scope)" -ForegroundColor Green
+            Write-Host "     • Encryption Value: $($assessment.GPOCoverage.MemberComputers.Value)" -ForegroundColor Green
+        }
+        else {
+            Write-Host "     • Issue: Domain-linked GPO should cover member computers automatically" -ForegroundColor Yellow
+        }
     }
     
     # Service Accounts Details

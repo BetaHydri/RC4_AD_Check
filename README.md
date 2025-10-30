@@ -1,6 +1,6 @@
 # Kerberos RC4/DES Active Directory Security Scanning Tool
 
-**Version**: 6.1  
+**Version**: 6.2  
 **Author**: Jan Tiedemann  
 **Created**: October 2025  
 **Updated**: October 2025
@@ -86,6 +86,11 @@ Based on November 2022 updates:
 - **Export capability**: Results can be exported to CSV for further analysis
 
 ### 🎯 Advanced Analysis & Usability
+- **KerberosHardeningAssessment Mode**: Comprehensive Kerberos security posture evaluation with tiered recommendations
+- **Advanced Assessment Categories**: Minimum, Recommended, and Maximum security level analysis
+- **Service Account Analysis**: Password age verification against AES threshold for high-privilege accounts
+- **KRBTGT Password Monitoring**: Critical domain controller password age analysis for TGT encryption security
+- **Event Log Monitoring Guidance**: Comprehensive 4768/4769 event analysis recommendations for ongoing security monitoring
 - **Flexible server connectivity**: Support for connecting to specific domain controllers
 - **Cross-forest scanning**: Scan different forests via forest trust relationships
 - **Intelligent GPO link detection**: Multiple detection methods for reliable GPO link discovery with duplicate prevention
@@ -183,6 +188,21 @@ Perform only Group Policy analysis without scanning objects:
 ```
 
 This mode provides comprehensive post-November 2022 environment security analysis based on GPO configuration quality.
+
+### Kerberos Hardening Assessment
+
+Run comprehensive Kerberos security posture evaluation:
+
+```powershell
+.\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment
+```
+
+This mode provides:
+- **Service Account Analysis**: High-privilege account password age verification
+- **KRBTGT Password Monitoring**: Critical domain security assessment
+- **Event Log Monitoring Setup**: Security monitoring recommendations
+- **Tiered Security Recommendations**: Minimum, Recommended, and Maximum security levels
+- **AES Threshold Detection**: Automatic detection via Read-only Domain Controllers group
 
 ### GPO Scope Selection
 
@@ -334,6 +354,124 @@ When using `-DebugMode`, the script will:
 - Help troubleshoot GPO detection issues with comprehensive logging
 - Show detailed trust information during scanning (name, type, direction, encryption status)
 - Display secure object findings during scanning for comprehensive visibility
+
+## Kerberos Hardening Assessment Mode
+
+### Comprehensive Security Posture Evaluation
+
+Version 6.2 introduces the `-KerberosHardeningAssessment` parameter for comprehensive Kerberos security analysis beyond basic RC4 detection:
+
+```powershell
+.\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment
+```
+
+### Assessment Components
+
+#### 🔐 Service Account Analysis
+- **High-Privilege Account Detection**: Identifies service accounts with AdminCount=1
+- **Password Age Verification**: Checks password last set against AES threshold date
+- **Risk Assessment**: Evaluates whether service accounts could still use RC4/DES encryption
+- **Privilege Correlation**: Links password age to administrative privileges for targeted remediation
+
+#### 🏛️ KRBTGT Password Monitoring
+- **Critical Domain Security**: Analyzes KRBTGT account password age for TGT encryption
+- **AES Threshold Compliance**: Verifies KRBTGT password was reset after AES enforcement
+- **Domain Controller Impact**: Assesses domain-wide Kerberos security posture
+- **Recommendations**: Provides specific guidance for KRBTGT password reset if needed
+
+#### 📊 Event Log Monitoring Setup
+- **4768 Event Analysis**: TGT request monitoring for encryption type tracking
+- **4769 Event Analysis**: Service ticket monitoring for ongoing security validation
+- **Filter Guidance**: Specific event log queries for RC4/DES detection
+- **Baseline Establishment**: Helps establish security monitoring baselines
+
+#### 🎯 Tiered Security Recommendations
+
+**Minimum Security Level**:
+- Basic AES enforcement via Group Policy
+- High-privilege account password verification
+- Essential event log monitoring setup
+
+**Recommended Security Level**:
+- Comprehensive service account analysis
+- KRBTGT password verification and reset guidance
+- Enhanced event monitoring with automated alerts
+- Regular security assessment scheduling
+
+**Maximum Security Level**:
+- Zero-tolerance RC4/DES policy enforcement
+- Mandatory service account rotation policies
+- Continuous monitoring with SIEM integration
+- Advanced threat hunting capabilities
+
+### AES Threshold Detection
+
+The assessment automatically detects your environment's AES enforcement date by analyzing the **Read-only Domain Controllers** group creation:
+
+- **Automatic Detection**: No manual date configuration required
+- **Historical Context**: Uses domain controller upgrade history as baseline
+- **Smart Defaults**: Provides reasonable fallback dates when detection isn't possible
+- **Validation Logic**: Cross-references multiple indicators for accuracy
+
+### Assessment Output
+
+The Kerberos Hardening Assessment provides:
+
+```powershell
+# Example assessment output
+================================================================================
+🛡️  KERBEROS HARDENING ASSESSMENT - Domain: contoso.com
+================================================================================
+
+📅 AES Enforcement Threshold: November 15, 2022
+   (Detected via Read-only Domain Controllers group creation)
+
+🔐 SERVICE ACCOUNT ANALYSIS:
+   ✅ High-privilege accounts: 12 found
+   ⚠️  Accounts with old passwords: 3 require attention
+   📋 Detailed analysis:
+      - ServiceA$: Password age 850 days (CRITICAL - before AES threshold)
+      - ServiceB$: Password age 120 days (SECURE - after AES threshold)
+      - ServiceC$: Password age 45 days (OPTIMAL - recent password)
+
+🏛️  KRBTGT ANALYSIS:
+   ✅ KRBTGT password age: 45 days (SECURE - after AES threshold)
+   💡 Domain TGT encryption: Uses AES encryption by default
+
+📊 EVENT MONITORING RECOMMENDATIONS:
+   🔍 Enable 4768 (TGT) and 4769 (Service Ticket) auditing
+   📈 Monitor for EncryptionType=0x17 (RC4) in security logs
+   🎯 Set up alerts for legacy encryption usage
+
+🎯 SECURITY LEVEL ASSESSMENT: RECOMMENDED
+   📈 Current posture: Strong baseline with minor improvements needed
+   🔧 Next steps: Address 3 service accounts with pre-AES passwords
+   📋 Priority: Schedule service account password rotation
+```
+
+### When to Use Assessment Mode
+
+**Ideal scenarios for `-KerberosHardeningAssessment`:**
+
+1. **Compliance Auditing**: Comprehensive security posture documentation
+2. **Post-Implementation Validation**: Verify RC4 remediation effectiveness
+3. **Security Baseline Establishment**: Create monitoring and alerting baselines
+4. **Risk Assessment**: Identify remaining Kerberos security gaps
+5. **Regulatory Compliance**: Document security controls and monitoring capabilities
+
+### Integration with Standard Mode
+
+The assessment complements the standard RC4 audit:
+
+1. **Standard Mode**: Identifies and remediates explicit RC4/DES configuration issues
+2. **Assessment Mode**: Evaluates overall Kerberos security posture and monitoring
+3. **Combined Approach**: Use both modes for comprehensive security management
+
+```powershell
+# Complete security workflow
+.\RC4_AD_SCAN.ps1 -ApplyFixes -ExportResults                    # Fix explicit issues
+.\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -ExportResults   # Assess overall posture
+```
 
 ## Enhanced GPO Analysis & Assessment Logic
 
@@ -675,6 +813,7 @@ The `msDS-SupportedEncryptionTypes` attribute is a **computer-based setting only
 | `ExportResults` | Switch | Export results to timestamped CSV file | False |
 | `SkipGPOCheck` | Switch | Skip Group Policy settings verification | False |
 | `GPOCheckOnly` | Switch | Perform only GPO analysis without object scanning | False |
+| `KerberosHardeningAssessment` | Switch | Run comprehensive Kerberos security posture evaluation | False |
 | `GPOScope` | String | Where to check GPO links: Domain, DomainControllers, Both, AllOUs, or OU=<DN> | Both |
 | `DebugMode` | Switch | Enable detailed troubleshooting output | False |
 | `Server` | String | Specify domain controller to connect to | Auto-discover |
@@ -701,6 +840,7 @@ The Force parameter is designed for **bulk remediation scenarios** where you wan
 | **Standard** | *(none)* | `-ApplyFixes`, `-Force`, `-ExportResults`, `-GPOScope`, `-DebugMode`, `-Server`, `-TargetForest` | Normal operation with optional GPO analysis |
 | **SkipGPO** | `-SkipGPOCheck` | `-ApplyFixes`, `-Force`, `-ExportResults`, `-DebugMode`, `-Server`, `-TargetForest` | Skip GPO checks for faster object-only scanning |
 | **GPOOnly** | `-GPOCheckOnly` | `-ExportResults`, `-GPOScope`, `-DebugMode`, `-Server`, `-TargetForest` | GPO analysis only without object scanning |
+| **KerberosAssessment** | `-KerberosHardeningAssessment` | `-ExportResults`, `-DebugMode`, `-Server`, `-TargetForest` | Comprehensive Kerberos security posture evaluation |
 | **Help** | `-Help` | `-ExportResults`, `-DebugMode`, `-Server`, `-TargetForest` | Display detailed help information |
 | **QuickHelp** | `-QuickHelp` | `-ExportResults`, `-DebugMode`, `-Server`, `-TargetForest` | Display quick reference guide |
 
@@ -719,6 +859,8 @@ The parameter sets automatically prevent these contradictory combinations:
 - ❌ **`-SkipGPOCheck -GPOCheckOnly`** → Mutually exclusive (cannot skip and check GPOs simultaneously)
 - ❌ **`-SkipGPOCheck -GPOScope`** → GPO scope is irrelevant when skipping GPO checks  
 - ❌ **`-GPOCheckOnly -ApplyFixes`** → Cannot modify objects in GPO-only analysis mode
+- ❌ **`-KerberosHardeningAssessment -ApplyFixes`** → Assessment mode is read-only
+- ❌ **`-KerberosHardeningAssessment -GPOCheckOnly`** → Mutually exclusive assessment modes
 
 ### Parameter Set Examples
 
@@ -737,6 +879,10 @@ The parameter sets automatically prevent these contradictory combinations:
 .\RC4_AD_SCAN.ps1 -GPOCheckOnly
 .\RC4_AD_SCAN.ps1 -GPOCheckOnly -GPOScope DomainControllers -DebugMode
 
+# ✅ KerberosAssessment parameter set - Comprehensive security evaluation
+.\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment
+.\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -DebugMode -ExportResults
+
 # ✅ Help parameter set - Documentation
 .\RC4_AD_SCAN.ps1 -Help
 .\RC4_AD_SCAN.ps1 -QuickHelp
@@ -744,6 +890,7 @@ The parameter sets automatically prevent these contradictory combinations:
 # ❌ Invalid combinations (automatically prevented)
 .\RC4_AD_SCAN.ps1 -SkipGPOCheck -GPOCheckOnly        # Error: Parameter set cannot be resolved
 .\RC4_AD_SCAN.ps1 -GPOCheckOnly -ApplyFixes          # Error: Parameter set cannot be resolved
+.\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -ApplyFixes  # Error: Parameter set cannot be resolved
 .\RC4_AD_SCAN.ps1 -SkipGPOCheck -GPOScope Domain     # Error: Parameter set cannot be resolved
 .\RC4_AD_SCAN.ps1 -GPOCheckOnly -Force               # Error: Parameter set cannot be resolved
 .\RC4_AD_SCAN.ps1 -Force                             # Error: Parameter set cannot be resolved
@@ -764,6 +911,8 @@ The parameter sets automatically prevent these contradictory combinations:
 **Invalid Combinations:**
 - `-SkipGPOCheck -GPOCheckOnly` ❌ Conflicting GPO options
 - `-GPOCheckOnly -ApplyFixes` ❌ GPO-only mode cannot modify objects
+- `-KerberosHardeningAssessment -ApplyFixes` ❌ Assessment mode is read-only
+- `-KerberosHardeningAssessment -GPOCheckOnly` ❌ Mutually exclusive assessment modes
 - `-Force` (without `-ApplyFixes`) ❌ Force requires remediation mode
 - `-GPOCheckOnly -Force` ❌ Analysis-only mode doesn't need Force
 
@@ -1134,6 +1283,11 @@ If you still see RC4-HMAC encryption types after remediation, it indicates that 
 **Complete audit with export:**
 ```powershell
 .\RC4_AD_SCAN.ps1 -GPOScope Both -ExportResults -DebugMode
+```
+
+**Kerberos hardening assessment:**
+```powershell
+.\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -ExportResults
 ```
 
 **Production remediation (recommended workflow):**
@@ -1683,6 +1837,17 @@ Debug output includes:
 - Consider gradual rollout with proper monitoring
 
 ## Changelog
+
+### Version 6.2 (October 2025) - **KERBEROS HARDENING ASSESSMENT & ENHANCED ANALYSIS**
+- **🛡️ [NEW FEATURE]** Added comprehensive KerberosHardeningAssessment mode for security posture evaluation
+- **🔐 [SERVICE ACCOUNT ANALYSIS]** Password age verification against AES threshold for high-privilege accounts (AdminCount=1)
+- **🏛️ [KRBTGT MONITORING]** Critical domain controller password age analysis for TGT encryption security
+- **📊 [EVENT LOG GUIDANCE]** Comprehensive 4768/4769 event monitoring recommendations for ongoing security validation
+- **🎯 [TIERED RECOMMENDATIONS]** Minimum, Recommended, and Maximum security level assessments with specific guidance
+- **📅 [AES THRESHOLD DETECTION]** Automatic AES enforcement date detection via Read-only Domain Controllers group analysis
+- **🔧 [PARAMETER SET EXPANSION]** Added KerberosAssessment parameter set with proper validation and exclusive operation
+- **📖 [ENHANCED DOCUMENTATION]** Comprehensive documentation of new assessment capabilities and usage scenarios
+- **⚡ [MICROSOFT COMPLIANCE]** Full alignment with Microsoft RC4 disablement best practices and monitoring guidance
 
 ### Version 6.1 (October 2025) - **STREAMLINED FOCUS & IMPROVED GPO ANALYSIS**
 - **🔧 [PARAMETER CLEANUP]** Removed `-KerberosHardeningAssessment` parameter to streamline tool focus on core RC4 audit

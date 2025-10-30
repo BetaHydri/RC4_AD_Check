@@ -34,6 +34,9 @@
 .PARAMETER GPOCheckOnly
   Switch to perform only Group Policy analysis without scanning objects (mutually exclusive with SkipGPOCheck and ApplyFixes)
 
+.PARAMETER KerberosHardeningAssessment
+  Switch to perform comprehensive Kerberos hardening assessment with tiered recommendations (mutually exclusive with ApplyFixes and other scan modes)
+
 .PARAMETER GPOScope
   Specify where to check for GPO links (only valid with Standard or GPOOnly modes).
   Use tab completion for common values: Domain, DomainControllers, Both, AllOUs
@@ -78,6 +81,14 @@
 .EXAMPLE
   .\RC4_AD_SCAN.ps1 -GPOCheckOnly
   Run only Group Policy analysis without scanning objects
+
+.EXAMPLE
+  .\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment
+  Run comprehensive Kerberos hardening assessment with tiered security recommendations
+
+.EXAMPLE
+  .\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -ExportResults
+  Run hardening assessment and export detailed results to JSON file
 
 .EXAMPLE
   .\RC4_AD_SCAN.ps1 -GPOScope DomainControllers
@@ -133,7 +144,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 6.1
+  Version: 6.2
   Created: October 2025
   Updated: October 2025
   
@@ -144,6 +155,7 @@
   - Standard: Normal operation with optional GPO scope
   - SkipGPO: Skip all GPO checks (mutually exclusive with GPOScope/GPOCheckOnly)
   - GPOOnly: GPO analysis only (mutually exclusive with SkipGPOCheck/ApplyFixes)
+  - KerberosAssessment: Comprehensive hardening assessment (mutually exclusive with other scan modes)
   - Help: Display detailed help information
   - QuickHelp: Display quick reference guide
 #>
@@ -163,6 +175,7 @@ param(
     [Parameter(ParameterSetName = 'Standard')]
     [Parameter(ParameterSetName = 'SkipGPO')]
     [Parameter(ParameterSetName = 'GPOOnly')]
+    [Parameter(ParameterSetName = 'KerberosAssessment')]
     [Parameter(ParameterSetName = 'Help')]
     [Parameter(ParameterSetName = 'QuickHelp')]
     [switch]$ExportResults,
@@ -172,6 +185,9 @@ param(
     
     [Parameter(ParameterSetName = 'GPOOnly', Mandatory)]
     [switch]$GPOCheckOnly,
+    
+    [Parameter(ParameterSetName = 'KerberosAssessment', Mandatory)]
+    [switch]$KerberosHardeningAssessment,
     
     [Parameter(ParameterSetName = 'Standard')]
     [Parameter(ParameterSetName = 'GPOOnly')]
@@ -185,6 +201,7 @@ param(
     [Parameter(ParameterSetName = 'Standard')]
     [Parameter(ParameterSetName = 'SkipGPO')]
     [Parameter(ParameterSetName = 'GPOOnly')]
+    [Parameter(ParameterSetName = 'KerberosAssessment')]
     [Parameter(ParameterSetName = 'Help')]
     [Parameter(ParameterSetName = 'QuickHelp')]
     [switch]$DebugMode,
@@ -192,6 +209,7 @@ param(
     [Parameter(ParameterSetName = 'Standard')]
     [Parameter(ParameterSetName = 'SkipGPO')]
     [Parameter(ParameterSetName = 'GPOOnly')]
+    [Parameter(ParameterSetName = 'KerberosAssessment')]
     [Parameter(ParameterSetName = 'Help')]
     [Parameter(ParameterSetName = 'QuickHelp')]
     [string]$Server,
@@ -199,6 +217,7 @@ param(
     [Parameter(ParameterSetName = 'Standard')]
     [Parameter(ParameterSetName = 'SkipGPO')]
     [Parameter(ParameterSetName = 'GPOOnly')]
+    [Parameter(ParameterSetName = 'KerberosAssessment')]
     [Parameter(ParameterSetName = 'Help')]
     [Parameter(ParameterSetName = 'QuickHelp')]
     [string]$TargetForest,
@@ -240,6 +259,7 @@ function Show-QuickHelp {
     Write-Host ">> ADVANCED OPTIONS:" -ForegroundColor Yellow
     Write-Host "  -SkipGPOCheck                         # Skip GPO verification" -ForegroundColor White
     Write-Host "  -GPOCheckOnly                         # GPO analysis only" -ForegroundColor White
+    Write-Host "  -KerberosHardeningAssessment          # Comprehensive hardening assessment" -ForegroundColor White
     Write-Host "  -DebugMode                            # Enable debug output" -ForegroundColor White
     Write-Host "  -Server dc01.contoso.com              # Specific domain controller" -ForegroundColor White
     Write-Host "  -TargetForest target.com              # Cross-forest scanning" -ForegroundColor White
@@ -249,6 +269,7 @@ function Show-QuickHelp {
     Write-Host "  .\RC4_AD_SCAN.ps1 -GPOScope AllOUs -DebugMode -ExportResults" -ForegroundColor Cyan
     Write-Host "  .\RC4_AD_SCAN.ps1 -ApplyFixes -GPOScope DomainControllers" -ForegroundColor Cyan
     Write-Host "  .\RC4_AD_SCAN.ps1 -ApplyFixes -Force -ExportResults" -ForegroundColor Cyan
+    Write-Host "  .\RC4_AD_SCAN.ps1 -KerberosHardeningAssessment -ExportResults" -ForegroundColor Cyan
     Write-Host "  .\RC4_AD_SCAN.ps1 -TargetForest remote.com -Server dc01.remote.com" -ForegroundColor Cyan
     
     Write-Host ""
@@ -303,6 +324,12 @@ if ($PSCmdlet.ParameterSetName -in @('Standard', 'GPOOnly')) {
 if ($GPOCheckOnly -and $ApplyFixes) {
     Write-Host "ERROR: Cannot specify both -GPOCheckOnly and -ApplyFixes parameters!" -ForegroundColor Red
     Write-Host "GPO-only mode is for analysis purposes and does not modify objects." -ForegroundColor Yellow
+    exit 1
+}
+
+if ($KerberosHardeningAssessment -and $ApplyFixes) {
+    Write-Host "ERROR: Cannot specify both -KerberosHardeningAssessment and -ApplyFixes parameters!" -ForegroundColor Red
+    Write-Host "Kerberos Hardening Assessment is for analysis and recommendations only." -ForegroundColor Yellow
     exit 1
 }
 

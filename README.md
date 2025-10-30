@@ -1,6 +1,6 @@
 # Kerberos RC4/DES Active Directory Security Scanning Tool
 
-**Version**: 6.4  
+**Version**: 6.5  
 **Author**: Jan Tiedemann  
 **Created**: October 2025  
 **Updated**: October 2025
@@ -1837,6 +1837,14 @@ Debug output includes:
 - Consider gradual rollout with proper monitoring
 
 ## Changelog
+
+### Version 6.5 (October 2025) - **FIXED PARAMETER SET CONFLICTS**
+- **🔧 [CRITICAL FIX]** Fixed parameter set conflicts preventing `-KerberosHardeningAssessment` from working with `-Help` or `-QuickHelp`
+- **📋 [PARAMETER SETS]** Made Help and QuickHelp parameter sets exclusive - they no longer accept functional parameters
+- **✅ [USER EXPERIENCE]** Help parameters now take precedence when specified with other functional parameters
+- **🎯 [CLEAN ARCHITECTURE]** Removed conflicting parameter set memberships for ExportResults, DebugMode, Server, TargetForest, and ApplyFixes from Help sets
+- **📖 [LOGICAL SEPARATION]** Help functionality is now completely separate from operational modes for cleaner parameter validation
+- **🚀 [RESOLVED AMBIGUITY]** Eliminated "Parameter set cannot be resolved" errors when combining assessment modes with help requests
 
 ### Version 6.4 (October 2025) - **FIXED DC ENUMERATION & ENHANCED DEBUGGING**
 - **🔧 [CRITICAL FIX]** Fixed missing domain controller count display in Phase 1 analysis (was showing blank instead of actual DC count)

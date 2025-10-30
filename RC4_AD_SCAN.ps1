@@ -144,7 +144,7 @@
 
 .NOTES
   Author: Jan Tiedemann
-  Version: 6.4
+  Version: 6.5
   Created: October 2025
   Updated: October 2025
   
@@ -164,8 +164,6 @@
 param(
     [Parameter(ParameterSetName = 'Standard')]
     [Parameter(ParameterSetName = 'SkipGPO')]
-    [Parameter(ParameterSetName = 'Help')]
-    [Parameter(ParameterSetName = 'QuickHelp')]
     [switch]$ApplyFixes,
     
     [Parameter(ParameterSetName = 'Standard')]
@@ -176,8 +174,6 @@ param(
     [Parameter(ParameterSetName = 'SkipGPO')]
     [Parameter(ParameterSetName = 'GPOOnly')]
     [Parameter(ParameterSetName = 'KerberosAssessment')]
-    [Parameter(ParameterSetName = 'Help')]
-    [Parameter(ParameterSetName = 'QuickHelp')]
     [switch]$ExportResults,
     
     [Parameter(ParameterSetName = 'SkipGPO', Mandatory)]
@@ -202,24 +198,18 @@ param(
     [Parameter(ParameterSetName = 'SkipGPO')]
     [Parameter(ParameterSetName = 'GPOOnly')]
     [Parameter(ParameterSetName = 'KerberosAssessment')]
-    [Parameter(ParameterSetName = 'Help')]
-    [Parameter(ParameterSetName = 'QuickHelp')]
     [switch]$DebugMode,
     
     [Parameter(ParameterSetName = 'Standard')]
     [Parameter(ParameterSetName = 'SkipGPO')]
     [Parameter(ParameterSetName = 'GPOOnly')]
     [Parameter(ParameterSetName = 'KerberosAssessment')]
-    [Parameter(ParameterSetName = 'Help')]
-    [Parameter(ParameterSetName = 'QuickHelp')]
     [string]$Server,
     
     [Parameter(ParameterSetName = 'Standard')]
     [Parameter(ParameterSetName = 'SkipGPO')]
     [Parameter(ParameterSetName = 'GPOOnly')]
     [Parameter(ParameterSetName = 'KerberosAssessment')]
-    [Parameter(ParameterSetName = 'Help')]
-    [Parameter(ParameterSetName = 'QuickHelp')]
     [string]$TargetForest,
     
     [Parameter(ParameterSetName = 'Help', Mandatory)]
